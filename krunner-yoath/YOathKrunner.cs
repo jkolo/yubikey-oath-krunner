@@ -46,15 +46,7 @@ public partial class YOathKrunner : IKRunner
         
         if (credentialWithDevice.Credential.RequiresTouch ?? throw new InvalidOperationException("WTF"))
         {
-            touchNotifyId = await _notifications.NotifyAsync(
-                "YOATH",
-                1,
-                "yoathrunner",
-                "Naciśnij przycisk YubiKey!",
-                "",
-                Array.Empty<string>(),
-                new Dictionary<string, object>(),
-                0);
+            touchNotifyId = await NotifyAsync("Naciśnij przycisk YubiKey!", "", 0);
         }
 
         var code = _yubikeyOath.GetCode(credentialWithDevice);
@@ -62,16 +54,31 @@ public partial class YOathKrunner : IKRunner
             await _notifications.CloseNotificationAsync(touchNotifyId.Value);
         
         await _klipper.setClipboardContentsAsync(code.Value!);
+
+        var until = code.ValidUntil!.Value - DateTimeOffset.Now + TimeSpan.FromSeconds(20);
+
+        if (until < TimeSpan.Zero)
+        {
+            until = TimeSpan.Zero;
+        }
+
+        await NotifyAsync("Skopiowano kod do schowka", code.Value!, (int)until.TotalMilliseconds);
+
+        await Task.Delay(until);
+
+        await _klipper.clearClipboardContentsAsync();
+    }
+
+    private async Task<uint> NotifyAsync(string summary, string body, int timeout) =>
         await _notifications.NotifyAsync(
             "YOATH",
             0,
             "yoathrunner",
-            "Skopiowano kod do schowka",
-            code.Value!,
+            summary,
+            body,
             Array.Empty<string>(),
             new Dictionary<string, object>(),
-            3000);
-    }
+            timeout);
 
     [GeneratedRegex(@"^(?<deviceSerial>\d+):(?<credentialName>.+)$")]
     private static partial Regex DeviceRegex();

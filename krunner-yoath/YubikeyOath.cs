@@ -75,26 +75,3 @@ public class YubikeyOath
         return session.CalculateCredential(credentialWithDevice.Credential);
     }
 }
-
-public record CredentialWithDevice(Credential Credential, IYubiKeyDevice Device)
-{
-    public override string ToString() => $"{Device.SerialNumber}:{Credential.Name}";
-
-    public static implicit operator string(CredentialWithDevice credentialWithDevice) => credentialWithDevice.ToString();
-    public string DisplayText => Credential.Issuer ?? Credential.Name;
-
-    public string? SubDisplayText => Credential.AccountName;
-
-    public double Relevance(string query)
-    {
-        var dist = new Fastenshtein.Levenshtein(Credential.Name);
-        return dist.DistanceFrom(query) switch
-        {
-            > 5 => 0.1,
-            > 2 => 0.5,
-            > 1 => 0.9,
-            0 => 1,
-            _ => throw new ArgumentOutOfRangeException()
-        };
-    }
-}
