@@ -16,7 +16,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Fastenshtein" Version="1.0.0.8" />
         <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="7.0.0" />
         <PackageReference Include="Tmds.DBus" Version="0.14.0" />
         <PackageReference Include="Yubico.YubiKey" Version="1.6.1" />
