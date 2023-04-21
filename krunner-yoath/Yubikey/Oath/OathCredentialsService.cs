@@ -1,3 +1,4 @@
+using System.Text;
 using Yubico.YubiKey;
 using Yubico.YubiKey.Oath;
 
@@ -7,17 +8,25 @@ public interface IOathCredentialsService
 {
     IEnumerable<CredentialWithDevice> GetCredentials(string query);
     CredentialWithDevice GetCredential(int deviceSerialNumber, string id);
-    Code GetCode(CredentialWithDevice credentialWithDevice);
+    Task<Code> GetCode(CredentialWithDevice credentialWithDevice);
 }
 
 public class OathCredentialsService : IOathCredentialsService
 {
-    private readonly IDictionary<IYubiKeyDevice, IReadOnlyCollection<Credential>> _credentials = new Dictionary<IYubiKeyDevice, IReadOnlyCollection<Credential>>();
+    private readonly IDictionary<IYubiKeyDevice, IReadOnlyCollection<Credential>> _credentials =
+        new Dictionary<IYubiKeyDevice, IReadOnlyCollection<Credential>>();
 
-    public void AddYubikey(IYubiKeyDevice device) => _credentials.Add(device, RetrieveCodes(device));
+    private readonly SecretService _secretService;
+
+    public OathCredentialsService(SecretService secretService)
+    {
+        _secretService = secretService;
+    }
+
+    public async Task AddYubikey(IYubiKeyDevice device) => _credentials.Add(device, await RetrieveCodes(device));
 
     public void RemoveYubikey(IYubiKeyDevice device) => _credentials.Remove(device);
-    
+
     public IEnumerable<CredentialWithDevice> GetCredentials(string query) =>
         _credentials
             .SelectMany(x => x.Value.Select(y => new CredentialWithDevice(y, x.Key)))
@@ -27,18 +36,18 @@ public class OathCredentialsService : IOathCredentialsService
     public CredentialWithDevice GetCredential(int deviceSerialNumber, string id)
     {
         var deviceWithCredentials = _credentials.Single(x => x.Key.SerialNumber == deviceSerialNumber);
-        return new (deviceWithCredentials.Value.Single(x => x.Name == id), deviceWithCredentials.Key);
+        return new(deviceWithCredentials.Value.Single(x => x.Name == id), deviceWithCredentials.Key);
     }
 
-    public Code GetCode(CredentialWithDevice credentialWithDevice)
+    public async Task<Code> GetCode(CredentialWithDevice credentialWithDevice)
     {
-        using var session = OpenOathSession(credentialWithDevice.Device);
+        using var session = await OpenOathSession(credentialWithDevice.Device);
         return session.CalculateCredential(credentialWithDevice.Credential);
     }
 
-    private IReadOnlyCollection<Credential> RetrieveCodes(IYubiKeyDevice yubiKeyDevice)
+    private async Task<IReadOnlyCollection<Credential>> RetrieveCodes(IYubiKeyDevice yubiKeyDevice)
     {
-        using var oathSession = OpenOathSession(yubiKeyDevice);
+        using var oathSession = await OpenOathSession(yubiKeyDevice);
         try
         {
             return oathSession.CalculateAllCredentials().Keys.ToList();
@@ -49,26 +58,43 @@ public class OathCredentialsService : IOathCredentialsService
         }
     }
 
-    private OathSession OpenOathSession(IYubiKeyDevice yubiKeyDevice1)
+    private async Task<OathSession> OpenOathSession(IYubiKeyDevice yubiKeyDevice)
     {
-        var oathSession = new OathSession(yubiKeyDevice1)
+        string? password = null;
+        var oathSession = new OathSession(yubiKeyDevice)
         {
-            KeyCollector = KeyCollectorService
+            KeyCollector = (data) =>
+            {
+                if (!string.IsNullOrEmpty(password))
+                    data.SubmitValue(Encoding.UTF8.GetBytes(password));
+
+                return true;
+            }
         };
 
-        oathSession.TryVerifyPassword();
-
-        return oathSession;
-    }
-
-    private bool KeyCollectorService(KeyEntryData data)
-    {
-        if (data.Request == KeyEntryRequest.VerifyOathPassword)
+        if (oathSession.IsPasswordProtected)
         {
-            //TODO: Dodać obsługę haseł
-            data.SubmitValue("dupa123"u8);
+            do
+            {
+                if (!string.IsNullOrEmpty(password)) 
+                    await _secretService.RemovePassword(yubiKeyDevice.SerialNumber);
+
+                password = await _secretService.GetPassword(yubiKeyDevice.SerialNumber);
+                if (string.IsNullOrEmpty(password))
+                {
+                    var passwordDialogService =
+                        new PasswordDialogService(
+                            $"Podaj hasło do yubikey {yubiKeyDevice.SerialNumber}",
+                            "Hasło do yubikey"
+                        );
+                    password = passwordDialogService.GetPassword();
+                    if (!string.IsNullOrEmpty(password))
+                        await _secretService.StorePassword(yubiKeyDevice.SerialNumber, password);
+                }
+            } while (!oathSession.TryVerifyPassword());
         }
 
-        return true;
+        
+        return oathSession;
     }
 }

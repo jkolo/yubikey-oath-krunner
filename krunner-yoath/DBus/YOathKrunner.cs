@@ -51,18 +51,13 @@ public partial class YOathKrunner : IKRunner
             touchNotifyId = await NotifyAsync("Naciśnij przycisk YubiKey!", "", 0);
         }
 
-        var code = _oathCredentialsService.GetCode(credentialWithDevice);
+        var code = await _oathCredentialsService.GetCode(credentialWithDevice);
         if (touchNotifyId.HasValue)
             await _notifications.CloseNotificationAsync(touchNotifyId.Value);
         
         await _klipper.setClipboardContentsAsync(code.Value!);
 
-        var until = code.ValidUntil!.Value - DateTimeOffset.Now + TimeSpan.FromSeconds(20);
-
-        if (until < TimeSpan.Zero)
-        {
-            until = TimeSpan.Zero;
-        }
+        var until = TimeSpan.FromSeconds(15);
 
         await NotifyAsync("Skopiowano kod do schowka", code.Value!, (int)until.TotalMilliseconds);
 
