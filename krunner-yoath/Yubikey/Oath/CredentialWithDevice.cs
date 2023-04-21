@@ -1,7 +1,7 @@
 using Yubico.YubiKey;
 using Yubico.YubiKey.Oath;
 
-namespace KRunner.YOath;
+namespace KRunner.YOath.Yubikey.Oath;
 
 public record CredentialWithDevice(Credential Credential, IYubiKeyDevice Device)
 {

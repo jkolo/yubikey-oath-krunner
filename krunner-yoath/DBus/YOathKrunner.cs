@@ -1,19 +1,21 @@
 using System.Text.RegularExpressions;
-using KRunner.YOath.DbusKrunner;
+using KRunner.YOath.DBus.Krunner;
+using KRunner.YOath.DBus.Notifications;
+using KRunner.YOath.Yubikey.Oath;
 using Tmds.DBus;
-using Action = KRunner.YOath.DbusKrunner.Action;
+using Action = KRunner.YOath.DBus.Krunner.Action;
 
-namespace KRunner.YOath;
+namespace KRunner.YOath.DBus;
 
 public partial class YOathKrunner : IKRunner
 {
-    private readonly YubikeyOath _yubikeyOath;
+    private readonly IOathCredentialsService _oathCredentialsService;
     private readonly IKlipper _klipper;
     private readonly INotifications _notifications;
 
-    public YOathKrunner(YubikeyOath yubikeyOath, IKlipper klipper, INotifications notifications)
+    public YOathKrunner(IOathCredentialsService oathCredentialsService, IKlipper klipper, INotifications notifications)
     {
-        _yubikeyOath = yubikeyOath;
+        _oathCredentialsService = oathCredentialsService;
         _klipper = klipper;
         _notifications = notifications;
     }
@@ -22,7 +24,7 @@ public partial class YOathKrunner : IKRunner
 
     public Task<MatchResult[]> MatchAsync(string query)
     {
-        var credentials = _yubikeyOath.GetCredentials(query);
+        var credentials = _oathCredentialsService.GetCredentials(query);
 
         var matchResults = credentials.Select(x => new MatchResult(x, x.DisplayText, "yoathrunner", QueryMatch.ExactMatch, x.Relevance(query), new MatchProperties
         {
@@ -41,7 +43,7 @@ public partial class YOathKrunner : IKRunner
         var credentialName = match.Groups["credentialName"].Value;
         var deviceSerial = int.Parse(match.Groups["deviceSerial"].Value);
 
-        var credentialWithDevice = _yubikeyOath.GetCredential(deviceSerial, credentialName);
+        var credentialWithDevice = _oathCredentialsService.GetCredential(deviceSerial, credentialName);
         var touchNotifyId = default(uint?);
         
         if (credentialWithDevice.Credential.RequiresTouch ?? throw new InvalidOperationException("WTF"))
@@ -49,7 +51,7 @@ public partial class YOathKrunner : IKRunner
             touchNotifyId = await NotifyAsync("Naciśnij przycisk YubiKey!", "", 0);
         }
 
-        var code = _yubikeyOath.GetCode(credentialWithDevice);
+        var code = _oathCredentialsService.GetCode(credentialWithDevice);
         if (touchNotifyId.HasValue)
             await _notifications.CloseNotificationAsync(touchNotifyId.Value);
         

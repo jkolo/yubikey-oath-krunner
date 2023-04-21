@@ -1,4 +1,4 @@
-namespace KRunner.YOath.DbusKrunner;
+namespace KRunner.YOath.DBus.Krunner;
 
 public enum QueryMatch
 {

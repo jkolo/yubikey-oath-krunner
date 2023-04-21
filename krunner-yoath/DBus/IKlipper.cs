@@ -1,7 +1,6 @@
-using System.Runtime.CompilerServices;
 using Tmds.DBus;
 
-namespace KRunner.YOath
+namespace KRunner.YOath.DBus
 {
     [DBusInterface("org.kde.klipper.klipper")]
     public interface IKlipper : IDBusObject

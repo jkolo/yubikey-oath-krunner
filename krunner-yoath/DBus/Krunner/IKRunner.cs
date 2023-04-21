@@ -1,6 +1,6 @@
 using Tmds.DBus;
 
-namespace KRunner.YOath.DbusKrunner;
+namespace KRunner.YOath.DBus.Krunner;
 
 [DBusInterface("org.kde.krunner1")]
 public interface IKRunner : IDBusObject
