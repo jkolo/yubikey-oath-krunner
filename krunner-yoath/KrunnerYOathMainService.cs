@@ -30,7 +30,7 @@ public sealed class KrunnerYOathMainService : IHostedService, IDisposable
         await _connection.RegisterObjectAsync(_yOathKrunner);
         await _connection.RegisterServiceAsync(ServiceName, ServiceRegistrationOptions.Default);
 
-        _yubikeyDeviceCredentialsListener.Run();
+        await _yubikeyDeviceCredentialsListener.Run();
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

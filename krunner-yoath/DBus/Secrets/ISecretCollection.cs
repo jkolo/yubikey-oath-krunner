@@ -8,9 +8,9 @@ interface ISecretCollection : IDBusObject
     Task<ObjectPath> DeleteAsync();
     Task<ObjectPath[]> SearchItemsAsync(IDictionary<string, string> Attributes);
     Task<(ObjectPath item, ObjectPath prompt)> CreateItemAsync(IDictionary<string, object> Properties, (ObjectPath, byte[], byte[], string) Secret, bool Replace);
-    Task<IDisposable> WatchItemCreatedAsync(Action<ObjectPath> handler, Action<Exception> onError = null);
-    Task<IDisposable> WatchItemDeletedAsync(Action<ObjectPath> handler, Action<Exception> onError = null);
-    Task<IDisposable> WatchItemChangedAsync(Action<ObjectPath> handler, Action<Exception> onError = null);
+    Task<IDisposable> WatchItemCreatedAsync(Action<ObjectPath> handler, Action<Exception>? onError = null);
+    Task<IDisposable> WatchItemDeletedAsync(Action<ObjectPath> handler, Action<Exception>? onError = null);
+    Task<IDisposable> WatchItemChangedAsync(Action<ObjectPath> handler, Action<Exception>? onError = null);
     Task<T> GetAsync<T>(string prop);
     Task<CollectionProperties> GetAllAsync();
     Task SetAsync(string prop, object val);

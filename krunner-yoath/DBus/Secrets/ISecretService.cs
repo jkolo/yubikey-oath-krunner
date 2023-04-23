@@ -13,9 +13,9 @@ interface ISecretService : IDBusObject
     Task<IDictionary<ObjectPath, (ObjectPath, byte[], byte[], string)>> GetSecretsAsync(ObjectPath[] Items, ObjectPath Session);
     Task<ObjectPath> ReadAliasAsync(string Name);
     Task SetAliasAsync(string Name, ObjectPath Collection);
-    Task<IDisposable> WatchCollectionCreatedAsync(Action<ObjectPath> handler, Action<Exception> onError = null);
-    Task<IDisposable> WatchCollectionDeletedAsync(Action<ObjectPath> handler, Action<Exception> onError = null);
-    Task<IDisposable> WatchCollectionChangedAsync(Action<ObjectPath> handler, Action<Exception> onError = null);
+    Task<IDisposable> WatchCollectionCreatedAsync(Action<ObjectPath> handler, Action<Exception>? onError = null);
+    Task<IDisposable> WatchCollectionDeletedAsync(Action<ObjectPath> handler, Action<Exception>? onError = null);
+    Task<IDisposable> WatchCollectionChangedAsync(Action<ObjectPath> handler, Action<Exception>? onError = null);
     Task<T> GetAsync<T>(string prop);
     Task<ServiceProperties> GetAllAsync();
     Task SetAsync(string prop, object val);
