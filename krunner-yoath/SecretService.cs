@@ -9,14 +9,16 @@ public class SecretService
     private readonly Connection _connection;
     private readonly ISecretService _secretService;
     private readonly ISecretCollection _collection;
+    private readonly DHAesCbcPkcs7 _dhAesCbcPkcs7;
 
-    public SecretService()
+    public SecretService(Connection connection, DHAesCbcPkcs7 dhAesCbcPkcs7)
     {
-        _connection = Connection.Session;
+        _connection = connection;
         _secretService = _connection.CreateProxy<ISecretService>("org.freedesktop.secrets",
             new ObjectPath("/org/freedesktop/secrets"));
         _collection = _connection.CreateProxy<ISecretCollection>("org.freedesktop.secrets",
             new ObjectPath("/org/freedesktop/secrets/aliases/default"));
+        _dhAesCbcPkcs7 = dhAesCbcPkcs7;
     }
 
     private async Task<IItem?> GetItem(int? serialNumber)
@@ -35,15 +37,19 @@ public class SecretService
 
     public async Task<string?> GetPassword(int? serialNumber)
     {
-        var (_, sessionPath) = await _secretService.OpenSessionAsync("plain", Array.Empty<byte>());
+        var (ssPublicKey, sessionPath) = await _secretService.OpenSessionAsync("dh-ietf1024-sha256-aes128-cbc-pkcs7", _dhAesCbcPkcs7.PublicKey);
+
+        var encryptor = _dhAesCbcPkcs7.CreateEncryptor((byte[])ssPublicKey);
+
         var session = _connection.CreateProxy<ISecretSession>("org.freedesktop.secrets", sessionPath);
         try
         {
             var item = await GetItem(serialNumber);
             if (item is not null)
             {
-                var (_, _, secretBytes, _) = await item.GetSecretAsync(sessionPath);
-                var result = Encoding.UTF8.GetString(secretBytes);
+                var (_, iv, secretBytes, _) = await item.GetSecretAsync(sessionPath);
+                var decryptedBytes = encryptor.Decrypt(secretBytes, iv);
+                var result = Encoding.UTF8.GetString(decryptedBytes);
                 return string.IsNullOrEmpty(result) ? null : result;
             }
 
@@ -64,12 +70,17 @@ public class SecretService
             { "org.freedesktop.Secret.Item.Label", $"Yubikey {serialNumber}" },
             { "org.freedesktop.Secret.Item.Attributes", searchAttributes }
         };
-        var (_, sessionPath) = await _secretService.OpenSessionAsync("plain", Array.Empty<byte>());
+
+        var (ssPublicKey, sessionPath) = await _secretService.OpenSessionAsync("dh-ietf1024-sha256-aes128-cbc-pkcs7", _dhAesCbcPkcs7.PublicKey);
+
+        var encryptor = _dhAesCbcPkcs7.CreateEncryptor((byte[])ssPublicKey);
+
         var session = _connection.CreateProxy<ISecretSession>("org.freedesktop.secrets", sessionPath);
         try
         {
+            var encryptedBytes = encryptor.Encrypt(Encoding.UTF8.GetBytes(password), out var iv);
             await _collection.CreateItemAsync(properties,
-                (sessionPath, Array.Empty<byte>(), Encoding.UTF8.GetBytes(password), "text/plain; charset=utf8"),
+                (sessionPath, iv, encryptedBytes, "text/plain; charset=utf8"),
                 true);
         }
         finally

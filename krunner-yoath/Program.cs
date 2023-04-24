@@ -27,7 +27,8 @@ builder.Services
     .AddSingleton<ISecretCollection>(provider =>
         provider.GetRequiredService<Connection>().CreateProxy<ISecretCollection>("org.freedesktop.secrets",
             new ObjectPath("/org/freedesktop/secrets/aliases/default")))
-    .AddSingleton<SecretService>();
+    .AddSingleton<SecretService>()
+    .AddSingleton<DHAesCbcPkcs7>();
 
 var host = builder.Build();
 Log.LoggerFactory = host.Services.GetRequiredService<ILoggerFactory>();
