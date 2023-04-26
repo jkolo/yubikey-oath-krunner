@@ -12,15 +12,15 @@ public class YubikeyDeviceCredentialsListener
         _oathCredentialsService = oathCredentialsService;
     }
     
-    public void Run()
+    public async Task Run()
     {
-        YubiKeyDeviceListener.Instance.Arrived += (sender, eventArgs) => _oathCredentialsService.AddYubikey(eventArgs.Device);
+        YubiKeyDeviceListener.Instance.Arrived += async (sender, eventArgs) => await _oathCredentialsService.AddYubikey(eventArgs.Device);
         YubiKeyDeviceListener.Instance.Removed += (sender, eventArgs) => _oathCredentialsService.RemoveYubikey(eventArgs.Device);
 
         var yubiKeyDevices = YubiKeyDevice.FindAll().Where(yk => yk.HasFeature(YubiKeyFeature.OtpApplication));
         foreach (var yubiKeyDevice in yubiKeyDevices)
         {
-            _oathCredentialsService.AddYubikey(yubiKeyDevice);
+            await _oathCredentialsService.AddYubikey(yubiKeyDevice);
         }
     }
 }
