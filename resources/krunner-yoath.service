@@ -6,7 +6,7 @@ StartLimitBurst=3
 [Service]
 PrivateTmp=yes
 WorkingDirectory=/tmp
-ExecStart=/usr/local/bin/krunner-yoath
+ExecStart=/usr/bin/krunner-yoath
 Restart=on-failure
 BusName=pl.kolosowscy.yoath
 Slice=session.slice
