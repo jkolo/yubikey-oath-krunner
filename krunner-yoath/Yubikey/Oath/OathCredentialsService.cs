@@ -66,9 +66,12 @@ public class OathCredentialsService : IOathCredentialsService
             KeyCollector = (data) =>
             {
                 if (!string.IsNullOrEmpty(password))
+                {
                     data.SubmitValue(Encoding.UTF8.GetBytes(password));
+                    return true;
+                }
 
-                return true;
+                return false;
             }
         };
 
@@ -90,6 +93,8 @@ public class OathCredentialsService : IOathCredentialsService
                     password = passwordDialogService.GetPassword();
                     if (!string.IsNullOrEmpty(password))
                         await _secretService.StorePassword(yubiKeyDevice.SerialNumber, password);
+                    else
+                        break;
                 }
             } while (!oathSession.TryVerifyPassword());
         }
