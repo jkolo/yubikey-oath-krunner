@@ -10,14 +10,16 @@ public class SecretService
     private readonly ISecretService _secretService;
     private readonly ISecretCollection _collection;
     private readonly DHAesCbcPkcs7 _dhAesCbcPkcs7;
+    private readonly ObjectPath _defaultCollectionPath;
 
     public SecretService(Connection connection, DHAesCbcPkcs7 dhAesCbcPkcs7)
     {
         _connection = connection;
         _secretService = _connection.CreateProxy<ISecretService>("org.freedesktop.secrets",
             new ObjectPath("/org/freedesktop/secrets"));
+        _defaultCollectionPath = new ObjectPath("/org/freedesktop/secrets/aliases/default");
         _collection = _connection.CreateProxy<ISecretCollection>("org.freedesktop.secrets",
-            new ObjectPath("/org/freedesktop/secrets/aliases/default"));
+            _defaultCollectionPath);
         _dhAesCbcPkcs7 = dhAesCbcPkcs7;
     }
 
@@ -29,10 +31,25 @@ public class SecretService
 
         // Search for items with the attribute 'example_key'
         var itemPaths = await _collection.SearchItemsAsync(searchAttributes);
-
+        
         // Get the secrets of the found items
-        return itemPaths.Select(itemPath => _connection.CreateProxy<IItem>("org.freedesktop.secrets", itemPath))
+        var item = itemPaths.Select(itemPath => _connection.CreateProxy<IItem>("org.freedesktop.secrets", itemPath))
             .SingleOrDefault();
+
+        if (item is not null && await item.GetLockedAsync())
+            await Unlock(itemPaths.Single());
+
+        return item;
+    }
+
+    private async Task Unlock(ObjectPath path)
+    {
+        var (unlocked, promptPath) = await _secretService.UnlockAsync(new[] { path });
+        if (unlocked.Any(x => x.Equals(path)))
+            return;
+
+        var prompt = _connection.CreateProxy<IPrompt>("org.freedesktop.secrets", promptPath);
+        await prompt.PromptAsync("");
     }
 
     public async Task<string?> GetPassword(int? serialNumber)
@@ -44,6 +61,9 @@ public class SecretService
         var session = _connection.CreateProxy<ISecretSession>("org.freedesktop.secrets", sessionPath);
         try
         {
+            if (await _collection.GetLockedAsync())
+                await Unlock(_defaultCollectionPath);
+
             var item = await GetItem(serialNumber);
             if (item is not null)
             {
