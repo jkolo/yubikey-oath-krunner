@@ -11,6 +11,7 @@ depends=('dotnet-runtime')
 makedepends=('git' 'dotnet-sdk')
 source=("git+${url}")
 sha256sums=('SKIP')
+options=('!strip')
 
 prepare() {
 	cd "$srcdir/krunner-yoath"
