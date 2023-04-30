@@ -9,6 +9,6 @@ namespace KRunner.YOath.DBus.Secrets
     {
         Task PromptAsync(string WindowId);
         Task DismissAsync();
-        Task<IDisposable> WatchCompletedAsync(Action<(bool dismissed, object result)> handler, Action<Exception> onError = null);
+        Task<IDisposable> WatchCompletedAsync(Action<(bool dismissed, object result)> handler, Action<Exception>? onError = default);
     }
 }
