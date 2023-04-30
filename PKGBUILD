@@ -19,17 +19,20 @@ prepare() {
 
 build() {
 	cd "$srcdir/krunner-yoath"
-	dotnet publish -c Release
+	dotnet publish -c Release -o app
 }
 
 package() {
 	cd "$srcdir/krunner-yoath"
 
 	#Install the binary
-	install -Dm755 "bin/Release/net7.0/linux-x64/publish/krunner-yoath" "$pkgdir/usr/bin/krunner-yoath"
+	install -Dm755 "app/krunner-yoath" "$pkgdir/usr/bin/krunner-yoath"
 
 	#Install the systemd user service
 	install -Dm644 "resources/krunner-yoath.service" "$pkgdir/usr/lib/systemd/user/krunner-yoath.service"
+
+	#Install desktop file
+	install -Dm644 "resources/krunner-yoath.desktop" "$pkgdir/usr/share/kservices5/krunner-yoath.desktop"
 
 	#Install the icon
 	install -Dm644 "resources/krunner-yoath.png" "$pkgdir/usr/share/pixmaps/krunner-yoath.png"
