@@ -26,10 +26,10 @@ public partial class YOathKrunner : IKRunner
     {
         var credentials = _oathCredentialsService.GetCredentials(query);
 
-        var matchResults = credentials.Select(x => new MatchResult(x, x.DisplayText, "krunner-yoath", QueryMatch.ExactMatch, x.Relevance(query), new MatchProperties
+        var matchResults = credentials.Select(x => new MatchResult(x, x.DisplayText, "krunner_yoath", QueryMatch.ExactMatch, x.Relevance(query), new MatchProperties
         {
-            subtext = x.SubDisplayText,
-            actionids = Array.Empty<string>()
+            Subtext = x.SubDisplayText,
+            ActionIds = Array.Empty<string>()
         })).ToArray();
 
         return Task.FromResult(matchResults);
@@ -70,7 +70,7 @@ public partial class YOathKrunner : IKRunner
         await _notifications.NotifyAsync(
             "YOATH",
             0,
-            "krunner-yoath",
+            "krunner_yoath",
             summary,
             body,
             Array.Empty<string>(),

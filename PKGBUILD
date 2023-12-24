@@ -1,7 +1,7 @@
 #Maintainer: Jerzy Kołosowski jerzy@kolosowscy.pl
 
 pkgname=krunner-yoath
-pkgver=0.0.1
+pkgver=0.0.2
 pkgrel=1
 pkgdesc="KRunner extension for Yoath"
 arch=('x86_64')
@@ -36,6 +36,6 @@ package() {
 	install -Dm644 "resources/krunner-yoath.desktop" "$pkgdir/usr/share/kservices5/krunner-yoath.desktop"
 
 	#Install the icon
-	install -Dm644 "resources/krunner-yoath.png" "$pkgdir/usr/share/pixmaps/krunner-yoath.png"
+	install -Dm644 "resources/krunner_yoath.png" "$pkgdir/usr/share/pixmaps/krunner_yoath.png"
 }
 #vim:set ts=2 sw=2 et:

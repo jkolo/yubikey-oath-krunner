@@ -23,7 +23,11 @@ public class OathCredentialsService : IOathCredentialsService
         _secretService = secretService;
     }
 
-    public async Task AddYubikey(IYubiKeyDevice device) => _credentials.Add(device, await RetrieveCodes(device));
+    public async Task AddYubikey(IYubiKeyDevice device)
+    {
+        if (device.HasFeature(YubiKeyFeature.OathApplication))
+            _credentials.Add(device, await RetrieveCodes(device));
+    }
 
     public void RemoveYubikey(IYubiKeyDevice device) => _credentials.Remove(device);
 
