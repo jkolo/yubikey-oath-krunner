@@ -3,6 +3,7 @@ using KRunner.YOath.DBus.Krunner;
 using KRunner.YOath.DBus.Notifications;
 using KRunner.YOath.Yubikey.Oath;
 using Tmds.DBus;
+using Yubico.YubiKey.Oath;
 using Action = KRunner.YOath.DBus.Krunner.Action;
 
 namespace KRunner.YOath.DBus;
@@ -45,15 +46,22 @@ public partial class YOathKrunner : IKRunner
 
         var credentialWithDevice = _oathCredentialsService.GetCredential(deviceSerial, credentialName);
         var touchNotifyId = default(uint?);
+        var code = default(Code);
         
-        if (credentialWithDevice.Credential.RequiresTouch ?? throw new InvalidOperationException("WTF"))
+        try
         {
-            touchNotifyId = await NotifyAsync("Naciśnij przycisk YubiKey!", "", 0);
+            if (credentialWithDevice.Credential.RequiresTouch ?? throw new InvalidOperationException("WTF"))
+            {
+                touchNotifyId = await NotifyAsync("Naciśnij przycisk YubiKey!", "", 0);
+            }
+            
+            code = await _oathCredentialsService.GetCode(credentialWithDevice);
         }
-
-        var code = await _oathCredentialsService.GetCode(credentialWithDevice);
-        if (touchNotifyId.HasValue)
-            await _notifications.CloseNotificationAsync(touchNotifyId.Value);
+        finally
+        {
+            if (touchNotifyId.HasValue)
+                await _notifications.CloseNotificationAsync(touchNotifyId.Value);    
+        }
         
         await _klipper.setClipboardContentsAsync(code.Value!);
 
