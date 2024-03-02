@@ -1,9 +1,9 @@
 #Maintainer: Jerzy Kołosowski jerzy@kolosowscy.pl
 
 pkgname=krunner-yoath
-pkgver=0.0.2
+pkgver=0.0.3
 pkgrel=1
-pkgdesc="KRunner extension for Yoath"
+pkgdesc="KRunner extension for YOATH for Plasma 6"
 arch=('x86_64')
 url="https://git.kolosowscy.pl/jurek/krunner-yoath.git"
 license=('LGPL')
@@ -34,6 +34,7 @@ package() {
 
 	#Install desktop file
 	install -Dm644 "resources/krunner-yoath.desktop" "$pkgdir/usr/share/kservices5/krunner-yoath.desktop"
+	install -Dm644 "resources/krunner-yoath.desktop" "$pkgdir/usr/share/krunner/dbusplugins/krunner-yoath.desktop"
 
 	#Install the icon
 	install -Dm644 "resources/krunner_yoath.png" "$pkgdir/usr/share/pixmaps/krunner_yoath.png"
