@@ -71,6 +71,9 @@ public partial class YOathKrunner : IKRunner
         switch (actionId)
         {
             case "TypeId":
+                if (credentialWithDevice.Credential.RequiresTouch != true)
+                    await Task.Delay(TimeSpan.FromSeconds(1));
+
                 var process = new Process()
                 {
                     StartInfo = new ProcessStartInfo
