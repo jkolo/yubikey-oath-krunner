@@ -1,0 +1,9 @@
+[Global]
+IconName=:/icons/yubikey.svg
+Name=YubiKey OATH
+Comment=YubiKey OATH code notifications
+
+[Event/yubikey-oath]
+Name=YubiKey OATH Code
+Comment=OATH code generated
+Action=Popup

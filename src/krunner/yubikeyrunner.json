@@ -1,0 +1,24 @@
+{
+    "KPlugin": {
+        "Authors": [
+            {
+                "Email": "dev@example.com",
+                "Name": "YubiKey Runner Developer"
+            }
+        ],
+        "Category": "Security",
+        "Description": "YubiKey OATH TOTP/HOTP codes integration for KRunner",
+        "Description[pl]": "Integracja kodów OATH TOTP/HOTP z YubiKey dla KRunner",
+        "EnabledByDefault": true,
+        "Icon": "security-high",
+        "Id": "yubikey-oath",
+        "License": "GPL-3.0",
+        "Name": "YubiKey OATH",
+        "Name[pl]": "YubiKey OATH",
+        "Version": "1.0.0",
+        "Website": "https://github.com/yourusername/krunner-yoath.cpp"
+    },
+    "X-Plasma-Runner-Min-Letter-Count": 2,
+    "X-Plasma-Runner-Unique-Results": true,
+    "X-KDE-ConfigModule": "kcm_krunner_yubikey"
+}

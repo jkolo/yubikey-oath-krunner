@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+                         http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name="krunner-yubikeyrc"/>
+
+  <group name="General">
+    <entry name="ShowNotifications" type="Bool">
+      <label>Show notifications</label>
+      <tooltip>Show system notifications for YubiKey actions</tooltip>
+      <default>true</default>
+    </entry>
+
+    <entry name="DisplayFormat" type="String">
+      <label>Display format</label>
+      <tooltip>How to display OATH account names</tooltip>
+      <default>name_user</default>
+      <choices>
+        <choice name="name">
+          <label>Name only</label>
+        </choice>
+        <choice name="name_user">
+          <label>Name + User</label>
+        </choice>
+        <choice name="full">
+          <label>Name + User + Code (no touch required)</label>
+        </choice>
+      </choices>
+    </entry>
+
+    <entry name="TouchTimeout" type="Int">
+      <label>Touch timeout (seconds)</label>
+      <tooltip>Timeout for waiting for YubiKey touch</tooltip>
+      <default>15</default>
+      <min>5</min>
+      <max>30</max>
+    </entry>
+  </group>
+</kcfg>

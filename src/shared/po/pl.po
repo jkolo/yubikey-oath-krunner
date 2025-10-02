@@ -1,0 +1,309 @@
+# Polish translations for KRunner YubiKey OATH Plugin
+# Copyright (C) 2025 YubiKey KRunner Plugin Contributors
+# This file is distributed under the same license as the krunner-yubikey package.
+# Polish Translation Team, 2025.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: krunner-yubikey 1.0.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-06 01:31+0200\n"
+"PO-Revision-Date: 2025-10-06 00:40+0200\n"
+"Last-Translator: Polish Translation Team\n"
+"Language-Team: Polish\n"
+"Language: pl\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 "
+"|| n%100>=20) ? 1 : 2);\n"
+
+#: src/runner/action_executor.cpp:36 src/runner/action_executor.cpp:76
+#: src/runner/action_executor.cpp:90 src/runner/yubikeyrunner.cpp:278
+#: src/runner/yubikeyrunner.cpp:320 src/runner/yubikeyrunner.cpp:328
+#: src/runner/yubikeyrunner.cpp:385
+#, kde-format
+msgid "Error"
+msgstr "Błąd"
+
+#: src/runner/action_executor.cpp:37
+#, kde-format
+msgid "Text input not available"
+msgstr "Wprowadzanie tekstu niedostępne"
+
+#: src/runner/action_executor.cpp:61 src/runner/yubikeyrunner.cpp:314
+#, kde-format
+msgid "YubiKey OATH"
+msgstr "YubiKey OATH"
+
+#: src/runner/action_executor.cpp:62
+#, kde-format
+msgid "Failed to type code, copied to clipboard instead"
+msgstr "Nie udało się wpisać kodu, skopiowano do schowka"
+
+#: src/runner/action_executor.cpp:77
+#, kde-format
+msgid "Clipboard not available"
+msgstr "Schowek niedostępny"
+
+#: src/runner/action_executor.cpp:91
+#, kde-format
+msgid "Failed to copy to clipboard"
+msgstr "Nie udało się skopiować do schowka"
+
+#: src/runner/yubikeyrunner.cpp:156
+#, kde-format
+msgid "Type code"
+msgstr "Wpisz kod"
+
+#: src/runner/yubikeyrunner.cpp:161
+#, kde-format
+msgid "Copy to clipboard"
+msgstr "Kopiuj do schowka"
+
+#: src/runner/yubikeyrunner.cpp:279
+#, kde-format
+msgid "No YubiKey connected"
+msgstr "Brak podłączonego YubiKey"
+
+#: src/runner/yubikeyrunner.cpp:291
+#, kde-format
+msgid "YubiKey OATH Password"
+msgstr "Hasło YubiKey OATH"
+
+#: src/runner/yubikeyrunner.cpp:292
+#, kde-format
+msgid ""
+"This YubiKey requires a password.\n"
+"Please enter the OATH password:"
+msgstr ""
+"Ten YubiKey wymaga hasła.\n"
+"Wprowadź hasło OATH:"
+
+#: src/runner/yubikeyrunner.cpp:315
+#, kde-format
+msgid "Password saved successfully"
+msgstr "Hasło zapisano pomyślnie"
+
+#: src/runner/yubikeyrunner.cpp:321
+#, kde-format
+msgid "Failed to save password"
+msgstr "Nie udało się zapisać hasła"
+
+#: src/runner/yubikeyrunner.cpp:329 qml/config/PasswordDialog.qml:155
+#, kde-format
+msgid "Invalid password. Please try again."
+msgstr "Nieprawidłowe hasło. Spróbuj ponownie."
+
+#: src/runner/yubikeyrunner.cpp:459
+#, kde-format
+msgid "YubiKey Error"
+msgstr "Błąd YubiKey"
+
+#: src/runner/touch_workflow_coordinator.cpp:169
+#, kde-format
+msgid "Cancelled"
+msgstr "Anulowano"
+
+#: src/runner/touch_workflow_coordinator.cpp:170
+#, kde-format
+msgid "Touch operation cancelled for '%1'"
+msgstr "Operacja dotknięcia anulowana dla '%1'"
+
+#: src/runner/match_builder.cpp:72
+#, kde-format
+msgid "YubiKey OATH %1"
+msgstr "YubiKey OATH %1"
+
+#: src/runner/match_builder.cpp:98
+#, kde-format
+msgid "YubiKey OATH authentication failed"
+msgstr "Uwierzytelnianie YubiKey OATH nie powiodło się"
+
+#: src/runner/match_builder.cpp:99
+#, kde-format
+msgid "Click to open settings and configure password"
+msgstr "Kliknij, aby otworzyć ustawienia i skonfigurować hasło"
+
+#: src/runner/notification_orchestrator.cpp:58
+#: src/runner/notification_orchestrator.cpp:203
+#, kde-format
+msgid "Code for %1\n"
+msgstr "Kod dla %1\n"
+
+#: src/runner/notification_orchestrator.cpp:59
+#: src/runner/notification_orchestrator.cpp:204
+#, kde-format
+msgid ""
+"✓ Copied to clipboard\n"
+"\n"
+msgstr ""
+"✓ Skopiowano do schowka\n"
+"\n"
+
+#: src/runner/notification_orchestrator.cpp:60
+#: src/runner/notification_orchestrator.cpp:205
+#, kde-format
+msgid "Expires in %1 second"
+msgid_plural "Expires in %1 seconds"
+msgstr[0] "Wygasa za %1 sekundę"
+msgstr[1] "Wygasa za %1 sekundy"
+msgstr[2] "Wygasa za %1 sekund"
+
+#: src/runner/notification_orchestrator.cpp:72
+#: src/runner/notification_orchestrator.cpp:214
+#, kde-format
+msgid "YubiKey OATH Code"
+msgstr "Kod YubiKey OATH"
+
+#: src/runner/notification_orchestrator.cpp:105
+#: src/runner/notification_orchestrator.cpp:266
+#, kde-format
+msgid ""
+"Please touch your YubiKey to generate the code for\n"
+"<b>%1</b>\n"
+"\n"
+"Timeout in %2 seconds"
+msgstr ""
+"Dotknij YubiKey, aby wygenerować kod dla\n"
+"<b>%1</b>\n"
+"\n"
+"Limit czasu: %2 sekund"
+
+#: src/runner/notification_orchestrator.cpp:116
+#: qml/config/PasswordDialog.qml:118
+#, kde-format
+msgid "Cancel"
+msgstr "Anuluj"
+
+#: src/runner/notification_orchestrator.cpp:123
+#: src/runner/notification_orchestrator.cpp:277
+#, kde-format
+msgid "YubiKey Touch Required"
+msgstr "Wymagane dotknięcie YubiKey"
+
+#: src/runner/notification_orchestrator.cpp:239
+#, kde-format
+msgid ""
+"Touch operation timed out for\n"
+"<b>%1</b>\n"
+"\n"
+"Operation cancelled"
+msgstr ""
+"Przekroczono limit czasu dotknięcia dla\n"
+"<b>%1</b>\n"
+"\n"
+"Operacja anulowana"
+
+#: src/runner/notification_orchestrator.cpp:248
+#, kde-format
+msgid "YubiKey Touch Timeout"
+msgstr "Przekroczono limit czasu dotknięcia YubiKey"
+
+#: qml/config/PasswordDialog.qml:18
+#, kde-format
+msgid "Authorize YubiKey"
+msgstr "Autoryzuj YubiKey"
+
+#: qml/config/PasswordDialog.qml:41
+#, kde-format
+msgid "Device:"
+msgstr "Urządzenie:"
+
+#: qml/config/PasswordDialog.qml:47
+#, kde-format
+msgid "Device ID:"
+msgstr "ID urządzenia:"
+
+#: qml/config/PasswordDialog.qml:61
+#, kde-format
+msgid "This YubiKey requires a password to access OATH credentials."
+msgstr "Ten YubiKey wymaga hasła do dostępu do danych OATH."
+
+#: qml/config/PasswordDialog.qml:67
+#, kde-format
+msgid "Please enter the password:"
+msgstr "Wprowadź hasło:"
+
+#: qml/config/PasswordDialog.qml:75
+#, kde-format
+msgid "YubiKey OATH password"
+msgstr "Hasło YubiKey OATH"
+
+#: qml/config/PasswordDialog.qml:130
+#, kde-format
+msgid "OK"
+msgstr "OK"
+
+#: qml/config/YubiKeyConfig.qml:78
+#, kde-format
+msgid "Device ID: %1"
+msgstr "ID urządzenia: %1"
+
+#: qml/config/YubiKeyConfig.qml:98
+#, kde-format
+msgid "Connected"
+msgstr "Podłączone"
+
+#: qml/config/YubiKeyConfig.qml:98
+#, kde-format
+msgid "Not connected"
+msgstr "Niepodłączone"
+
+#: qml/config/YubiKeyConfig.qml:119
+#, kde-format
+msgid "No password required"
+msgstr "Hasło niewymagane"
+
+#: qml/config/YubiKeyConfig.qml:121
+#, kde-format
+msgid "Password saved"
+msgstr "Hasło zapisane"
+
+#: qml/config/YubiKeyConfig.qml:123
+#, kde-format
+msgid "Password required"
+msgstr "Wymagane hasło"
+
+#: qml/config/YubiKeyConfig.qml:133
+#, kde-format
+msgid "Last seen: %1"
+msgstr "Ostatnio widziane: %1"
+
+#: qml/config/YubiKeyConfig.qml:147
+#, kde-format
+msgid "Authorize"
+msgstr "Autoryzuj"
+
+#: qml/config/YubiKeyConfig.qml:159
+#, kde-format
+msgid "Forget"
+msgstr "Zapomnij"
+
+#: qml/config/YubiKeyConfig.qml:163
+#, kde-format
+msgid "Forget this device and remove saved password"
+msgstr "Zapomnij to urządzenie i usuń zapisane hasło"
+
+#: qml/config/YubiKeyConfig.qml:182
+#, kde-format
+msgid "No YubiKey devices found"
+msgstr "Nie znaleziono urządzeń YubiKey"
+
+#: qml/config/YubiKeyConfig.qml:183
+#, kde-format
+msgid ""
+"Connect a YubiKey to see it listed here.\n"
+"Devices that have been used before will be remembered."
+msgstr ""
+"Podłącz YubiKey, aby go zobaczyć na liście.\n"
+"Urządzenia używane wcześniej będą zapamiętane."
+
+#: qml/config/YubiKeyConfig.qml:190
+#, kde-format
+msgid "Refresh Device List"
+msgstr "Odśwież listę urządzeń"
+
+#, kde-format
+#~ msgid "Failed to open YubiKey configuration"
+#~ msgstr "Nie udało się otworzyć konfiguracji YubiKey"

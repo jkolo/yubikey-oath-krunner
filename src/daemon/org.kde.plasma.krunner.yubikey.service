@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.kde.plasma.krunner.yubikey
+Exec=/usr/bin/yubikey-oath-daemon

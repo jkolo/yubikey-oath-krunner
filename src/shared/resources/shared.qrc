@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="icons/yubikey.svg">yubikey.svg</file>
+    </qresource>
+</RCC>

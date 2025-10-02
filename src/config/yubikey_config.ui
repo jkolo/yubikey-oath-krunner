@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>YubiKeyConfigForm</class>
+ <widget class="QWidget" name="YubiKeyConfigForm">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>500</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>YubiKey OATH Configuration</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QGroupBox" name="devicesGroupBox">
+     <property name="title">
+      <string>YubiKey Devices</string>
+     </property>
+     <layout class="QVBoxLayout" name="devicesLayout">
+      <item>
+       <widget class="QQuickWidget" name="qmlWidget">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>200</height>
+         </size>
+        </property>
+        <property name="resizeMode">
+         <enum>QQuickWidget::SizeRootObjectToView</enum>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="displayGroupBox">
+     <property name="title">
+      <string>Display Options</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="notificationsLabel">
+        <property name="text">
+         <string>Notifications:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QCheckBox" name="showNotificationsCheckbox">
+        <property name="text">
+         <string>Show system notifications</string>
+        </property>
+        <property name="toolTip">
+         <string>Display notifications for YubiKey touch requirements and copied codes</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="formatLabel">
+        <property name="text">
+         <string>Display format:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="displayFormatCombo">
+        <property name="toolTip">
+         <string>How to display OATH account information in search results</string>
+        </property>
+        <item>
+         <property name="text">
+          <string>Name only</string>
+         </property>
+         <property name="userData" stdset="0">
+          <string>name</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Name (Username)</string>
+         </property>
+         <property name="userData" stdset="0">
+          <string>name_user</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Name (Username) [Code]</string>
+         </property>
+         <property name="userData" stdset="0">
+          <string>full</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="notificationExtraTimeLabel">
+        <property name="text">
+         <string>Extra notification time:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QSpinBox" name="notificationExtraTimeSpinbox">
+        <property name="toolTip">
+         <string>Additional time to keep code notification visible after TOTP code expires</string>
+        </property>
+        <property name="suffix">
+         <string> seconds</string>
+        </property>
+        <property name="minimum">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <number>30</number>
+        </property>
+        <property name="value">
+         <number>15</number>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="primaryActionLabel">
+        <property name="text">
+         <string>Primary action:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QComboBox" name="primaryActionCombo">
+        <property name="toolTip">
+         <string>Default action when pressing Enter on a match</string>
+        </property>
+        <item>
+         <property name="text">
+          <string>Copy to clipboard</string>
+         </property>
+         <property name="userData" stdset="0">
+          <string>copy</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Type code</string>
+         </property>
+         <property name="userData" stdset="0">
+          <string>type</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="timeoutLabel">
+        <property name="text">
+         <string>Touch timeout:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QSpinBox" name="touchTimeoutSpinbox">
+        <property name="toolTip">
+         <string>Maximum time to wait for YubiKey touch confirmation (0 = no timeout)</string>
+        </property>
+        <property name="suffix">
+         <string> seconds</string>
+        </property>
+        <property name="specialValueText">
+         <string>No timeout</string>
+        </property>
+        <property name="minimum">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <number>60</number>
+        </property>
+        <property name="value">
+         <number>10</number>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="informationGroupBox">
+     <property name="title">
+      <string>Information</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_3">
+      <item>
+       <widget class="QLabel" name="descriptionLabel">
+        <property name="text">
+         <string>YubiKey OATH plugin allows you to access TOTP/HOTP codes directly from KRunner.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="usageLabel">
+        <property name="text">
+         <string>&lt;b&gt;Usage:&lt;/b&gt;&lt;br/&gt;
+• Type account name in KRunner (Alt+Space)&lt;br/&gt;
+• Press Enter for primary action (copy or type)&lt;br/&gt;
+• Press Shift+Enter for secondary action&lt;br/&gt;
+• Touch YubiKey when prompted for touch-required accounts</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="requirementsLabel">
+        <property name="text">
+         <string>&lt;b&gt;Requirements:&lt;/b&gt;&lt;br/&gt;
+• YubiKey with OATH application&lt;br/&gt;
+• PC/SC daemon (pcscd) running&lt;br/&gt;
+• pcsclite library installed</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>QQuickWidget</class>
+   <extends>QWidget</extends>
+   <header>QQuickWidget</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

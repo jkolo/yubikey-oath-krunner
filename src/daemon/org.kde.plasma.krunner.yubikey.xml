@@ -1,0 +1,52 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node>
+  <interface name="org.kde.plasma.krunner.yubikey.Device">
+    <!-- Device Management -->
+    <method name="ListDevices">
+      <arg direction="out" type="a(ssbbb)" name="devices"/>
+      <!-- Structure: (deviceId, deviceName, isConnected, requiresPassword, hasValidPassword) -->
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QList&lt;KRunner::YubiKey::DeviceInfo&gt;"/>
+    </method>
+
+    <!-- Credentials -->
+    <method name="GetCredentials">
+      <arg direction="in" type="s" name="deviceId"/>
+      <arg direction="out" type="a(sssbx)" name="credentials"/>
+      <!-- Structure: (name, issuer, username, requiresTouch, validUntil) -->
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="QList&lt;KRunner::YubiKey::CredentialInfo&gt;"/>
+    </method>
+
+    <method name="GenerateCode">
+      <arg direction="in" type="s" name="deviceId"/>
+      <arg direction="in" type="s" name="credentialName"/>
+      <arg direction="out" type="(sx)" name="result"/>
+      <!-- Structure: (code, validUntil) -->
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="KRunner::YubiKey::GenerateCodeResult"/>
+    </method>
+
+    <!-- Password Management -->
+    <method name="SavePassword">
+      <arg direction="in" type="s" name="deviceId"/>
+      <arg direction="in" type="s" name="password"/>
+      <arg direction="out" type="b" name="success"/>
+    </method>
+
+    <method name="ForgetDevice">
+      <arg direction="in" type="s" name="deviceId"/>
+    </method>
+
+    <!-- Signals -->
+    <signal name="DeviceConnected">
+      <arg type="s" name="deviceId"/>
+    </signal>
+
+    <signal name="DeviceDisconnected">
+      <arg type="s" name="deviceId"/>
+    </signal>
+
+    <signal name="CredentialsUpdated">
+      <arg type="s" name="deviceId"/>
+    </signal>
+  </interface>
+</node>
