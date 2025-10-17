@@ -85,27 +85,27 @@ add_yubikey_test(test_code_validator
             ../src/krunner/formatting/code_validator.cpp
 )
 
-# Test: FlexibleDisplayStrategy (requires I18n)
+# Test: CredentialFormatter formatWithCode and detailed formatting (requires I18n and DBus)
 find_package(KF6 COMPONENTS I18n QUIET)
 if(KF6_I18n_FOUND)
     add_yubikey_test(test_flexible_display_strategy
         SOURCES test_flexible_display_strategy.cpp
-                ../src/krunner/formatting/display_strategies/flexible_display_strategy.cpp
-        LIBRARIES KF6::I18n
+                ../src/krunner/formatting/credential_formatter.cpp
+                ../src/shared/dbus/yubikey_dbus_types.cpp
+        LIBRARIES KF6::I18n Qt6::DBus
     )
 else()
     message(STATUS "I18n not found - skipping test_flexible_display_strategy")
 endif()
 
-# Test: CredentialFormatter
-# Note: Requires FlexibleDisplayStrategy and DBus for types
+# Test: CredentialFormatter overloads and type conversion
+# Note: Requires DBus for types
 find_package(KF6 COMPONENTS I18n QUIET)
 if(KF6_I18n_FOUND)
     add_yubikey_test(test_credential_formatter
         SOURCES test_credential_formatter.cpp
                 ../src/krunner/formatting/credential_formatter.cpp
                 ../src/shared/dbus/yubikey_dbus_types.cpp
-                ../src/krunner/formatting/display_strategies/flexible_display_strategy.cpp
         LIBRARIES Qt6::DBus KF6::I18n
     )
 else()
@@ -122,7 +122,6 @@ if(KF6_Runner_FOUND AND KF6_I18n_FOUND)
                 ../src/krunner/config/configuration_provider.cpp
                 ../src/krunner/matching/match_builder.cpp
                 ../src/krunner/formatting/credential_formatter.cpp
-                ../src/krunner/formatting/display_strategies/flexible_display_strategy.cpp
                 ../src/krunner/logging_categories.cpp
         LIBRARIES KF6::Runner KF6::I18n Qt6::DBus yubikey_dbus_client
     )

@@ -315,26 +315,46 @@ bool PortalTextInput::typeText(const QString &text)
         qCDebug(TextInputLog) << "PortalTextInput: Portal connected after" << totalWaited << "ms";
     }
 
-    // Wait for device to be ready
+    // Wait for device to be ready using event loop
     if (!m_deviceReady) {
         qCDebug(TextInputLog) << "PortalTextInput: Device not ready, waiting...";
-        int timeout = 15000; // 15 seconds - EI protocol needs time for seat/device setup
-        int waited = 0;
-        while (!m_deviceReady && waited < timeout) {
-            QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
-            waited += 100;
 
-            if (waited % 500 == 0) {
-                qCDebug(TextInputLog) << "PortalTextInput: Still waiting for device... waited:" << waited << "ms";
+        QEventLoop loop;
+        QTimer timeoutTimer;
+        timeoutTimer.setSingleShot(true);
+
+        int timeout = 30000; // 30 seconds - EI protocol needs time for seat/device setup
+        connect(&timeoutTimer, &QTimer::timeout, &loop, &QEventLoop::quit);
+        timeoutTimer.start(timeout);
+
+        // Log progress every 500ms
+        QTimer progressTimer;
+        int elapsed = 0;
+        connect(&progressTimer, &QTimer::timeout, this, [this, &elapsed]() {
+            elapsed += 500;
+            if (elapsed % 500 == 0) {
+                qCDebug(TextInputLog) << "PortalTextInput: Still waiting for device... waited:" << elapsed << "ms";
             }
+            if (m_deviceReady) {
+                return; // Will exit loop on next iteration
+            }
+        });
+        progressTimer.start(500);
+
+        // Wait with proper event processing
+        while (!m_deviceReady && timeoutTimer.isActive()) {
+            loop.processEvents(QEventLoop::WaitForMoreEvents, 100);
         }
 
+        timeoutTimer.stop();
+        progressTimer.stop();
+
         if (!m_deviceReady) {
-            qCWarning(TextInputLog) << "PortalTextInput: TIMEOUT - Device not ready after" << waited << "ms";
+            qCWarning(TextInputLog) << "PortalTextInput: TIMEOUT - Device not ready after" << timeout << "ms";
             return false;
         }
 
-        qCDebug(TextInputLog) << "PortalTextInput: Device ready after" << waited << "ms";
+        qCDebug(TextInputLog) << "PortalTextInput: Device ready after" << elapsed << "ms";
     }
 
     qCDebug(TextInputLog) << "PortalTextInput: Sending key events...";

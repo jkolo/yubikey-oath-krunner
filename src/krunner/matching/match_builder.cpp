@@ -6,7 +6,6 @@
 #include "match_builder.h"
 #include "../config/configuration_provider.h"
 #include "../formatting/credential_formatter.h"
-#include "../formatting/display_strategies/flexible_display_strategy.h"
 #include "../../shared/dbus/yubikey_dbus_client.h"
 #include "../logging_categories.h"
 
@@ -85,16 +84,18 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(const CredentialInfo &cre
     QString deviceName = deviceIdToName.value(credential.deviceId, QString());
     qCDebug(MatchBuilderLog) << "Device name for credential:" << deviceName;
 
-    // Format display name using FlexibleDisplayStrategy
-    if (showCode && credential.requiresTouch) {
-        // Special case: show touch indicator when code display is enabled
-        OathCredential tempCred;
-        tempCred.name = credential.name;
-        tempCred.issuer = credential.issuer;
-        tempCred.username = credential.username;
-        tempCred.requiresTouch = credential.requiresTouch;
+    // Prepare OathCredential for formatting
+    OathCredential tempCred;
+    tempCred.name = credential.name;
+    tempCred.issuer = credential.issuer;
+    tempCred.username = credential.username;
+    tempCred.requiresTouch = credential.requiresTouch;
 
-        displayName = FlexibleDisplayStrategy::formatWithCode(
+    // Format display name
+    if (showCode) {
+        // Use formatWithCode() when showCode is enabled
+        // This handles both touch-required (shows 👆) and regular credentials (shows code)
+        displayName = CredentialFormatter::formatWithCode(
             tempCred,
             code,
             credential.requiresTouch,
@@ -105,11 +106,11 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(const CredentialInfo &cre
             connectedDeviceCount,
             showDeviceOnlyWhenMultiple);
     } else {
-        // Standard formatting
+        // Standard formatting without code
         displayName = CredentialFormatter::formatDisplayName(
-            credential,
+            tempCred,
             showUsername,
-            showCode,
+            false, // showCode=false to prevent showing code from credential.code field
             showDeviceName,
             deviceName,
             connectedDeviceCount,

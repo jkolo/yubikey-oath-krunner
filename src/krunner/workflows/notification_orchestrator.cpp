@@ -158,7 +158,7 @@ void NotificationOrchestrator::showSimpleNotification(const QString &title, cons
     auto notification = new KNotification(QStringLiteral("yubikey-oath"),
                                          KNotification::CloseOnTimeout,
                                          nullptr);
-    notification->setComponentName(QStringLiteral("YubiKey OATH"));
+    notification->setComponentName(QStringLiteral("krunner_yubikey"));
     notification->setTitle(title);
     notification->setText(message);
     notification->setIconName(QStringLiteral(":/icons/yubikey.svg"));

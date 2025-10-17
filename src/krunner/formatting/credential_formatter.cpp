@@ -4,7 +4,6 @@
  */
 
 #include "credential_formatter.h"
-#include "display_strategies/flexible_display_strategy.h"
 
 namespace KRunner {
 namespace YubiKey {
@@ -17,13 +16,30 @@ QString CredentialFormatter::formatDisplayName(const OathCredential &credential,
                                                 int connectedDeviceCount,
                                                 bool showDeviceOnlyWhenMultiple)
 {
-    return FlexibleDisplayStrategy::format(credential,
-                                            showUsername,
-                                            showCode,
-                                            showDeviceName,
-                                            deviceName,
-                                            connectedDeviceCount,
-                                            showDeviceOnlyWhenMultiple);
+    // Start with issuer (or full name if no issuer)
+    QString result = credential.issuer.isEmpty() ? credential.name : credential.issuer;
+
+    // Add username if requested
+    if (showUsername && !credential.username.isEmpty()) {
+        result += QStringLiteral(" (%1)").arg(credential.username);
+    }
+
+    // Add code if requested and available (only for non-touch credentials)
+    if (showCode && !credential.requiresTouch && !credential.code.isEmpty()) {
+        result += QStringLiteral(" - %1").arg(credential.code);
+    }
+
+    // Add device name if requested
+    if (showDeviceName && !deviceName.isEmpty()) {
+        // Check if we should only show when multiple devices
+        bool shouldShowDevice = !showDeviceOnlyWhenMultiple || connectedDeviceCount > 1;
+
+        if (shouldShowDevice) {
+            result += QStringLiteral(" @ %1").arg(deviceName);
+        }
+    }
+
+    return result;
 }
 
 QString CredentialFormatter::formatDisplayName(const CredentialInfo &credential,
@@ -51,6 +67,48 @@ QString CredentialFormatter::formatDisplayName(const CredentialInfo &credential,
                              deviceName,
                              connectedDeviceCount,
                              showDeviceOnlyWhenMultiple);
+}
+
+QString CredentialFormatter::formatWithCode(const OathCredential &credential,
+                                             const QString &code,
+                                             bool requiresTouch,
+                                             bool showUsername,
+                                             bool showCode,
+                                             bool showDeviceName,
+                                             const QString &deviceName,
+                                             int connectedDeviceCount,
+                                             bool showDeviceOnlyWhenMultiple)
+{
+    // Start with issuer (or full name if no issuer)
+    QString result = credential.issuer.isEmpty() ? credential.name : credential.issuer;
+
+    // Add username if requested
+    if (showUsername && !credential.username.isEmpty()) {
+        result += QStringLiteral(" (%1)").arg(credential.username);
+    }
+
+    // Add code or touch indicator if requested
+    if (showCode) {
+        if (requiresTouch) {
+            // Show touch required emoji
+            result += QStringLiteral(" 👆");
+        } else if (!code.isEmpty()) {
+            // Show actual code
+            result += QStringLiteral(" - %1").arg(code);
+        }
+    }
+
+    // Add device name if requested
+    if (showDeviceName && !deviceName.isEmpty()) {
+        // Check if we should only show when multiple devices
+        bool shouldShowDevice = !showDeviceOnlyWhenMultiple || connectedDeviceCount > 1;
+
+        if (shouldShowDevice) {
+            result += QStringLiteral(" @ %1").arg(deviceName);
+        }
+    }
+
+    return result;
 }
 
 } // namespace YubiKey

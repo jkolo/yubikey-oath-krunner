@@ -24,7 +24,6 @@ set(krunner_yubikey_SRCS
     # Formatting components
     formatting/credential_formatter.cpp
     formatting/code_validator.cpp
-    formatting/display_strategies/flexible_display_strategy.cpp
 
     # Input components (auto-type)
     input/text_input_provider.cpp
