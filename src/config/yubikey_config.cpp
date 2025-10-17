@@ -84,21 +84,22 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
     }
 
     // Setup ComboBox user data programmatically (Qt Designer userData may not load correctly)
-    // Display Format ComboBox
-    m_ui->displayFormatCombo->setItemData(0, QStringLiteral("name"));
-    m_ui->displayFormatCombo->setItemData(1, QStringLiteral("name_user"));
-    m_ui->displayFormatCombo->setItemData(2, QStringLiteral("full"));
-
     // Primary Action ComboBox
     m_ui->primaryActionCombo->setItemData(0, QStringLiteral("copy"));
     m_ui->primaryActionCombo->setItemData(1, QStringLiteral("type"));
 
     qCDebug(YubiKeyConfigLog) << "ComboBox userData set programmatically";
 
-    // Connect UI signals (display options only - password section removed)
+    // Connect UI signals
     connect(m_ui->showNotificationsCheckbox, &QCheckBox::toggled,
             this, &YubiKeyConfig::markAsChanged);
-    connect(m_ui->displayFormatCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+    connect(m_ui->showUsernameCheckbox, &QCheckBox::toggled,
+            this, &YubiKeyConfig::markAsChanged);
+    connect(m_ui->showCodeCheckbox, &QCheckBox::toggled,
+            this, &YubiKeyConfig::markAsChanged);
+    connect(m_ui->showDeviceNameCheckbox, &QCheckBox::toggled,
+            this, &YubiKeyConfig::markAsChanged);
+    connect(m_ui->showDeviceNameOnlyWhenMultipleCheckbox, &QCheckBox::toggled,
             this, &YubiKeyConfig::markAsChanged);
     connect(m_ui->primaryActionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &YubiKeyConfig::markAsChanged);
@@ -129,12 +130,10 @@ void YubiKeyConfig::load()
 {
     // Load settings from config
     m_ui->showNotificationsCheckbox->setChecked(m_config.readEntry("ShowNotifications", true));
-
-    QString displayFormat = m_config.readEntry("DisplayFormat", "name_user");
-    int index = m_ui->displayFormatCombo->findData(displayFormat);
-    if (index >= 0) {
-        m_ui->displayFormatCombo->setCurrentIndex(index);
-    }
+    m_ui->showUsernameCheckbox->setChecked(m_config.readEntry("ShowUsername", true));
+    m_ui->showCodeCheckbox->setChecked(m_config.readEntry("ShowCode", false));
+    m_ui->showDeviceNameCheckbox->setChecked(m_config.readEntry("ShowDeviceName", false));
+    m_ui->showDeviceNameOnlyWhenMultipleCheckbox->setChecked(m_config.readEntry("ShowDeviceNameOnlyWhenMultiple", true));
 
     QString primaryAction = m_config.readEntry("PrimaryAction", "copy");
     int primaryIndex = m_ui->primaryActionCombo->findData(primaryAction);
@@ -145,7 +144,9 @@ void YubiKeyConfig::load()
     m_ui->touchTimeoutSpinbox->setValue(m_config.readEntry("TouchTimeout", 10));
     m_ui->notificationExtraTimeSpinbox->setValue(m_config.readEntry("NotificationExtraTime", 15));
 
-    // Password is loaded from wallet in constructor
+    // Set initial enabled state for dependent checkbox
+    m_ui->showDeviceNameOnlyWhenMultipleCheckbox->setEnabled(m_ui->showDeviceNameCheckbox->isChecked());
+
     setNeedsSave(false);
 }
 
@@ -153,10 +154,10 @@ void YubiKeyConfig::save()
 {
     // Save settings to config
     m_config.writeEntry("ShowNotifications", m_ui->showNotificationsCheckbox->isChecked());
-
-    QString displayFormat = m_ui->displayFormatCombo->itemData(m_ui->displayFormatCombo->currentIndex()).toString();
-    qCDebug(YubiKeyConfigLog) << "Saving DisplayFormat:" << displayFormat;
-    m_config.writeEntry("DisplayFormat", displayFormat);
+    m_config.writeEntry("ShowUsername", m_ui->showUsernameCheckbox->isChecked());
+    m_config.writeEntry("ShowCode", m_ui->showCodeCheckbox->isChecked());
+    m_config.writeEntry("ShowDeviceName", m_ui->showDeviceNameCheckbox->isChecked());
+    m_config.writeEntry("ShowDeviceNameOnlyWhenMultiple", m_ui->showDeviceNameOnlyWhenMultipleCheckbox->isChecked());
 
     QString primaryAction = m_ui->primaryActionCombo->itemData(m_ui->primaryActionCombo->currentIndex()).toString();
     qCDebug(YubiKeyConfigLog) << "Saving PrimaryAction:" << primaryAction;
@@ -172,10 +173,16 @@ void YubiKeyConfig::save()
 void YubiKeyConfig::defaults()
 {
     m_ui->showNotificationsCheckbox->setChecked(true);
-    m_ui->displayFormatCombo->setCurrentIndex(1); // name_user
+    m_ui->showUsernameCheckbox->setChecked(true);
+    m_ui->showCodeCheckbox->setChecked(false);
+    m_ui->showDeviceNameCheckbox->setChecked(false);
+    m_ui->showDeviceNameOnlyWhenMultipleCheckbox->setChecked(true);
     m_ui->primaryActionCombo->setCurrentIndex(0); // copy (first item)
     m_ui->touchTimeoutSpinbox->setValue(10);
     m_ui->notificationExtraTimeSpinbox->setValue(15);
+
+    // Set initial enabled state for dependent checkbox
+    m_ui->showDeviceNameOnlyWhenMultipleCheckbox->setEnabled(m_ui->showDeviceNameCheckbox->isChecked());
 
     markAsChanged();
 }

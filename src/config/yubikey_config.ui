@@ -63,51 +63,104 @@
        </widget>
       </item>
       <item row="1" column="0">
-       <widget class="QLabel" name="formatLabel">
+       <widget class="QLabel" name="usernameLabel">
         <property name="text">
-         <string>Display format:</string>
+         <string>Show username:</string>
         </property>
        </widget>
       </item>
       <item row="1" column="1">
-       <widget class="QComboBox" name="displayFormatCombo">
-        <property name="toolTip">
-         <string>How to display OATH account information in search results</string>
+       <widget class="QCheckBox" name="showUsernameCheckbox">
+        <property name="text">
+         <string>Display username in credential names</string>
         </property>
-        <item>
-         <property name="text">
-          <string>Name only</string>
-         </property>
-         <property name="userData" stdset="0">
-          <string>name</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Name (Username)</string>
-         </property>
-         <property name="userData" stdset="0">
-          <string>name_user</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Name (Username) [Code]</string>
-         </property>
-         <property name="userData" stdset="0">
-          <string>full</string>
-         </property>
-        </item>
+        <property name="toolTip">
+         <string>Show username in parentheses after issuer name</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
        </widget>
       </item>
       <item row="2" column="0">
+       <widget class="QLabel" name="codeLabel">
+        <property name="text">
+         <string>Show code:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QCheckBox" name="showCodeCheckbox">
+        <property name="text">
+         <string>Display code if no touch required</string>
+        </property>
+        <property name="toolTip">
+         <string>Show TOTP/HOTP code in search results for credentials that don't require touch</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="deviceNameLabel">
+        <property name="text">
+         <string>Show device name:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QCheckBox" name="showDeviceNameCheckbox">
+        <property name="text">
+         <string>Display YubiKey device name</string>
+        </property>
+        <property name="toolTip">
+         <string>Show the name of the YubiKey device in credential display</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QWidget" name="indentedCheckboxContainer" native="true">
+        <layout class="QHBoxLayout" name="indentedLayout">
+         <property name="leftMargin">
+          <number>30</number>
+         </property>
+         <property name="topMargin">
+          <number>0</number>
+         </property>
+         <property name="rightMargin">
+          <number>0</number>
+         </property>
+         <property name="bottomMargin">
+          <number>0</number>
+         </property>
+         <item>
+          <widget class="QCheckBox" name="showDeviceNameOnlyWhenMultipleCheckbox">
+           <property name="text">
+            <string>Only when multiple devices connected</string>
+           </property>
+           <property name="toolTip">
+            <string>Only show device name when more than one YubiKey is connected</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="5" column="0">
        <widget class="QLabel" name="notificationExtraTimeLabel">
         <property name="text">
          <string>Extra notification time:</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="1">
+      <item row="5" column="1">
        <widget class="QSpinBox" name="notificationExtraTimeSpinbox">
         <property name="toolTip">
          <string>Additional time to keep code notification visible after TOTP code expires</string>
@@ -126,14 +179,14 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="0">
+      <item row="6" column="0">
        <widget class="QLabel" name="primaryActionLabel">
         <property name="text">
          <string>Primary action:</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="1">
+      <item row="6" column="1">
        <widget class="QComboBox" name="primaryActionCombo">
         <property name="toolTip">
          <string>Default action when pressing Enter on a match</string>
@@ -156,14 +209,14 @@
         </item>
        </widget>
       </item>
-      <item row="4" column="0">
+      <item row="7" column="0">
        <widget class="QLabel" name="timeoutLabel">
         <property name="text">
          <string>Touch timeout:</string>
         </property>
        </widget>
       </item>
-      <item row="4" column="1">
+      <item row="7" column="1">
        <widget class="QSpinBox" name="touchTimeoutSpinbox">
         <property name="toolTip">
          <string>Maximum time to wait for YubiKey touch confirmation (0 = no timeout)</string>
@@ -189,52 +242,6 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="informationGroupBox">
-     <property name="title">
-      <string>Information</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayout_3">
-      <item>
-       <widget class="QLabel" name="descriptionLabel">
-        <property name="text">
-         <string>YubiKey OATH plugin allows you to access TOTP/HOTP codes directly from KRunner.</string>
-        </property>
-        <property name="wordWrap">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="usageLabel">
-        <property name="text">
-         <string>&lt;b&gt;Usage:&lt;/b&gt;&lt;br/&gt;
-• Type account name in KRunner (Alt+Space)&lt;br/&gt;
-• Press Enter for primary action (copy or type)&lt;br/&gt;
-• Press Shift+Enter for secondary action&lt;br/&gt;
-• Touch YubiKey when prompted for touch-required accounts</string>
-        </property>
-        <property name="wordWrap">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="requirementsLabel">
-        <property name="text">
-         <string>&lt;b&gt;Requirements:&lt;/b&gt;&lt;br/&gt;
-• YubiKey with OATH application&lt;br/&gt;
-• PC/SC daemon (pcscd) running&lt;br/&gt;
-• pcsclite library installed</string>
-        </property>
-        <property name="wordWrap">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
     <spacer name="verticalSpacer">
      <property name="orientation">
       <enum>Qt::Vertical</enum>
@@ -242,7 +249,7 @@
      <property name="sizeHint" stdset="0">
       <size>
        <width>20</width>
-       <height>40</height>
+       <height>0</height>
       </size>
      </property>
     </spacer>
@@ -257,5 +264,12 @@
   </customwidget>
  </customwidgets>
  <resources/>
- <connections/>
+ <connections>
+  <connection>
+   <sender>showDeviceNameCheckbox</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>showDeviceNameOnlyWhenMultipleCheckbox</receiver>
+   <slot>setEnabled(bool)</slot>
+  </connection>
+ </connections>
 </ui>

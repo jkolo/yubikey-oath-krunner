@@ -28,7 +28,10 @@ public:
     explicit KRunnerConfiguration(std::function<KConfigGroup()> configGroup, QObject *parent = nullptr);
 
     bool showNotifications() const override;
-    QString displayFormat() const override;
+    bool showUsername() const override;
+    bool showCode() const override;
+    bool showDeviceName() const override;
+    bool showDeviceNameOnlyWhenMultiple() const override;
     int touchTimeout() const override;
     int notificationExtraTime() const override;
     QString primaryAction() const override;
@@ -38,7 +41,10 @@ private:
 
     // Configuration keys
     static constexpr const char *CONFIG_SHOW_NOTIFICATIONS = "ShowNotifications";
-    static constexpr const char *CONFIG_DISPLAY_FORMAT = "DisplayFormat";
+    static constexpr const char *CONFIG_SHOW_USERNAME = "ShowUsername";
+    static constexpr const char *CONFIG_SHOW_CODE = "ShowCode";
+    static constexpr const char *CONFIG_SHOW_DEVICE_NAME = "ShowDeviceName";
+    static constexpr const char *CONFIG_SHOW_DEVICE_NAME_ONLY_WHEN_MULTIPLE = "ShowDeviceNameOnlyWhenMultiple";
     static constexpr const char *CONFIG_TOUCH_TIMEOUT = "TouchTimeout";
     static constexpr const char *CONFIG_NOTIFICATION_EXTRA_TIME = "NotificationExtraTime";
     static constexpr const char *CONFIG_PRIMARY_ACTION = "PrimaryAction";

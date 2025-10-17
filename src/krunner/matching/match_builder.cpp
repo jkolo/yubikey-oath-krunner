@@ -6,12 +6,13 @@
 #include "match_builder.h"
 #include "../config/configuration_provider.h"
 #include "../formatting/credential_formatter.h"
-#include "../formatting/display_strategies/full_strategy.h"
+#include "../formatting/display_strategies/flexible_display_strategy.h"
 #include "../../shared/dbus/yubikey_dbus_client.h"
 #include "../logging_categories.h"
 
 #include <KLocalizedString>
 #include <QDebug>
+#include <QMap>
 
 namespace KRunner {
 namespace YubiKey {
@@ -33,9 +34,31 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(const CredentialInfo &cre
 
     KRunner::QueryMatch match(m_runner);
 
-    // Get display format
-    QString currentFormat = m_config->displayFormat();
-    qCDebug(MatchBuilderLog) << "Using display format:" << currentFormat;
+    // Get display preferences from config
+    bool showUsername = m_config->showUsername();
+    bool showCode = m_config->showCode();
+    bool showDeviceName = m_config->showDeviceName();
+    bool showDeviceOnlyWhenMultiple = m_config->showDeviceNameOnlyWhenMultiple();
+
+    qCDebug(MatchBuilderLog) << "Display preferences - username:" << showUsername
+             << "code:" << showCode
+             << "deviceName:" << showDeviceName
+             << "onlyWhenMultiple:" << showDeviceOnlyWhenMultiple;
+
+    // Get device information
+    QList<DeviceInfo> devices = dbusClient->listDevices();
+    QMap<QString, QString> deviceIdToName;
+    int connectedDeviceCount = 0;
+
+    for (const auto &device : devices) {
+        deviceIdToName[device.deviceId] = device.deviceName;
+        if (device.isConnected) {
+            connectedDeviceCount++;
+        }
+    }
+
+    qCDebug(MatchBuilderLog) << "Found" << devices.size() << "devices,"
+             << connectedDeviceCount << "connected";
 
     // Prepare match data
     QStringList data;
@@ -45,48 +68,55 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(const CredentialInfo &cre
     QString requiresTouch = credential.requiresTouch ? QStringLiteral("true") : QStringLiteral("false");
     QString isPasswordError = QStringLiteral("false");
 
-    qCDebug(MatchBuilderLog) << "credentialName:" << credentialName
-             << "requiresTouch:" << credential.requiresTouch
-             << "format:" << currentFormat;
-
-    // Generate code if format is "full"
-    // For touch credentials, we'll show "[Touch Required]" instead of generating
-    if (currentFormat == QStringLiteral("full")) {
-        if (!credential.requiresTouch) {
-            qCDebug(MatchBuilderLog) << "Generating code for non-touch credential:" << credential.name
-                     << "on device:" << credential.deviceId;
-            GenerateCodeResult codeResult = dbusClient->generateCode(credential.deviceId, credential.name);
-            if (!codeResult.code.isEmpty()) {
-                code = codeResult.code;
-                qCDebug(MatchBuilderLog) << "Generated code:" << code;
-            } else {
-                qCDebug(MatchBuilderLog) << "Failed to generate code via D-Bus";
-            }
+    // Generate code if requested and credential doesn't require touch
+    if (showCode && !credential.requiresTouch) {
+        qCDebug(MatchBuilderLog) << "Generating code for non-touch credential:" << credential.name
+                 << "on device:" << credential.deviceId;
+        GenerateCodeResult codeResult = dbusClient->generateCode(credential.deviceId, credential.name);
+        if (!codeResult.code.isEmpty()) {
+            code = codeResult.code;
+            qCDebug(MatchBuilderLog) << "Generated code:" << code;
         } else {
-            qCDebug(MatchBuilderLog) << "Touch-required credential - will show touch indicator";
+            qCDebug(MatchBuilderLog) << "Failed to generate code via D-Bus";
         }
     }
 
-    // Format display name based on format and whether we have code
-    if (currentFormat == QStringLiteral("full")) {
-        // Use FullStrategy with code/touch status
-        FullStrategy fullStrategy;
+    // Get device name for this credential
+    QString deviceName = deviceIdToName.value(credential.deviceId, QString());
+    qCDebug(MatchBuilderLog) << "Device name for credential:" << deviceName;
 
-        // Create temporary OathCredential for formatting
+    // Format display name using FlexibleDisplayStrategy
+    if (showCode && credential.requiresTouch) {
+        // Special case: show touch indicator when code display is enabled
         OathCredential tempCred;
         tempCred.name = credential.name;
         tempCred.issuer = credential.issuer;
         tempCred.username = credential.username;
+        tempCred.requiresTouch = credential.requiresTouch;
 
-        displayName = fullStrategy.formatWithCode(tempCred, code, credential.requiresTouch);
-        qCDebug(MatchBuilderLog) << "Full format displayName:" << displayName;
+        displayName = FlexibleDisplayStrategy::formatWithCode(
+            tempCred,
+            code,
+            credential.requiresTouch,
+            showUsername,
+            showCode,
+            showDeviceName,
+            deviceName,
+            connectedDeviceCount,
+            showDeviceOnlyWhenMultiple);
     } else {
-        // Use standard formatter for other formats
+        // Standard formatting
         displayName = CredentialFormatter::formatDisplayName(
             credential,
-            CredentialFormatter::formatFromString(currentFormat));
-        qCDebug(MatchBuilderLog) << "Standard format displayName:" << displayName;
+            showUsername,
+            showCode,
+            showDeviceName,
+            deviceName,
+            connectedDeviceCount,
+            showDeviceOnlyWhenMultiple);
     }
+
+    qCDebug(MatchBuilderLog) << "Formatted displayName:" << displayName;
 
     // Set match data (index: 0=name, 1=display, 2=code, 3=touch, 4=pwdError, 5=deviceId)
     data << credentialName << displayName << code << requiresTouch << isPasswordError << credential.deviceId;

@@ -12,21 +12,28 @@
       <default>true</default>
     </entry>
 
-    <entry name="DisplayFormat" type="String">
-      <label>Display format</label>
-      <tooltip>How to display OATH account names</tooltip>
-      <default>name_user</default>
-      <choices>
-        <choice name="name">
-          <label>Name only</label>
-        </choice>
-        <choice name="name_user">
-          <label>Name + User</label>
-        </choice>
-        <choice name="full">
-          <label>Name + User + Code (no touch required)</label>
-        </choice>
-      </choices>
+    <entry name="ShowUsername" type="Bool">
+      <label>Show username</label>
+      <tooltip>Display username in credential name</tooltip>
+      <default>true</default>
+    </entry>
+
+    <entry name="ShowCode" type="Bool">
+      <label>Show code if no touch required</label>
+      <tooltip>Display TOTP/HOTP code in search results for credentials that don't require touch</tooltip>
+      <default>false</default>
+    </entry>
+
+    <entry name="ShowDeviceName" type="Bool">
+      <label>Show device name</label>
+      <tooltip>Display YubiKey device name in credential display</tooltip>
+      <default>false</default>
+    </entry>
+
+    <entry name="ShowDeviceNameOnlyWhenMultiple" type="Bool">
+      <label>Show device name only when multiple devices</label>
+      <tooltip>Only show device name when more than one YubiKey is connected</tooltip>
+      <default>true</default>
     </entry>
 
     <entry name="TouchTimeout" type="Int">

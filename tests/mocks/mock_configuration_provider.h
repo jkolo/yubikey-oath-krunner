@@ -34,7 +34,10 @@ public:
     explicit MockConfigurationProvider(QObject *parent = nullptr)
         : ConfigurationProvider(parent)
         , m_showNotifications(true)
-        , m_displayFormat(QStringLiteral("name_user"))
+        , m_showUsername(true)
+        , m_showCode(false)
+        , m_showDeviceName(false)
+        , m_showDeviceNameOnlyWhenMultiple(true)
         , m_touchTimeout(15)
         , m_notificationExtraTime(5)
         , m_primaryAction(QStringLiteral("copy"))
@@ -46,8 +49,20 @@ public:
         return m_showNotifications;
     }
 
-    QString displayFormat() const override {
-        return m_displayFormat;
+    bool showUsername() const override {
+        return m_showUsername;
+    }
+
+    bool showCode() const override {
+        return m_showCode;
+    }
+
+    bool showDeviceName() const override {
+        return m_showDeviceName;
+    }
+
+    bool showDeviceNameOnlyWhenMultiple() const override {
+        return m_showDeviceNameOnlyWhenMultiple;
     }
 
     int touchTimeout() const override {
@@ -68,8 +83,23 @@ public:
         Q_EMIT configurationChanged();
     }
 
-    void setDisplayFormat(const QString &value) {
-        m_displayFormat = value;
+    void setShowUsername(bool value) {
+        m_showUsername = value;
+        Q_EMIT configurationChanged();
+    }
+
+    void setShowCode(bool value) {
+        m_showCode = value;
+        Q_EMIT configurationChanged();
+    }
+
+    void setShowDeviceName(bool value) {
+        m_showDeviceName = value;
+        Q_EMIT configurationChanged();
+    }
+
+    void setShowDeviceNameOnlyWhenMultiple(bool value) {
+        m_showDeviceNameOnlyWhenMultiple = value;
         Q_EMIT configurationChanged();
     }
 
@@ -91,7 +121,10 @@ public:
     // Helper: Reset to default values
     void reset() {
         m_showNotifications = true;
-        m_displayFormat = QStringLiteral("name_user");
+        m_showUsername = true;
+        m_showCode = false;
+        m_showDeviceName = false;
+        m_showDeviceNameOnlyWhenMultiple = true;
         m_touchTimeout = 15;
         m_notificationExtraTime = 5;
         m_primaryAction = QStringLiteral("copy");
@@ -100,7 +133,10 @@ public:
 
 private:
     bool m_showNotifications;
-    QString m_displayFormat;
+    bool m_showUsername;
+    bool m_showCode;
+    bool m_showDeviceName;
+    bool m_showDeviceNameOnlyWhenMultiple;
     int m_touchTimeout;
     int m_notificationExtraTime;
     QString m_primaryAction;

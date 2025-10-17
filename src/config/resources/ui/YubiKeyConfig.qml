@@ -14,7 +14,12 @@ ColumnLayout {
     anchors.margins: 0
     spacing: 0
 
-    // Background rectangle for the entire widget
+    // Shared properties for consistent styling
+    readonly property int smallFontSize: Kirigami.Theme.smallFont.pointSize
+    readonly property int normalFontSize: Kirigami.Theme.defaultFont.pointSize
+    readonly property int largeFontSize: Kirigami.Theme.defaultFont.pointSize * 1.1
+
+    // Background
     Rectangle {
         anchors.fill: parent
         color: Kirigami.Theme.backgroundColor
@@ -34,14 +39,6 @@ ColumnLayout {
             id: deviceListView
             clip: true
             spacing: Kirigami.Units.smallSpacing
-
-            // Set background color to match theme
-            Rectangle {
-                anchors.fill: parent
-                color: Kirigami.Theme.backgroundColor
-                z: -1
-            }
-
             model: deviceModel
 
             delegate: Kirigami.AbstractCard {
@@ -63,70 +60,42 @@ ColumnLayout {
                         Layout.fillWidth: true
                         spacing: Kirigami.Units.smallSpacing
 
+                        // Device name
                         QQC2.Label {
                             text: model.deviceName
                             font.bold: true
-                            font.pointSize: Kirigami.Theme.defaultFont.pointSize * 1.1
+                            font.pointSize: root.largeFontSize
                         }
 
+                        // Device ID
                         QQC2.Label {
                             text: i18n("Device ID: %1", model.deviceId.substring(0, 16) + "...")
                             font.family: "monospace"
-                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            font.pointSize: root.smallFontSize
                             opacity: 0.7
                         }
 
-                        // Status indicators
+                        // Status row
                         RowLayout {
                             spacing: Kirigami.Units.smallSpacing
 
-                            // Connection status
-                            Rectangle {
-                                width: 8
-                                height: 8
-                                radius: 4
-                                color: model.isConnected ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.neutralTextColor
-                                Layout.alignment: Qt.AlignVCenter
-                            }
-
-                            QQC2.Label {
+                            // Connection status indicator
+                            StatusIndicator {
+                                dotColor: model.isConnected ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.neutralTextColor
                                 text: model.isConnected ? i18n("Connected") : i18n("Not connected")
-                                font.pointSize: Kirigami.Theme.smallFont.pointSize
-                                opacity: 0.8
                             }
 
-                            // Password status
-                            Kirigami.Icon {
-                                source: model.requiresPassword ?
-                                    (model.hasValidPassword ? "lock" : "lock-insecure") :
-                                    "lock-unlocked"
-                                Layout.preferredWidth: Kirigami.Units.iconSizes.small
-                                Layout.preferredHeight: Kirigami.Units.iconSizes.small
-                                color: model.requiresPassword ?
-                                    (model.hasValidPassword ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.negativeTextColor) :
-                                    Kirigami.Theme.neutralTextColor
-                                Layout.alignment: Qt.AlignVCenter
-                            }
-
-                            QQC2.Label {
-                                text: {
-                                    if (!model.requiresPassword) {
-                                        return i18n("No password required")
-                                    } else if (model.hasValidPassword) {
-                                        return i18n("Password saved")
-                                    } else {
-                                        return i18n("Password required")
-                                    }
-                                }
-                                font.pointSize: Kirigami.Theme.smallFont.pointSize
-                                opacity: 0.8
+                            // Password status indicator
+                            PasswordStatusIndicator {
+                                requiresPassword: model.requiresPassword
+                                hasValidPassword: model.hasValidPassword
                             }
                         }
 
                         // Last seen timestamp
                         QQC2.Label {
                             text: i18n("Last seen: %1", Qt.formatDateTime(model.lastSeen, "yyyy-MM-dd HH:mm"))
-                            font.pointSize: Kirigami.Theme.smallFont.pointSize
+                            font.pointSize: root.smallFontSize
                             opacity: 0.6
                             visible: !model.isConnected && model.lastSeen !== undefined
                         }
@@ -137,30 +106,22 @@ ColumnLayout {
                         spacing: Kirigami.Units.smallSpacing
                         Layout.alignment: Qt.AlignVCenter
 
-                        // Authorize button (only visible for connected devices needing password)
+                        // Authorize button
                         QQC2.Button {
                             text: i18n("Authorize")
                             icon.name: "password-show-on"
                             visible: model.showAuthorizeButton
-
-                            onClicked: {
-                                console.log("Authorize button clicked for device:", model.deviceId)
-                                deviceModel.authorizeDevice(model.deviceId)
-                            }
+                            onClicked: deviceModel.authorizeDevice(model.deviceId)
                         }
 
-                        // Forget button (visible for all devices)
+                        // Forget button
                         QQC2.Button {
                             text: i18n("Forget")
                             icon.name: "edit-delete"
                             display: QQC2.AbstractButton.IconOnly
                             QQC2.ToolTip.visible: hovered
                             QQC2.ToolTip.text: i18n("Forget this device and remove saved password")
-
-                            onClicked: {
-                                console.log("Forget button clicked for device:", model.deviceId)
-                                deviceModel.forgetDevice(model.deviceId)
-                            }
+                            onClicked: deviceModel.forgetDevice(model.deviceId)
                         }
                     }
                 }
@@ -170,9 +131,7 @@ ColumnLayout {
             Kirigami.PlaceholderMessage {
                 anchors.centerIn: parent
                 width: parent.width - (Kirigami.Units.largeSpacing * 4)
-
                 visible: deviceListView.count === 0
-
                 icon.name: ":/icons/yubikey.svg"
                 text: i18n("No YubiKey devices found")
                 explanation: i18n("Connect a YubiKey to see it listed here.\nDevices that have been used before will be remembered.")
@@ -186,16 +145,63 @@ ColumnLayout {
         icon.name: "view-refresh"
         Layout.alignment: Qt.AlignRight
         Layout.topMargin: Kirigami.Units.smallSpacing
+        onClicked: deviceModel.refreshDevices()
+    }
 
-        onClicked: {
-            console.log("Refreshing device list")
-            deviceModel.refreshDevices()
+    // Status indicator component
+    component StatusIndicator: RowLayout {
+        property color dotColor
+        property string text
+
+        spacing: Kirigami.Units.smallSpacing
+
+        Rectangle {
+            width: 8
+            height: 8
+            radius: 4
+            color: dotColor
+            Layout.alignment: Qt.AlignVCenter
+        }
+
+        QQC2.Label {
+            text: parent.text
+            font.pointSize: root.smallFontSize
+            opacity: 0.8
+        }
+    }
+
+    // Password status indicator component
+    component PasswordStatusIndicator: RowLayout {
+        property bool requiresPassword
+        property bool hasValidPassword
+
+        readonly property string iconName: requiresPassword ? (hasValidPassword ? "lock" : "lock-insecure") : "lock-unlocked"
+        readonly property color iconColor: requiresPassword ? (hasValidPassword ? Kirigami.Theme.positiveTextColor : Kirigami.Theme.negativeTextColor) : Kirigami.Theme.neutralTextColor
+        readonly property string statusText: {
+            if (!requiresPassword) return i18n("No password required")
+            if (hasValidPassword) return i18n("Password saved")
+            return i18n("Password required")
+        }
+
+        spacing: Kirigami.Units.smallSpacing
+
+        Kirigami.Icon {
+            source: parent.iconName
+            Layout.preferredWidth: Kirigami.Units.iconSizes.small
+            Layout.preferredHeight: Kirigami.Units.iconSizes.small
+            color: parent.iconColor
+            Layout.alignment: Qt.AlignVCenter
+        }
+
+        QQC2.Label {
+            text: parent.statusText
+            font.pointSize: root.smallFontSize
+            opacity: 0.8
         }
     }
 
     Component.onCompleted: {
         console.log("YubiKeyConfig.qml loaded")
-        // Initial device list refresh
         deviceModel.refreshDevices()
     }
 }

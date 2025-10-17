@@ -6,353 +6,405 @@
 #include <QtTest>
 #include "krunner/formatting/credential_formatter.h"
 #include "shared/types/oath_credential.h"
+#include "shared/dbus/yubikey_dbus_types.h"
 
 using namespace KRunner::YubiKey;
 
 /**
  * @brief Unit tests for CredentialFormatter
  *
- * Tests all display strategies and formatting logic for OATH credentials.
+ * Tests the CredentialFormatter wrapper around FlexibleDisplayStrategy.
+ * Verifies correct parameter passing and overload resolution for both
+ * OathCredential and CredentialInfo types.
  */
 class TestCredentialFormatter : public QObject
 {
     Q_OBJECT
 
 private Q_SLOTS:
-    // Strategy-based API tests (recommended)
-    void testFormatDisplayName_NameStrategy();
-    void testFormatDisplayName_NameUserStrategy();
-    void testFormatDisplayName_FullStrategy();
-    void testFormatDisplayName_UnknownStrategy();
+    // OathCredential overload tests
+    void testFormatDisplayName_OathCredential_Basic();
+    void testFormatDisplayName_OathCredential_WithUsername();
+    void testFormatDisplayName_OathCredential_WithCode();
+    void testFormatDisplayName_OathCredential_WithDeviceName();
+    void testFormatDisplayName_OathCredential_AllOptions();
 
-    // Edge cases for strategies
-    void testNameStrategy_EmptyIssuer();
-    void testNameStrategy_EmptyUsername();
-    void testNameStrategy_BothEmpty();
+    // CredentialInfo overload tests
+    void testFormatDisplayName_CredentialInfo_Basic();
+    void testFormatDisplayName_CredentialInfo_WithUsername();
+    void testFormatDisplayName_CredentialInfo_WithCode();
+    void testFormatDisplayName_CredentialInfo_WithDeviceName();
+    void testFormatDisplayName_CredentialInfo_AllOptions();
 
-    void testNameUserStrategy_EmptyIssuer();
-    void testNameUserStrategy_EmptyUsername();
-    void testNameUserStrategy_BothEmpty();
-    void testNameUserStrategy_BothPresent();
-
-    void testFullStrategy_WithCode();
-    void testFullStrategy_WithoutCode();
-    void testFullStrategy_EmptyCode();
-
-    // Deprecated enum API tests (backward compatibility)
-    void testFormatDisplayName_Enum_Name();
-    void testFormatDisplayName_Enum_NameUser();
-    void testFormatDisplayName_Enum_Full();
-
-    // formatFromString tests (deprecated)
-    void testFormatFromString();
-
-    // defaultFormat test
-    void testDefaultFormat();
+    // Edge cases
+    void testFormatDisplayName_EmptyFields();
+    void testFormatDisplayName_DeviceNameVisibility();
 
     // Real-world scenarios
     void testRealWorldCredentials();
 };
 
-// ========== Strategy-Based API Tests ==========
+// ========== OathCredential Overload Tests ==========
 
-void TestCredentialFormatter::testFormatDisplayName_NameStrategy()
+void TestCredentialFormatter::testFormatDisplayName_OathCredential_Basic()
 {
     OathCredential cred;
     cred.issuer = "Google";
     cred.username = "user@example.com";
-    cred.code = "123456";
 
-    const QString result =CredentialFormatter::formatDisplayName(cred, "name");
+    QString result = CredentialFormatter::formatDisplayName(
+        cred,
+        false, // showUsername
+        false, // showCode
+        false, // showDeviceName
+        QString(), // deviceName
+        1, // connectedDeviceCount
+        false // showDeviceOnlyWhenMultiple
+    );
 
-    // NameOnlyStrategy: returns issuer if present
     QCOMPARE(result, QString("Google"));
 }
 
-void TestCredentialFormatter::testFormatDisplayName_NameUserStrategy()
-{
-    OathCredential cred;
-    cred.issuer = "Google";
-    cred.username = "user@example.com";
-    cred.code = "123456";
-
-    const QString result =CredentialFormatter::formatDisplayName(cred, "name_user");
-
-    // NameUserStrategy: "issuer (username)"
-    QCOMPARE(result, QString("Google (user@example.com)"));
-}
-
-void TestCredentialFormatter::testFormatDisplayName_FullStrategy()
-{
-    OathCredential cred;
-    cred.issuer = "Google";
-    cred.username = "user@example.com";
-    cred.code = "123456";
-
-    const QString result =CredentialFormatter::formatDisplayName(cred, "full");
-
-    // FullStrategy: "issuer (username) - code"
-    QCOMPARE(result, QString("Google (user@example.com) - 123456"));
-}
-
-void TestCredentialFormatter::testFormatDisplayName_UnknownStrategy()
+void TestCredentialFormatter::testFormatDisplayName_OathCredential_WithUsername()
 {
     OathCredential cred;
     cred.issuer = "Google";
     cred.username = "user@example.com";
 
-    // Unknown identifier should default to name_user
-    const QString result =CredentialFormatter::formatDisplayName(cred, "invalid_strategy");
+    QString result = CredentialFormatter::formatDisplayName(
+        cred,
+        true, // showUsername
+        false, false, QString(), 1, false
+    );
 
     QCOMPARE(result, QString("Google (user@example.com)"));
 }
 
-// ========== NameOnlyStrategy Edge Cases ==========
-
-void TestCredentialFormatter::testNameStrategy_EmptyIssuer()
-{
-    OathCredential cred;
-    cred.issuer = "";
-    cred.username = "user@example.com";
-
-    const QString result =CredentialFormatter::formatDisplayName(cred, "name");
-
-    // Should return username when issuer is empty
-    QCOMPARE(result, QString("user@example.com"));
-}
-
-void TestCredentialFormatter::testNameStrategy_EmptyUsername()
+void TestCredentialFormatter::testFormatDisplayName_OathCredential_WithCode()
 {
     OathCredential cred;
     cred.issuer = "Google";
-    cred.username = "";
+    cred.code = "123456";
+    cred.requiresTouch = false;
 
-    const QString result =CredentialFormatter::formatDisplayName(cred, "name");
+    QString result = CredentialFormatter::formatDisplayName(
+        cred,
+        false, // showUsername
+        true, // showCode
+        false, QString(), 1, false
+    );
 
-    // Should return issuer
-    QCOMPARE(result, QString("Google"));
+    QCOMPARE(result, QString("Google - 123456"));
 }
 
-void TestCredentialFormatter::testNameStrategy_BothEmpty()
-{
-    OathCredential cred;
-    cred.issuer = "";
-    cred.username = "";
-
-    const QString result =CredentialFormatter::formatDisplayName(cred, "name");
-
-    // Should return empty string when both are empty
-    QCOMPARE(result, QString(""));
-}
-
-// ========== NameUserStrategy Edge Cases ==========
-
-void TestCredentialFormatter::testNameUserStrategy_EmptyIssuer()
-{
-    OathCredential cred;
-    cred.issuer = "";
-    cred.username = "user@example.com";
-
-    const QString result =CredentialFormatter::formatDisplayName(cred, "name_user");
-
-    // Should return username only
-    QCOMPARE(result, QString("user@example.com"));
-}
-
-void TestCredentialFormatter::testNameUserStrategy_EmptyUsername()
+void TestCredentialFormatter::testFormatDisplayName_OathCredential_WithDeviceName()
 {
     OathCredential cred;
     cred.issuer = "Google";
-    cred.username = "";
 
-    const QString result =CredentialFormatter::formatDisplayName(cred, "name_user");
+    QString result = CredentialFormatter::formatDisplayName(
+        cred,
+        false, false,
+        true, // showDeviceName
+        QString("YubiKey 5"), // deviceName
+        2, // connectedDeviceCount
+        false // showDeviceOnlyWhenMultiple
+    );
 
-    // Should return issuer only
-    QCOMPARE(result, QString("Google"));
+    QCOMPARE(result, QString("Google @ YubiKey 5"));
 }
 
-void TestCredentialFormatter::testNameUserStrategy_BothEmpty()
+void TestCredentialFormatter::testFormatDisplayName_OathCredential_AllOptions()
 {
     OathCredential cred;
-    cred.issuer = "";
-    cred.username = "";
+    cred.issuer = "Google";
+    cred.username = "user@example.com";
+    cred.code = "123456";
+    cred.requiresTouch = false;
 
-    const QString result =CredentialFormatter::formatDisplayName(cred, "name_user");
+    QString result = CredentialFormatter::formatDisplayName(
+        cred,
+        true, // showUsername
+        true, // showCode
+        true, // showDeviceName
+        QString("YubiKey 5"), // deviceName
+        2, // connectedDeviceCount
+        false // showDeviceOnlyWhenMultiple
+    );
 
-    // Should return empty string
-    QCOMPARE(result, QString(""));
+    QCOMPARE(result, QString("Google (user@example.com) - 123456 @ YubiKey 5"));
 }
 
-void TestCredentialFormatter::testNameUserStrategy_BothPresent()
+// ========== CredentialInfo Overload Tests ==========
+
+void TestCredentialFormatter::testFormatDisplayName_CredentialInfo_Basic()
 {
-    OathCredential cred;
+    CredentialInfo cred;
     cred.issuer = "GitHub";
     cred.username = "developer";
+    cred.name = "GitHub:developer";
 
-    const QString result =CredentialFormatter::formatDisplayName(cred, "name_user");
+    QString result = CredentialFormatter::formatDisplayName(
+        cred,
+        false, // showUsername
+        false, false, QString(), 1, false
+    );
 
-    // Should return "issuer (username)"
+    QCOMPARE(result, QString("GitHub"));
+}
+
+void TestCredentialFormatter::testFormatDisplayName_CredentialInfo_WithUsername()
+{
+    CredentialInfo cred;
+    cred.issuer = "GitHub";
+    cred.username = "developer";
+    cred.name = "GitHub:developer";
+
+    QString result = CredentialFormatter::formatDisplayName(
+        cred,
+        true, // showUsername
+        false, false, QString(), 1, false
+    );
+
     QCOMPARE(result, QString("GitHub (developer)"));
 }
 
-// ========== FullStrategy Tests ==========
+void TestCredentialFormatter::testFormatDisplayName_CredentialInfo_WithCode()
+{
+    CredentialInfo cred;
+    cred.issuer = "GitHub";
+    cred.username = "developer";
+    cred.name = "GitHub:developer";
+    cred.requiresTouch = false;
 
-void TestCredentialFormatter::testFullStrategy_WithCode()
+    // Note: CredentialInfo doesn't have a code field,
+    // but showCode flag should be handled gracefully
+    QString result = CredentialFormatter::formatDisplayName(
+        cred,
+        false, // showUsername
+        true, // showCode (should be ignored for CredentialInfo)
+        false, QString(), 1, false
+    );
+
+    QCOMPARE(result, QString("GitHub"));
+}
+
+void TestCredentialFormatter::testFormatDisplayName_CredentialInfo_WithDeviceName()
+{
+    CredentialInfo cred;
+    cred.issuer = "GitHub";
+    cred.username = "developer";
+    cred.name = "GitHub:developer";
+
+    QString result = CredentialFormatter::formatDisplayName(
+        cred,
+        false, false,
+        true, // showDeviceName
+        QString("YubiKey 5C"), // deviceName
+        2, // connectedDeviceCount
+        false // showDeviceOnlyWhenMultiple
+    );
+
+    QCOMPARE(result, QString("GitHub @ YubiKey 5C"));
+}
+
+void TestCredentialFormatter::testFormatDisplayName_CredentialInfo_AllOptions()
+{
+    CredentialInfo cred;
+    cred.issuer = "GitHub";
+    cred.username = "developer";
+    cred.name = "GitHub:developer";
+    cred.requiresTouch = false;
+
+    QString result = CredentialFormatter::formatDisplayName(
+        cred,
+        true, // showUsername
+        true, // showCode (ignored for CredentialInfo)
+        true, // showDeviceName
+        QString("YubiKey 5C"), // deviceName
+        2, // connectedDeviceCount
+        false // showDeviceOnlyWhenMultiple
+    );
+
+    QCOMPARE(result, QString("GitHub (developer) @ YubiKey 5C"));
+}
+
+// ========== Edge Cases ==========
+
+void TestCredentialFormatter::testFormatDisplayName_EmptyFields()
+{
+    // Test with empty issuer - should fall back to name
+    {
+        OathCredential cred;
+        cred.name = "MyAccount";
+        cred.issuer = "";
+        cred.username = "user";
+
+        QString result = CredentialFormatter::formatDisplayName(
+            cred, false, false, false, QString(), 1, false
+        );
+
+        QCOMPARE(result, QString("MyAccount"));
+    }
+
+    // Test with empty username - should not add parentheses
+    {
+        OathCredential cred;
+        cred.issuer = "Amazon";
+        cred.username = "";
+
+        QString result = CredentialFormatter::formatDisplayName(
+            cred, true, false, false, QString(), 1, false
+        );
+
+        QCOMPARE(result, QString("Amazon"));
+    }
+
+    // Test with empty device name - should not add @ section
+    {
+        OathCredential cred;
+        cred.issuer = "Amazon";
+
+        QString result = CredentialFormatter::formatDisplayName(
+            cred, false, false, true, QString(), 2, false
+        );
+
+        QCOMPARE(result, QString("Amazon"));
+    }
+}
+
+void TestCredentialFormatter::testFormatDisplayName_DeviceNameVisibility()
 {
     OathCredential cred;
-    cred.issuer = "Google";
-    cred.username = "user@example.com";
-    cred.code = "654321";
+    cred.issuer = "Microsoft";
 
-    const QString result =CredentialFormatter::formatDisplayName(cred, "full");
+    // Test: showDeviceName=true, onlyWhenMultiple=true, single device
+    {
+        QString result = CredentialFormatter::formatDisplayName(
+            cred, false, false,
+            true, // showDeviceName
+            QString("YubiKey 5"), // deviceName
+            1, // single device
+            true // onlyWhenMultiple
+        );
 
-    QCOMPARE(result, QString("Google (user@example.com) - 654321"));
-}
+        // Should NOT show device name with single device
+        QCOMPARE(result, QString("Microsoft"));
+    }
 
-void TestCredentialFormatter::testFullStrategy_WithoutCode()
-{
-    OathCredential cred;
-    cred.issuer = "Google";
-    cred.username = "user@example.com";
-    // code not set (defaults to empty)
+    // Test: showDeviceName=true, onlyWhenMultiple=true, multiple devices
+    {
+        QString result = CredentialFormatter::formatDisplayName(
+            cred, false, false,
+            true, // showDeviceName
+            QString("YubiKey 5"), // deviceName
+            2, // multiple devices
+            true // onlyWhenMultiple
+        );
 
-    const QString result =CredentialFormatter::formatDisplayName(cred, "full");
+        // Should show device name with multiple devices
+        QCOMPARE(result, QString("Microsoft @ YubiKey 5"));
+    }
 
-    // Should return base format without code
-    QCOMPARE(result, QString("Google (user@example.com)"));
-}
+    // Test: showDeviceName=true, onlyWhenMultiple=false, single device
+    {
+        QString result = CredentialFormatter::formatDisplayName(
+            cred, false, false,
+            true, // showDeviceName
+            QString("YubiKey 5"), // deviceName
+            1, // single device
+            false // onlyWhenMultiple
+        );
 
-void TestCredentialFormatter::testFullStrategy_EmptyCode()
-{
-    OathCredential cred;
-    cred.issuer = "Google";
-    cred.username = "user@example.com";
-    cred.code = "";
-
-    const QString result =CredentialFormatter::formatDisplayName(cred, "full");
-
-    // Empty code should be treated as no code
-    QCOMPARE(result, QString("Google (user@example.com)"));
-}
-
-// ========== Deprecated Enum API Tests ==========
-
-void TestCredentialFormatter::testFormatDisplayName_Enum_Name()
-{
-    OathCredential cred;
-    cred.issuer = "Amazon";
-    cred.username = "shopper";
-
-    const QString result =CredentialFormatter::formatDisplayName(cred, CredentialFormatter::Name);
-
-    QCOMPARE(result, QString("Amazon"));
-}
-
-void TestCredentialFormatter::testFormatDisplayName_Enum_NameUser()
-{
-    OathCredential cred;
-    cred.issuer = "Amazon";
-    cred.username = "shopper";
-
-    const QString result =CredentialFormatter::formatDisplayName(cred, CredentialFormatter::NameUser);
-
-    QCOMPARE(result, QString("Amazon (shopper)"));
-}
-
-void TestCredentialFormatter::testFormatDisplayName_Enum_Full()
-{
-    OathCredential cred;
-    cred.issuer = "Amazon";
-    cred.username = "shopper";
-    cred.code = "999888";
-
-    const QString result =CredentialFormatter::formatDisplayName(cred, CredentialFormatter::Full);
-
-    QCOMPARE(result, QString("Amazon (shopper) - 999888"));
-}
-
-// ========== formatFromString Tests ==========
-
-void TestCredentialFormatter::testFormatFromString()
-{
-    QCOMPARE(CredentialFormatter::formatFromString("name"), CredentialFormatter::Name);
-    QCOMPARE(CredentialFormatter::formatFromString("name_user"), CredentialFormatter::NameUser);
-    QCOMPARE(CredentialFormatter::formatFromString("full"), CredentialFormatter::Full);
-
-    // Unknown string should default to NameUser
-    QCOMPARE(CredentialFormatter::formatFromString("invalid"), CredentialFormatter::NameUser);
-    QCOMPARE(CredentialFormatter::formatFromString(""), CredentialFormatter::NameUser);
-}
-
-// ========== defaultFormat Test ==========
-
-void TestCredentialFormatter::testDefaultFormat()
-{
-    const QString defaultFmt = CredentialFormatter::defaultFormat();
-
-    // Default should be "name_user"
-    QCOMPARE(defaultFmt, QString("name_user"));
+        // Should show device name even with single device
+        QCOMPARE(result, QString("Microsoft @ YubiKey 5"));
+    }
 }
 
 // ========== Real-World Scenarios ==========
 
 void TestCredentialFormatter::testRealWorldCredentials()
 {
-    // Test with various real-world credential formats
-
-    // Scenario 1: Typical Google account
+    // Scenario 1: Google account with username and code
     {
         OathCredential cred;
         cred.issuer = "Google";
         cred.username = "user@gmail.com";
         cred.code = "123456";
+        cred.requiresTouch = false;
 
-        QCOMPARE(CredentialFormatter::formatDisplayName(cred, "name"), QString("Google"));
-        QCOMPARE(CredentialFormatter::formatDisplayName(cred, "name_user"), QString("Google (user@gmail.com)"));
-        QCOMPARE(CredentialFormatter::formatDisplayName(cred, "full"), QString("Google (user@gmail.com) - 123456"));
+        QString result = CredentialFormatter::formatDisplayName(
+            cred, true, true, false, QString(), 1, false
+        );
+
+        QCOMPARE(result, QString("Google (user@gmail.com) - 123456"));
     }
 
-    // Scenario 2: GitHub with username only
+    // Scenario 2: GitHub with touch required (code should not display)
     {
         OathCredential cred;
         cred.issuer = "GitHub";
-        cred.username = "developer123";
+        cred.username = "developer";
         cred.code = "789012";
+        cred.requiresTouch = true;
 
-        QCOMPARE(CredentialFormatter::formatDisplayName(cred, "name_user"), QString("GitHub (developer123)"));
+        QString result = CredentialFormatter::formatDisplayName(
+            cred, true, true, false, QString(), 1, false
+        );
+
+        // Code should not be shown due to touch requirement
+        QCOMPARE(result, QString("GitHub (developer)"));
     }
 
-    // Scenario 3: Service without issuer (username only)
+    // Scenario 3: AWS with device name in multi-device setup
     {
         OathCredential cred;
-        cred.issuer = "";
+        cred.issuer = "AWS";
         cred.username = "admin@company.com";
-        cred.code = "345678";
 
-        QCOMPARE(CredentialFormatter::formatDisplayName(cred, "name"), QString("admin@company.com"));
-        QCOMPARE(CredentialFormatter::formatDisplayName(cred, "name_user"), QString("admin@company.com"));
+        QString result = CredentialFormatter::formatDisplayName(
+            cred, true, false,
+            true, // showDeviceName
+            QString("YubiKey 5C NFC"), // deviceName
+            3, // multiple devices
+            true // onlyWhenMultiple
+        );
+
+        QCOMPARE(result, QString("AWS (admin@company.com) @ YubiKey 5C NFC"));
     }
 
-    // Scenario 4: Service with issuer only (no username)
-    {
-        OathCredential cred;
-        cred.issuer = "AWS Root Account";
-        cred.username = "";
-        cred.code = "901234";
-
-        QCOMPARE(CredentialFormatter::formatDisplayName(cred, "name"), QString("AWS Root Account"));
-        QCOMPARE(CredentialFormatter::formatDisplayName(cred, "name_user"), QString("AWS Root Account"));
-    }
-
-    // Scenario 5: Corporate VPN with long names
+    // Scenario 4: Corporate VPN with all options
     {
         OathCredential cred;
         cred.issuer = "Corporate VPN";
         cred.username = "employee.name@corporation.example.com";
         cred.code = "567890";
+        cred.requiresTouch = false;
 
-        QCOMPARE(CredentialFormatter::formatDisplayName(cred, "name_user"),
-                 QString("Corporate VPN (employee.name@corporation.example.com)"));
+        QString result = CredentialFormatter::formatDisplayName(
+            cred, true, true, true,
+            QString("YubiKey 5 Nano"), 2, false
+        );
+
+        QCOMPARE(result,
+                 QString("Corporate VPN (employee.name@corporation.example.com) - 567890 @ YubiKey 5 Nano"));
+    }
+
+    // Scenario 5: CredentialInfo from D-Bus
+    {
+        CredentialInfo cred;
+        cred.name = "Slack:workspace";
+        cred.issuer = "Slack";
+        cred.username = "workspace";
+        cred.deviceId = "abc123";
+        cred.requiresTouch = false;
+
+        QString result = CredentialFormatter::formatDisplayName(
+            cred, true, false, true,
+            QString("YubiKey Bio"), 1, false
+        );
+
+        QCOMPARE(result, QString("Slack (workspace) @ YubiKey Bio"));
     }
 }
 

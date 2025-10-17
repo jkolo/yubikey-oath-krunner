@@ -67,20 +67,17 @@ else()
     message(STATUS "KRunner or I18n not found - skipping test_action_manager")
 endif()
 
-# Test: DisplayStrategies (requires I18n)
-find_package(KF6 COMPONENTS I18n QUIET)
-if(KF6_I18n_FOUND)
-    add_yubikey_test(test_display_strategies
-        SOURCES test_display_strategies.cpp
-                ../src/krunner/formatting/display_strategies/name_only_strategy.cpp
-                ../src/krunner/formatting/display_strategies/name_user_strategy.cpp
-                ../src/krunner/formatting/display_strategies/full_strategy.cpp
-                ../src/krunner/formatting/display_strategies/display_strategy_factory.cpp
-        LIBRARIES KF6::I18n
-    )
-else()
-    message(STATUS "I18n not found - skipping test_display_strategies")
-endif()
+# Test: FlexibleDisplayStrategy (requires I18n) - TODO: Implement test file
+# find_package(KF6 COMPONENTS I18n QUIET)
+# if(KF6_I18n_FOUND)
+#     add_yubikey_test(test_flexible_display_strategy
+#         SOURCES test_flexible_display_strategy.cpp
+#                 ../src/krunner/formatting/display_strategies/flexible_display_strategy.cpp
+#         LIBRARIES KF6::I18n
+#     )
+# else()
+#     message(STATUS "I18n not found - skipping test_flexible_display_strategy")
+# endif()
 
 # Test: CodeValidator
 add_yubikey_test(test_code_validator
@@ -88,26 +85,35 @@ add_yubikey_test(test_code_validator
             ../src/krunner/formatting/code_validator.cpp
 )
 
+# Test: FlexibleDisplayStrategy (requires I18n)
+find_package(KF6 COMPONENTS I18n QUIET)
+if(KF6_I18n_FOUND)
+    add_yubikey_test(test_flexible_display_strategy
+        SOURCES test_flexible_display_strategy.cpp
+                ../src/krunner/formatting/display_strategies/flexible_display_strategy.cpp
+        LIBRARIES KF6::I18n
+    )
+else()
+    message(STATUS "I18n not found - skipping test_flexible_display_strategy")
+endif()
+
 # Test: CredentialFormatter
-# Note: Requires display strategy implementations and DBus for types
-# Requires I18n for FullStrategy
+# Note: Requires FlexibleDisplayStrategy and DBus for types
 find_package(KF6 COMPONENTS I18n QUIET)
 if(KF6_I18n_FOUND)
     add_yubikey_test(test_credential_formatter
         SOURCES test_credential_formatter.cpp
                 ../src/krunner/formatting/credential_formatter.cpp
                 ../src/shared/dbus/yubikey_dbus_types.cpp
-                ../src/krunner/formatting/display_strategies/name_only_strategy.cpp
-                ../src/krunner/formatting/display_strategies/name_user_strategy.cpp
-                ../src/krunner/formatting/display_strategies/full_strategy.cpp
-                ../src/krunner/formatting/display_strategies/display_strategy_factory.cpp
+                ../src/krunner/formatting/display_strategies/flexible_display_strategy.cpp
         LIBRARIES Qt6::DBus KF6::I18n
     )
 else()
     message(STATUS "I18n not found - skipping test_credential_formatter")
 endif()
 
-# Test: MatchBuilder (requires KRunner and I18n)
+# Test: MatchBuilder
+# (requires KRunner and I18n)
 find_package(KF6 COMPONENTS Runner I18n QUIET)
 if(KF6_Runner_FOUND AND KF6_I18n_FOUND)
     add_yubikey_test(test_match_builder
@@ -116,10 +122,7 @@ if(KF6_Runner_FOUND AND KF6_I18n_FOUND)
                 ../src/krunner/config/configuration_provider.cpp
                 ../src/krunner/matching/match_builder.cpp
                 ../src/krunner/formatting/credential_formatter.cpp
-                ../src/krunner/formatting/display_strategies/name_only_strategy.cpp
-                ../src/krunner/formatting/display_strategies/name_user_strategy.cpp
-                ../src/krunner/formatting/display_strategies/full_strategy.cpp
-                ../src/krunner/formatting/display_strategies/display_strategy_factory.cpp
+                ../src/krunner/formatting/display_strategies/flexible_display_strategy.cpp
                 ../src/krunner/logging_categories.cpp
         LIBRARIES KF6::Runner KF6::I18n Qt6::DBus yubikey_dbus_client
     )

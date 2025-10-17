@@ -22,9 +22,24 @@ bool KRunnerConfiguration::showNotifications() const
     return m_configGroup().readEntry(CONFIG_SHOW_NOTIFICATIONS, true);
 }
 
-QString KRunnerConfiguration::displayFormat() const
+bool KRunnerConfiguration::showUsername() const
 {
-    return m_configGroup().readEntry(CONFIG_DISPLAY_FORMAT, QStringLiteral("name_user"));
+    return m_configGroup().readEntry(CONFIG_SHOW_USERNAME, true);
+}
+
+bool KRunnerConfiguration::showCode() const
+{
+    return m_configGroup().readEntry(CONFIG_SHOW_CODE, false);
+}
+
+bool KRunnerConfiguration::showDeviceName() const
+{
+    return m_configGroup().readEntry(CONFIG_SHOW_DEVICE_NAME, false);
+}
+
+bool KRunnerConfiguration::showDeviceNameOnlyWhenMultiple() const
+{
+    return m_configGroup().readEntry(CONFIG_SHOW_DEVICE_NAME_ONLY_WHEN_MULTIPLE, true);
 }
 
 int KRunnerConfiguration::touchTimeout() const

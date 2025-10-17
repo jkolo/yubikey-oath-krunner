@@ -34,10 +34,28 @@ public:
     virtual bool showNotifications() const = 0;
 
     /**
-     * @brief Gets display format template
-     * @return Format string for credential display
+     * @brief Gets username display preference
+     * @return true if username should be shown in credential display
      */
-    virtual QString displayFormat() const = 0;
+    virtual bool showUsername() const = 0;
+
+    /**
+     * @brief Gets code display preference
+     * @return true if TOTP/HOTP code should be shown (when not touch-required)
+     */
+    virtual bool showCode() const = 0;
+
+    /**
+     * @brief Gets device name display preference
+     * @return true if device name should be shown in credential display
+     */
+    virtual bool showDeviceName() const = 0;
+
+    /**
+     * @brief Gets device name conditional display setting
+     * @return true if device name should only be shown when multiple devices connected
+     */
+    virtual bool showDeviceNameOnlyWhenMultiple() const = 0;
 
     /**
      * @brief Gets touch timeout setting
