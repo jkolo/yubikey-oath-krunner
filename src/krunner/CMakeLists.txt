@@ -20,6 +20,7 @@ set(krunner_yubikey_SRCS
     workflows/notification_orchestrator.cpp
     workflows/touch_workflow_coordinator.cpp
     workflows/touch_handler.cpp
+    workflows/notification_helper.cpp
 
     # Formatting components
     formatting/credential_formatter.cpp
@@ -31,6 +32,7 @@ set(krunner_yubikey_SRCS
     input/wayland_text_input.cpp
     input/portal_text_input.cpp
     input/text_input_factory.cpp
+    input/process_executor.cpp
 
     # Clipboard components
     clipboard/clipboard_manager.cpp

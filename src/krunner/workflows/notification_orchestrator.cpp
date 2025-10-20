@@ -6,7 +6,7 @@
 #include "notification_orchestrator.h"
 #include "../config/configuration_provider.h"
 #include "../notification/dbus_notification_manager.h"
-#include "../formatting/code_validator.h"
+#include "notification_helper.h"
 #include "../logging_categories.h"
 
 #include <KLocalizedString>
@@ -188,7 +188,7 @@ void NotificationOrchestrator::updateCodeNotification()
     }
 
     // Calculate progress (100% at start, 0% at end)
-    int totalSeconds = CodeValidator::calculateCodeValidity() + m_config->notificationExtraTime();
+    int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config);
     int progress = (remainingSeconds * 100) / totalSeconds;
 
     qCDebug(NotificationOrchestratorLog) << "Updating code notification - remaining:" << remainingSeconds

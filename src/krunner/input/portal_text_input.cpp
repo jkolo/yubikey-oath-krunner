@@ -5,11 +5,13 @@
 
 #include "portal_text_input.h"
 #include "../logging_categories.h"
+#include "../../shared/utils/async_waiter.h"
+#include "../../shared/utils/deferred_execution.h"
 
 #include <QDebug>
+#include <QDateTime>
 #include <QEventLoop>
 #include <QGuiApplication>
-#include <QTimer>
 #include <linux/input-event-codes.h>
 
 namespace KRunner {
@@ -111,7 +113,7 @@ void PortalTextInput::handleOeffisEvents()
             qCDebug(TextInputLog) << "PortalTextInput: Portal session closed";
             m_portalConnected = false;
             // Defer cleanup to avoid deleting notifier while in its callback
-            QTimer::singleShot(0, this, &PortalTextInput::cleanup);
+            DeferredExecution::defer(this, [this]() { cleanup(); });
             break;
 
         case OEFFIS_EVENT_DISCONNECTED:
@@ -120,7 +122,7 @@ void PortalTextInput::handleOeffisEvents()
             m_portalConnected = false;
             m_permissionRejected = true;  // User explicitly rejected permission
             // Defer cleanup to avoid deleting notifier while in its callback
-            QTimer::singleShot(0, this, &PortalTextInput::cleanup);
+            DeferredExecution::defer(this, [this]() { cleanup(); });
             break;
 
         default:
@@ -257,46 +259,17 @@ bool PortalTextInput::typeText(const QString &text)
         oeffis_create_session(m_oeffis, OEFFIS_DEVICE_KEYBOARD);
         qCDebug(TextInputLog) << "PortalTextInput: oeffis_create_session() called, waiting for connection...";
 
-        // Use QEventLoop with QTimer for proper event processing
-        // QSocketNotifier (used by oeffis) only works with Qt event loop
-        QEventLoop loop;
-        QTimer timeoutTimer;
-        timeoutTimer.setSingleShot(true);
-
-        // Connect success/failure signals to quit the event loop
-        auto connectionSuccess = connect(this, &PortalTextInput::destroyed, &loop, &QEventLoop::quit);
-
-        // Setup timeout
-        int timeout = 60000; // 60 seconds
-        connect(&timeoutTimer, &QTimer::timeout, &loop, &QEventLoop::quit);
-        timeoutTimer.start(timeout);
-
-        // Log progress every second
-        QTimer progressTimer;
-        int elapsed = 0;
-        connect(&progressTimer, &QTimer::timeout, this, [this, &elapsed]() {
-            elapsed += 1000;
-            qCDebug(TextInputLog) << "PortalTextInput: Still waiting for portal connection... waited:" << elapsed << "ms";
-
-            // Check if connected or rejected
-            if (m_portalConnected || m_permissionRejected || !m_oeffis) {
-                return; // Will exit loop on next iteration
+        // Wait for portal connection using AsyncWaiter
+        auto result = AsyncWaiter::waitFor(
+            [this]() { return m_portalConnected || m_permissionRejected || !m_oeffis; },
+            60000,  // 60 seconds timeout
+            1000,   // Log progress every second
+            [this](int elapsed) {
+                qCDebug(TextInputLog) << "PortalTextInput: Still waiting for portal connection... waited:" << elapsed << "ms";
             }
-        });
-        progressTimer.start(1000);
+        );
 
-        // Wait for connection with proper event loop
-        while (!m_portalConnected && !m_permissionRejected && m_oeffis && timeoutTimer.isActive()) {
-            loop.processEvents(QEventLoop::WaitForMoreEvents, 100);
-        }
-
-        // Stop timers
-        timeoutTimer.stop();
-        progressTimer.stop();
-        disconnect(connectionSuccess);
-
-        // Use elapsed time from progress timer (more accurate than remainingTime())
-        int totalWaited = elapsed;
+        int totalWaited = result.elapsedMs;
 
         // Check if permission was rejected
         if (m_permissionRejected || !m_oeffis) {
@@ -315,46 +288,25 @@ bool PortalTextInput::typeText(const QString &text)
         qCDebug(TextInputLog) << "PortalTextInput: Portal connected after" << totalWaited << "ms";
     }
 
-    // Wait for device to be ready using event loop
+    // Wait for device to be ready using AsyncWaiter
     if (!m_deviceReady) {
         qCDebug(TextInputLog) << "PortalTextInput: Device not ready, waiting...";
 
-        QEventLoop loop;
-        QTimer timeoutTimer;
-        timeoutTimer.setSingleShot(true);
-
-        int timeout = 30000; // 30 seconds - EI protocol needs time for seat/device setup
-        connect(&timeoutTimer, &QTimer::timeout, &loop, &QEventLoop::quit);
-        timeoutTimer.start(timeout);
-
-        // Log progress every 500ms
-        QTimer progressTimer;
-        int elapsed = 0;
-        connect(&progressTimer, &QTimer::timeout, this, [this, &elapsed]() {
-            elapsed += 500;
-            if (elapsed % 500 == 0) {
+        auto result = AsyncWaiter::waitFor(
+            [this]() { return m_deviceReady; },
+            30000,  // 30 seconds - EI protocol needs time for seat/device setup
+            500,    // Log progress every 500ms
+            [this](int elapsed) {
                 qCDebug(TextInputLog) << "PortalTextInput: Still waiting for device... waited:" << elapsed << "ms";
             }
-            if (m_deviceReady) {
-                return; // Will exit loop on next iteration
-            }
-        });
-        progressTimer.start(500);
+        );
 
-        // Wait with proper event processing
-        while (!m_deviceReady && timeoutTimer.isActive()) {
-            loop.processEvents(QEventLoop::WaitForMoreEvents, 100);
-        }
-
-        timeoutTimer.stop();
-        progressTimer.stop();
-
-        if (!m_deviceReady) {
-            qCWarning(TextInputLog) << "PortalTextInput: TIMEOUT - Device not ready after" << timeout << "ms";
+        if (!result.success) {
+            qCWarning(TextInputLog) << "PortalTextInput: TIMEOUT - Device not ready after" << result.elapsedMs << "ms";
             return false;
         }
 
-        qCDebug(TextInputLog) << "PortalTextInput: Device ready after" << elapsed << "ms";
+        qCDebug(TextInputLog) << "PortalTextInput: Device ready after" << result.elapsedMs << "ms";
     }
 
     qCDebug(TextInputLog) << "PortalTextInput: Sending key events...";
@@ -368,10 +320,13 @@ bool PortalTextInput::sendKeyEvents(const QString &text)
         return false;
     }
 
+    qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Starting to send key events at" << QDateTime::currentMSecsSinceEpoch();
+
     // Start emulating sequence
     ei_device_start_emulating(m_device, ++m_sequence);
 
     bool success = true;
+    int charIndex = 0;
     for (const QChar &ch : text) {
         uint32_t keycode;
         bool needShift;
@@ -383,6 +338,8 @@ bool PortalTextInput::sendKeyEvents(const QString &text)
         }
 
         uint64_t timestamp = ei_now(m_ei);
+
+        qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Sending char" << charIndex << "'" << ch << "' keycode:" << keycode << "shift:" << needShift;
 
         // Press Shift if needed
         if (needShift) {
@@ -402,11 +359,14 @@ bool PortalTextInput::sendKeyEvents(const QString &text)
             ei_device_keyboard_key(m_device, KEY_LEFTSHIFT, false);
             ei_device_frame(m_device, timestamp);
         }
+
+        charIndex++;
     }
 
     // Stop emulating
     ei_device_stop_emulating(m_device);
 
+    qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Finished sending" << text.length() << "characters at" << QDateTime::currentMSecsSinceEpoch();
     qCDebug(TextInputLog) << "PortalTextInput: Successfully sent" << text.length() << "characters";
     return success;
 }

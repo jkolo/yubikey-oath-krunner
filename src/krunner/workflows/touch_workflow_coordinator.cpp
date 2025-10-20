@@ -6,11 +6,11 @@
 #include "touch_workflow_coordinator.h"
 #include "../actions/action_executor.h"
 #include "notification_orchestrator.h"
+#include "notification_helper.h"
 #include "../config/configuration_provider.h"
 #include "../logging_categories.h"
 #include "../shared/dbus/yubikey_dbus_client.h"
 #include "workflows/touch_handler.h"
-#include "../formatting/code_validator.h"
 
 #include <KLocalizedString>
 #include <QTimer>
@@ -109,10 +109,7 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
         // If permission was rejected, code was copied to clipboard as fallback
         // Show code notification (ActionExecutor already showed "Permission Denied" notification)
         if (result == ActionExecutor::ActionResult::Failed) {
-            int remainingValidity = CodeValidator::calculateCodeValidity();
-            int extraTime = m_config->notificationExtraTime();
-            int totalSeconds = remainingValidity + extraTime;
-
+            int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config);
             m_notificationOrchestrator->showCodeNotification(code, credentialName, totalSeconds);
         }
     } else {
@@ -120,10 +117,7 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
 
         // Show code notification for copy action
         if (result == ActionExecutor::ActionResult::Success) {
-            int remainingValidity = CodeValidator::calculateCodeValidity();
-            int extraTime = m_config->notificationExtraTime();
-            int totalSeconds = remainingValidity + extraTime;
-
+            int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config);
             m_notificationOrchestrator->showCodeNotification(code, credentialName, totalSeconds);
         }
     }
@@ -150,10 +144,7 @@ void TouchWorkflowCoordinator::onCodeGenerationFailed(const QString &credentialN
     qCDebug(TouchWorkflowCoordinatorLog) << "Code generation failed, cleaning up";
 
     // Clean up
-    m_touchHandler->cancelTouchOperation();
-    m_notificationOrchestrator->closeTouchNotification();
-    m_pendingActionId.clear();
-    m_pendingDeviceId.clear();
+    cleanupTouchWorkflow();
 }
 
 void TouchWorkflowCoordinator::onTouchTimeout(const QString &credentialName)
@@ -166,8 +157,8 @@ void TouchWorkflowCoordinator::onTouchTimeout(const QString &credentialName)
         // Note: D-Bus operations can't be cancelled, but the timeout will be
         // handled by ignoring the result if it arrives after timeout
 
-        // Clear pending device
-        m_pendingDeviceId.clear();
+        // Clean up workflow state
+        cleanupTouchWorkflow();
 
         qCDebug(TouchWorkflowCoordinatorLog) << "Touch timeout handled";
     }
@@ -178,12 +169,20 @@ void TouchWorkflowCoordinator::onTouchCancelled()
     qCDebug(TouchWorkflowCoordinatorLog) << "Touch operation cancelled by user";
 
     QString credentialName = m_touchHandler->waitingCredential();
-    m_touchHandler->cancelTouchOperation();
+    cleanupTouchWorkflow();
 
     m_notificationOrchestrator->showSimpleNotification(
         i18n("Cancelled"),
         i18n("Touch operation cancelled for '%1'", credentialName),
         0);
+}
+
+void TouchWorkflowCoordinator::cleanupTouchWorkflow()
+{
+    m_touchHandler->cancelTouchOperation();
+    m_notificationOrchestrator->closeTouchNotification();
+    m_pendingActionId.clear();
+    m_pendingDeviceId.clear();
 }
 
 } // namespace YubiKey

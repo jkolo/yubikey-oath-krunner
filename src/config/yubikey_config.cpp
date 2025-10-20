@@ -1,6 +1,7 @@
 #include "yubikey_config.h"
 #include "logging_categories.h"
 #include "../shared/dbus/yubikey_dbus_client.h"
+#include "../shared/utils/resource_initializer.h"
 #include "yubikey_device_model.h"
 
 #include <KConfigGroup>
@@ -17,10 +18,6 @@
 #include <QQuickWidget>
 #include <QUrl>
 
-// Forward declare Qt resource initialization
-extern void qInitResources_shared();
-extern void qInitResources_config();
-
 namespace KRunner {
 namespace YubiKey {
 
@@ -29,8 +26,7 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
     , m_dbusClient(std::make_unique<YubiKeyDBusClient>(this))
 {
     // Initialize Qt resources (QML files, icons)
-    qInitResources_shared();
-    qInitResources_config();
+    ResourceInitializer::initializeAllResources();
 
     m_ui = new YubiKeyConfigForm(widget());
     auto *layout = new QGridLayout(widget());

@@ -6,7 +6,7 @@
 #include "action_executor.h"
 #include "../input/text_input_provider.h"
 #include "../clipboard/clipboard_manager.h"
-#include "../formatting/code_validator.h"
+#include "../workflows/notification_helper.h"
 #include "../logging_categories.h"
 #include "../config/configuration_provider.h"
 
@@ -110,9 +110,7 @@ ActionExecutor::ActionResult ActionExecutor::executeCopyAction(const QString &co
     }
 
     // Calculate code expiration time for clipboard auto-clear
-    int remainingValidity = CodeValidator::calculateCodeValidity();
-    int extraTime = m_config->notificationExtraTime();
-    int totalSeconds = remainingValidity + extraTime;
+    int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config);
 
     // Copy to clipboard with auto-clear timeout
     if (!m_clipboardManager->copyToClipboard(code, totalSeconds)) {

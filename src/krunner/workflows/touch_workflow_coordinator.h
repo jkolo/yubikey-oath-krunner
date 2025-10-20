@@ -109,6 +109,18 @@ private Q_SLOTS:
     void onTouchCancelled();
 
 private:
+    /**
+     * @brief Cleanup touch workflow state
+     *
+     * Centralized cleanup logic that:
+     * - Cancels touch operation timer
+     * - Closes touch notification
+     * - Clears pending action/device state
+     *
+     * @note Called from multiple completion paths (success, failure, timeout, cancel)
+     */
+    void cleanupTouchWorkflow();
+
     YubiKeyDBusClient *m_dbusClient;
     TouchHandler *m_touchHandler;
     ActionExecutor *m_actionExecutor;

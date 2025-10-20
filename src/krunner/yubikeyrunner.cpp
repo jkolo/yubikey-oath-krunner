@@ -5,7 +5,8 @@
 
 #include "yubikeyrunner.h"
 #include "input/text_input_factory.h"
-#include "formatting/code_validator.h"
+#include "workflows/notification_helper.h"
+#include "../shared/utils/deferred_execution.h"
 #include "logging_categories.h"
 
 #include <KConfigGroup>
@@ -249,7 +250,7 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
              << "action name:" << m_actionManager->getActionName(actionId);
 
     // Process asynchronously
-    ::QTimer::singleShot(0, this, [this, credentialName, displayName, code, requiresTouch, actionId, deviceId]() {
+    DeferredExecution::defer(this, [this, credentialName, displayName, code, requiresTouch, actionId, deviceId]() {
         processCredentialAsync(credentialName, displayName, code, requiresTouch, actionId, deviceId);
     });
 
@@ -297,27 +298,33 @@ void YubiKeyRunner::processCredentialAsync(const QString &credentialName,
 
     // Execute action
     if (actionId == QStringLiteral("type")) {
-        auto result = m_actionExecutor->executeTypeAction(actualCode, credentialName);
+        qCDebug(YubiKeyRunnerLog) << "[TIMING] Deferring type action by 150ms to allow KRunner to close and focus to return";
 
-        qCDebug(YubiKeyRunnerLog) << "executeTypeAction() returned result:" << static_cast<int>(result);
+        // Defer typing to allow KRunner window to close and focus to return to previous window
+        // Without this delay, key events are sent while KRunner has focus, causing them to be lost
+        QTimer::singleShot(150, this, [this, actualCode, credentialName]() {
+            qCDebug(YubiKeyRunnerLog) << "[TIMING] Executing deferred type action now";
 
-        // Handle different results
-        if (result == ActionExecutor::ActionResult::Success) {
-            qCDebug(YubiKeyRunnerLog) << "Type action succeeded";
-        } else if (result == ActionExecutor::ActionResult::WaitingForPermission) {
-            qCDebug(YubiKeyRunnerLog) << "Type action waiting for permission - user needs to approve dialog";
-            // Don't show any notification - waiting for user to approve permission dialog
-            // On next attempt (after approval), typing will work
-        } else if (result == ActionExecutor::ActionResult::Failed) {
-            qCDebug(YubiKeyRunnerLog) << "Type action failed - code was copied to clipboard as fallback";
-            // If permission was rejected or type failed, code was copied to clipboard as fallback
-            // Show code notification (ActionExecutor already showed "Permission Denied" notification if rejected)
-            int remainingValidity = CodeValidator::calculateCodeValidity();
-            int extraTime = m_config->notificationExtraTime();
-            int totalSeconds = remainingValidity + extraTime;
+            auto result = m_actionExecutor->executeTypeAction(actualCode, credentialName);
 
-            m_notificationOrchestrator->showCodeNotification(actualCode, credentialName, totalSeconds);
-        }
+            qCDebug(YubiKeyRunnerLog) << "executeTypeAction() returned result:" << static_cast<int>(result);
+
+            // Handle different results
+            if (result == ActionExecutor::ActionResult::Success) {
+                qCDebug(YubiKeyRunnerLog) << "Type action succeeded";
+            } else if (result == ActionExecutor::ActionResult::WaitingForPermission) {
+                qCDebug(YubiKeyRunnerLog) << "Type action waiting for permission - user needs to approve dialog";
+                // Don't show any notification - waiting for user to approve permission dialog
+                // On next attempt (after approval), typing will work
+            } else if (result == ActionExecutor::ActionResult::Failed) {
+                qCDebug(YubiKeyRunnerLog) << "Type action failed - code was copied to clipboard as fallback";
+                // If permission was rejected or type failed, code was copied to clipboard as fallback
+                // Show code notification (ActionExecutor already showed "Permission Denied" notification if rejected)
+                int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config.get());
+
+                m_notificationOrchestrator->showCodeNotification(actualCode, credentialName, totalSeconds);
+            }
+        });
     } else {
         auto result = m_actionExecutor->executeCopyAction(actualCode, credentialName);
 
@@ -326,9 +333,7 @@ void YubiKeyRunner::processCredentialAsync(const QString &credentialName,
         // Show code notification for copy action
         if (result == ActionExecutor::ActionResult::Success) {
             qCDebug(YubiKeyRunnerLog) << "Copy action succeeded";
-            int remainingValidity = CodeValidator::calculateCodeValidity();
-            int extraTime = m_config->notificationExtraTime();
-            int totalSeconds = remainingValidity + extraTime;
+            int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config.get());
 
             m_notificationOrchestrator->showCodeNotification(actualCode, credentialName, totalSeconds);
         } else {
