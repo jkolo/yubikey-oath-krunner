@@ -15,6 +15,7 @@ namespace YubiKey {
 class TextInputProvider;
 class ClipboardManager;
 class ConfigurationProvider;
+class NotificationOrchestrator;
 
 /**
  * @brief Executes user actions (type/copy) with error handling
@@ -78,11 +79,13 @@ public:
      * @param textInput Text input provider for typing (Portal/Wayland/X11)
      * @param clipboardManager Clipboard manager for copy operations
      * @param config Configuration provider for notification preferences
+     * @param notificationOrchestrator Notification orchestrator for modifier key warnings
      * @param parent Parent QObject for automatic cleanup
      */
     explicit ActionExecutor(TextInputProvider *textInput,
                            ClipboardManager *clipboardManager,
                            const ConfigurationProvider *config,
+                           NotificationOrchestrator *notificationOrchestrator,
                            QObject *parent = nullptr);
 
     /**
@@ -133,9 +136,25 @@ Q_SIGNALS:
     void notificationRequested(const QString &title, const QString &message, int type);
 
 private:
+    /**
+     * @brief Checks for pressed modifier keys and waits for release
+     *
+     * Workflow:
+     * 1. Check if modifiers are pressed
+     * 2. Wait 500ms for release (silent polling)
+     * 3. If still pressed, show notification and wait up to 15s
+     * 4. If timeout, show cancel notification and fail
+     *
+     * @param credentialName Credential name for logging
+     * @return ActionResult::Success if modifiers released or not pressed
+     *         ActionResult::Failed if timeout waiting for release
+     */
+    ActionResult checkAndWaitForModifiers(const QString &credentialName);
+
     TextInputProvider *m_textInput;
     ClipboardManager *m_clipboardManager;
     const ConfigurationProvider *m_config;
+    NotificationOrchestrator *m_notificationOrchestrator;
 };
 
 } // namespace YubiKey

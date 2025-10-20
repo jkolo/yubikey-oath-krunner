@@ -40,20 +40,23 @@ YubiKeyRunner::YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData)
     );
 
     // Create runner components
-    m_actionExecutor = std::make_unique<ActionExecutor>(
-        m_textInput.get(),
-        m_clipboardManager.get(),
-        m_config.get(),
-        this
-    );
-
-    m_actionManager = std::make_unique<ActionManager>();
-
+    // Note: NotificationOrchestrator must be created before ActionExecutor
+    // because ActionExecutor needs it for modifier key notifications
     m_notificationOrchestrator = std::make_unique<NotificationOrchestrator>(
         m_notificationManager.get(),
         m_config.get(),
         this
     );
+
+    m_actionExecutor = std::make_unique<ActionExecutor>(
+        m_textInput.get(),
+        m_clipboardManager.get(),
+        m_config.get(),
+        m_notificationOrchestrator.get(),
+        this
+    );
+
+    m_actionManager = std::make_unique<ActionManager>();
 
     m_touchWorkflowCoordinator = std::make_unique<TouchWorkflowCoordinator>(
         m_dbusClient.get(),

@@ -5,8 +5,10 @@
 
 #include "action_executor.h"
 #include "../input/text_input_provider.h"
+#include "../input/modifier_key_checker.h"
 #include "../clipboard/clipboard_manager.h"
 #include "../workflows/notification_helper.h"
+#include "../workflows/notification_orchestrator.h"
 #include "../logging_categories.h"
 #include "../config/configuration_provider.h"
 
@@ -19,11 +21,13 @@ namespace YubiKey {
 ActionExecutor::ActionExecutor(TextInputProvider *textInput,
                                ClipboardManager *clipboardManager,
                                const ConfigurationProvider *config,
+                               NotificationOrchestrator *notificationOrchestrator,
                                QObject *parent)
     : QObject(parent)
     , m_textInput(textInput)
     , m_clipboardManager(clipboardManager)
     , m_config(config)
+    , m_notificationOrchestrator(notificationOrchestrator)
 {
 }
 
@@ -46,6 +50,13 @@ ActionExecutor::ActionResult ActionExecutor::executeTypeAction(const QString &co
                                     i18n("Text input not available"),
                                     1);
         return ActionResult::Failed;
+    }
+
+    // Check for pressed modifier keys and wait for release
+    ActionResult modifierCheck = checkAndWaitForModifiers(credentialName);
+    if (modifierCheck != ActionResult::Success) {
+        qCWarning(ActionExecutorLog) << "Type action cancelled due to modifier keys for:" << credentialName;
+        return modifierCheck;
     }
 
     bool success = m_textInput->typeText(code);
@@ -124,6 +135,68 @@ ActionExecutor::ActionResult ActionExecutor::executeCopyAction(const QString &co
     qCDebug(ActionExecutorLog) << "Code copied to clipboard successfully for:" << credentialName
              << "will clear in:" << totalSeconds << "seconds";
     return ActionResult::Success;
+}
+
+ActionExecutor::ActionResult ActionExecutor::checkAndWaitForModifiers(const QString &credentialName)
+{
+    qCDebug(ActionExecutorLog) << "Checking for pressed modifier keys before typing for:" << credentialName;
+
+    // Check if any modifiers are currently pressed
+    if (!ModifierKeyChecker::hasModifiersPressed()) {
+        qCDebug(ActionExecutorLog) << "No modifier keys pressed - proceeding with type action";
+        return ActionResult::Success;
+    }
+
+    // Get list of pressed modifiers for notifications
+    QStringList pressedModifiers = ModifierKeyChecker::getPressedModifiers();
+    qCDebug(ActionExecutorLog) << "Modifier keys detected:" << pressedModifiers
+                               << "- waiting for release";
+
+    // Phase 1: Wait 250ms silently for user to release modifiers
+    constexpr int INITIAL_WAIT_MS = 250;
+    constexpr int POLL_INTERVAL_MS = 50;
+
+    if (ModifierKeyChecker::waitForModifierRelease(INITIAL_WAIT_MS, POLL_INTERVAL_MS)) {
+        qCDebug(ActionExecutorLog) << "Modifiers released within initial" << INITIAL_WAIT_MS
+                                   << "ms - proceeding with type action";
+        return ActionResult::Success;
+    }
+
+    // Phase 2: Still pressed after 500ms - show notification and wait up to 15s
+    qCDebug(ActionExecutorLog) << "Modifiers still pressed after" << INITIAL_WAIT_MS
+                               << "ms - showing release notification";
+
+    constexpr int RELEASE_WAIT_SECONDS = 15;
+
+    // Show notification requesting release
+    if (m_notificationOrchestrator) {
+        m_notificationOrchestrator->showModifierReleaseNotification(pressedModifiers, RELEASE_WAIT_SECONDS);
+    }
+
+    // Wait for release with notification countdown
+    constexpr int RELEASE_WAIT_MS = RELEASE_WAIT_SECONDS * 1000;
+    bool released = ModifierKeyChecker::waitForModifierRelease(RELEASE_WAIT_MS, POLL_INTERVAL_MS);
+
+    // Close notification
+    if (m_notificationOrchestrator) {
+        m_notificationOrchestrator->closeModifierNotification();
+    }
+
+    if (released) {
+        qCDebug(ActionExecutorLog) << "Modifiers released during notification period - proceeding with type action";
+        return ActionResult::Success;
+    }
+
+    // Phase 3: Timeout - modifiers still pressed after 15s
+    qCWarning(ActionExecutorLog) << "Modifier timeout - keys still pressed after"
+                                 << (INITIAL_WAIT_MS + RELEASE_WAIT_MS) << "ms - cancelling type action";
+
+    // Show cancellation notification
+    if (m_notificationOrchestrator) {
+        m_notificationOrchestrator->showModifierCancelNotification();
+    }
+
+    return ActionResult::Failed;
 }
 
 } // namespace YubiKey

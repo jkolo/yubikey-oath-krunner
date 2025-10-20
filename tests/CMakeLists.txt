@@ -129,6 +129,21 @@ else()
     message(STATUS "KRunner or I18n not found - skipping test_match_builder")
 endif()
 
+# Test: ModifierKeyChecker (requires Gui, I18n, and X11)
+# Note: Qt6 Gui is already found at the top of this file via Qt6::Test dependency
+find_package(KF6 COMPONENTS I18n QUIET)
+find_package(X11 QUIET)
+if(KF6_I18n_FOUND AND X11_FOUND)
+    add_yubikey_test(test_modifier_key_checker
+        SOURCES test_modifier_key_checker.cpp
+                ../src/krunner/input/modifier_key_checker.cpp
+                ../src/krunner/logging_categories.cpp
+        LIBRARIES Qt6::Gui KF6::I18n ${X11_LIBRARIES}
+    )
+else()
+    message(STATUS "I18n or X11 not found - skipping test_modifier_key_checker")
+endif()
+
 # Summary
 message(STATUS "Unit tests configured:")
 message(STATUS "  - test_result (Result<T> template)")
@@ -136,4 +151,5 @@ message(STATUS "  - test_code_validator (CodeValidator)")
 message(STATUS "  - test_credential_formatter (CredentialFormatter)")
 if(KF6_Runner_FOUND)
     message(STATUS "  - test_match_builder (MatchBuilder)")
+    message(STATUS "  - test_modifier_key_checker (ModifierKeyChecker)")
 endif()

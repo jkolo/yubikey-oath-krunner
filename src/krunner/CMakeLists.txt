@@ -36,6 +36,7 @@ set(krunner_yubikey_SRCS
     input/wayland_text_input.cpp
     input/portal_text_input.cpp
     input/text_input_factory.cpp
+    input/modifier_key_checker.cpp
 
     # Clipboard components
     clipboard/clipboard_manager.cpp
@@ -48,6 +49,9 @@ set(krunner_yubikey_SRCS
 )
 
 qt6_add_resources(krunner_yubikey_SRCS ../shared/resources/shared.qrc)
+
+# Find X11 for modifier key checking (XQueryKeymap)
+find_package(X11 REQUIRED)
 
 # Use add_library MODULE like other KRunner plugins
 add_library(krunner_yubikey MODULE ${krunner_yubikey_SRCS})
@@ -75,6 +79,7 @@ target_link_libraries(krunner_yubikey
     ${XKBCOMMON_LIBRARIES}
     ${LIBEI_LIBRARIES}
     ${LIBOEFFIS_LIBRARIES}
+    ${X11_LIBRARIES}  # X11 for XQueryKeymap modifier detection
 )
 
 # Install the plugin module

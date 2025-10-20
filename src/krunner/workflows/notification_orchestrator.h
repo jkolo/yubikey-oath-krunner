@@ -144,6 +144,48 @@ public:
      */
     void showSimpleNotification(const QString &title, const QString &message, int type = 0);
 
+    /**
+     * @brief Shows notification requesting modifier key release with timeout countdown
+     *
+     * Displays persistent notification with:
+     * - Request to release pressed modifier keys
+     * - List of currently pressed modifiers
+     * - Manual countdown timer (15 seconds)
+     * - Updates every second with remaining time
+     *
+     * @param modifiers List of pressed modifier names (e.g., ["Shift", "Ctrl"])
+     * @param timeoutSeconds Timeout in seconds (typically 15)
+     *
+     * @note Notification persists until closeModifierNotification() is called
+     *       or timeout expires.
+     *
+     * @par Thread Safety
+     * Must be called from main/UI thread.
+     */
+    void showModifierReleaseNotification(const QStringList& modifiers, int timeoutSeconds);
+
+    /**
+     * @brief Closes active modifier release notification immediately
+     *
+     * Removes modifier notification from screen and stops countdown timer.
+     * Safe to call even if no modifier notification is active.
+     *
+     * @par Thread Safety
+     * Must be called from main/UI thread.
+     */
+    void closeModifierNotification();
+
+    /**
+     * @brief Shows notification about cancelled type action due to modifier timeout
+     *
+     * Displays warning notification informing user that code input was cancelled
+     * because modifier keys were held down for too long.
+     *
+     * @par Thread Safety
+     * Must be called from main/UI thread.
+     */
+    void showModifierCancelNotification();
+
 Q_SIGNALS:
     /**
      * @brief Emitted when touch operation is cancelled by user
@@ -153,6 +195,7 @@ Q_SIGNALS:
 private Q_SLOTS:
     void updateCodeNotification();
     void updateTouchNotification();
+    void updateModifierNotification();
     void onNotificationActionInvoked(uint id, const QString &actionKey);
     void onNotificationClosed(uint id, uint reason);
 
@@ -197,6 +240,12 @@ private:
     QTimer *m_touchUpdateTimer;
     QDateTime m_touchExpirationTime;
     QString m_touchCredentialName;
+
+    // Modifier release notification state
+    uint m_modifierNotificationId = 0;
+    QTimer *m_modifierUpdateTimer;
+    QDateTime m_modifierExpirationTime;
+    QStringList m_currentModifiers;
 };
 
 } // namespace YubiKey
