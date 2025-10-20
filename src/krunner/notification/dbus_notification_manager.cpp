@@ -1,5 +1,6 @@
 #include "dbus_notification_manager.h"
 #include "../logging_categories.h"
+#include "../../shared/dbus/dbus_connection_helper.h"
 
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
@@ -33,25 +34,18 @@ DBusNotificationManager::DBusNotificationManager(QObject* parent)
     qCDebug(DBusNotificationLog) << "DBusNotificationManager: DBus interface created successfully";
 
     // Connect to DBus signals for action invocation and notification closing
-    QDBusConnection::sessionBus().connect(
+    int connected = DBusConnectionHelper::connectSignals(
         NOTIFICATIONS_SERVICE,
         NOTIFICATIONS_PATH,
         NOTIFICATIONS_INTERFACE,
-        QStringLiteral("ActionInvoked"),
         this,
-        SLOT(onActionInvoked(uint, QString))
+        {
+            {"ActionInvoked", SLOT(onActionInvoked(uint, QString))},
+            {"NotificationClosed", SLOT(onNotificationClosed(uint, uint))}
+        }
     );
 
-    QDBusConnection::sessionBus().connect(
-        NOTIFICATIONS_SERVICE,
-        NOTIFICATIONS_PATH,
-        NOTIFICATIONS_INTERFACE,
-        QStringLiteral("NotificationClosed"),
-        this,
-        SLOT(onNotificationClosed(uint, uint))
-    );
-
-    qCDebug(DBusNotificationLog) << "DBusNotificationManager: Connected to ActionInvoked and NotificationClosed signals";
+    qCDebug(DBusNotificationLog) << "DBusNotificationManager: Connected" << connected << "of 2 signals";
 }
 
 DBusNotificationManager::~DBusNotificationManager() = default;

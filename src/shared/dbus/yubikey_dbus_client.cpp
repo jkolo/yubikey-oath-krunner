@@ -4,6 +4,7 @@
  */
 
 #include "yubikey_dbus_client.h"
+#include "dbus_connection_helper.h"
 
 #include <QDBusConnection>
 #include <QDBusInterface>
@@ -187,44 +188,21 @@ void YubiKeyDBusClient::setupSignalConnections()
         return;
     }
 
-    // Connect D-Bus signals to our signals
-    QDBusConnection::sessionBus().connect(
+    // Connect D-Bus signals to our signals using helper
+    int connected = DBusConnectionHelper::connectSignals(
         QString::fromLatin1(SERVICE_NAME),
         QString::fromLatin1(OBJECT_PATH),
         QString::fromLatin1(INTERFACE_NAME),
-        QStringLiteral("DeviceConnected"),
         this,
-        SIGNAL(deviceConnected(QString))
+        {
+            {"DeviceConnected", SIGNAL(deviceConnected(QString))},
+            {"DeviceDisconnected", SIGNAL(deviceDisconnected(QString))},
+            {"CredentialsUpdated", SIGNAL(credentialsUpdated(QString))},
+            {"DeviceForgetRequested", SIGNAL(deviceForgetRequested(QString))}
+        }
     );
 
-    QDBusConnection::sessionBus().connect(
-        QString::fromLatin1(SERVICE_NAME),
-        QString::fromLatin1(OBJECT_PATH),
-        QString::fromLatin1(INTERFACE_NAME),
-        QStringLiteral("DeviceDisconnected"),
-        this,
-        SIGNAL(deviceDisconnected(QString))
-    );
-
-    QDBusConnection::sessionBus().connect(
-        QString::fromLatin1(SERVICE_NAME),
-        QString::fromLatin1(OBJECT_PATH),
-        QString::fromLatin1(INTERFACE_NAME),
-        QStringLiteral("CredentialsUpdated"),
-        this,
-        SIGNAL(credentialsUpdated(QString))
-    );
-
-    QDBusConnection::sessionBus().connect(
-        QString::fromLatin1(SERVICE_NAME),
-        QString::fromLatin1(OBJECT_PATH),
-        QString::fromLatin1(INTERFACE_NAME),
-        QStringLiteral("DeviceForgetRequested"),
-        this,
-        SIGNAL(deviceForgetRequested(QString))
-    );
-
-    qDebug() << "YubiKeyDBusClient: Signal connections established";
+    qDebug() << "YubiKeyDBusClient: Signal connections established:" << connected << "of 4";
 }
 
 void YubiKeyDBusClient::checkDaemonAvailability()
