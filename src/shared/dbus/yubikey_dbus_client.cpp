@@ -159,6 +159,27 @@ void YubiKeyDBusClient::forgetDevice(const QString &deviceId)
     m_interface->call(QStringLiteral("ForgetDevice"), deviceId);
 }
 
+bool YubiKeyDBusClient::setDeviceName(const QString &deviceId, const QString &newName)
+{
+    if (!m_daemonAvailable) {
+        qWarning() << "YubiKeyDBusClient: Daemon not available";
+        return false;
+    }
+
+    QDBusReply<bool> reply = m_interface->call(
+        QStringLiteral("SetDeviceName"),
+        deviceId,
+        newName
+    );
+
+    if (!reply.isValid()) {
+        qWarning() << "YubiKeyDBusClient: SetDeviceName failed:" << reply.error().message();
+        return false;
+    }
+
+    return reply.value();
+}
+
 bool YubiKeyDBusClient::isDaemonAvailable() const
 {
     return m_daemonAvailable;

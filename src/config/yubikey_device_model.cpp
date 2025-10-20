@@ -221,6 +221,52 @@ void YubiKeyDeviceModel::forgetDevice(const QString &deviceId)
     qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device forgotten successfully:" << deviceId;
 }
 
+bool YubiKeyDeviceModel::setDeviceName(const QString &deviceId, const QString &newName)
+{
+    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Setting device name:" << deviceId
+                              << "to:" << newName;
+
+    // Validate input
+    QString trimmedName = newName.trimmed();
+    if (deviceId.isEmpty() || trimmedName.isEmpty()) {
+        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Invalid device ID or name (empty after trim)";
+        return false;
+    }
+
+    // Validate name length (max 64 chars)
+    if (trimmedName.length() > 64) {
+        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Name too long (max 64 chars)";
+        return false;
+    }
+
+    // Update via D-Bus
+    bool success = m_dbusClient->setDeviceName(deviceId, trimmedName);
+
+    if (success) {
+        qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device name updated successfully via D-Bus";
+
+        // Update local model
+        DeviceInfo *device = findDevice(deviceId);
+        if (device) {
+            device->deviceName = trimmedName;
+
+            // Notify QML of change
+            int row = findDeviceIndex(deviceId);
+            if (row >= 0) {
+                QModelIndex idx = index(row);
+                Q_EMIT dataChanged(idx, idx, {DeviceNameRole});
+                qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Model updated and QML notified";
+            }
+        } else {
+            qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found in local model after successful D-Bus update";
+        }
+    } else {
+        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Failed to update device name via D-Bus";
+    }
+
+    return success;
+}
+
 void YubiKeyDeviceModel::onDeviceConnected(const QString &deviceId)
 {
     qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device connected:" << deviceId;

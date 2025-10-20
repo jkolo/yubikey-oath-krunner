@@ -251,6 +251,42 @@ void YubiKeyDBusService::ForgetDevice(const QString &deviceId)
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDBusService: Device forgotten";
 }
 
+bool YubiKeyDBusService::SetDeviceName(const QString &deviceId, const QString &newName)
+{
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyDBusService: SetDeviceName for device:" << deviceId
+                              << "new name:" << newName;
+
+    // Validate input
+    QString trimmedName = newName.trimmed();
+    if (deviceId.isEmpty() || trimmedName.isEmpty()) {
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyDBusService: Invalid device ID or name (empty after trim)";
+        return false;
+    }
+
+    // Validate name length (max 64 chars)
+    if (trimmedName.length() > 64) {
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyDBusService: Name too long (max 64 chars)";
+        return false;
+    }
+
+    // Check if device exists in database
+    if (!m_database->hasDevice(deviceId)) {
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyDBusService: Device not found in database:" << deviceId;
+        return false;
+    }
+
+    // Update device name in database
+    bool success = m_database->updateDeviceName(deviceId, trimmedName);
+
+    if (success) {
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyDBusService: Device name updated successfully";
+    } else {
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyDBusService: Failed to update device name in database";
+    }
+
+    return success;
+}
+
 void YubiKeyDBusService::onDeviceConnectedInternal(const QString &deviceId)
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDBusService: Device connected:" << deviceId;

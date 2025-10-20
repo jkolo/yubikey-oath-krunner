@@ -82,6 +82,16 @@ public Q_SLOTS:
      */
     void ForgetDevice(const QString &deviceId);
 
+    /**
+     * @brief Sets custom name for device
+     * @param deviceId Device ID
+     * @param newName New friendly name for device
+     * @return true if name was updated successfully
+     *
+     * Updates device name in database. Name must not be empty after trimming.
+     */
+    bool SetDeviceName(const QString &deviceId, const QString &newName);
+
 Q_SIGNALS:
     /**
      * @brief Emitted when a YubiKey device is connected

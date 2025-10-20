@@ -82,6 +82,18 @@ public:
      */
     Q_INVOKABLE void forgetDevice(const QString &deviceId);
 
+    /**
+     * @brief Sets custom name for device
+     * @param deviceId Device ID
+     * @param newName New friendly name for device
+     * @return true if name was updated successfully
+     *
+     * Uses D-Bus SetDeviceName() call to daemon.
+     * Updates local model and notifies QML on success.
+     * Called from QML inline editing.
+     */
+    Q_INVOKABLE bool setDeviceName(const QString &deviceId, const QString &newName);
+
 Q_SIGNALS:
 
 private Q_SLOTS:

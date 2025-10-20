@@ -60,11 +60,12 @@ ColumnLayout {
                         Layout.fillWidth: true
                         spacing: Kirigami.Units.smallSpacing
 
-                        // Device name
-                        QQC2.Label {
-                            text: model.deviceName
-                            font.bold: true
-                            font.pointSize: root.largeFontSize
+                        // Device name (editable inline)
+                        EditableDeviceName {
+                            Layout.fillWidth: true
+                            deviceId: model.deviceId
+                            deviceName: model.deviceName
+                            fontSize: root.largeFontSize
                         }
 
                         // Device ID
@@ -197,6 +198,110 @@ ColumnLayout {
             text: parent.statusText
             font.pointSize: root.smallFontSize
             opacity: 0.8
+        }
+    }
+
+    // Editable device name component with inline editing
+    component EditableDeviceName: Item {
+        id: editableNameRoot
+
+        property string deviceId
+        property string deviceName
+        property int fontSize: Kirigami.Theme.defaultFont.pointSize
+
+        implicitHeight: editMode ? nameTextField.implicitHeight : nameLabel.implicitHeight
+
+        property bool editMode: false
+        property string originalName: deviceName
+
+        // Label mode (default)
+        QQC2.Label {
+            id: nameLabel
+            anchors.fill: parent
+            text: deviceName
+            font.bold: true
+            font.pointSize: fontSize
+            visible: !editMode
+
+            // Visual hint that it's editable
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                hoverEnabled: true
+
+                onClicked: {
+                    editableNameRoot.originalName = editableNameRoot.deviceName
+                    editableNameRoot.editMode = true
+                    nameTextField.forceActiveFocus()
+                    nameTextField.selectAll()
+                }
+
+                onEntered: {
+                    nameLabel.color = Kirigami.Theme.highlightColor
+                }
+
+                onExited: {
+                    nameLabel.color = Kirigami.Theme.textColor
+                }
+            }
+        }
+
+        // TextField mode (editing)
+        QQC2.TextField {
+            id: nameTextField
+            anchors.fill: parent
+            text: deviceName
+            font.bold: true
+            font.pointSize: fontSize
+            visible: editMode
+            selectByMouse: true
+            maximumLength: 64
+
+            onAccepted: {
+                saveName()
+            }
+
+            onActiveFocusChanged: {
+                if (!activeFocus && editMode) {
+                    saveName()
+                }
+            }
+
+            Keys.onEscapePressed: {
+                // Cancel editing
+                editableNameRoot.editMode = false
+                nameTextField.text = editableNameRoot.originalName
+            }
+
+            function saveName() {
+                let trimmedName = text.trim()
+
+                if (trimmedName.length === 0) {
+                    // Empty name - revert
+                    nameTextField.text = editableNameRoot.originalName
+                    editableNameRoot.editMode = false
+                    return
+                }
+
+                if (trimmedName === editableNameRoot.deviceName) {
+                    // No change
+                    editableNameRoot.editMode = false
+                    return
+                }
+
+                // Update via model
+                let success = deviceModel.setDeviceName(editableNameRoot.deviceId, trimmedName)
+
+                if (success) {
+                    editableNameRoot.deviceName = trimmedName
+                    editableNameRoot.editMode = false
+                } else {
+                    // Failed - show error and revert
+                    console.error("Failed to update device name")
+                    nameTextField.text = editableNameRoot.originalName
+                    editableNameRoot.editMode = false
+                }
+            }
         }
     }
 

@@ -78,6 +78,16 @@ public:
     void forgetDevice(const QString &deviceId);
 
     /**
+     * @brief Sets custom name for device
+     * @param deviceId Device ID
+     * @param newName New friendly name for device
+     * @return true if name was updated successfully
+     *
+     * Synchronous D-Bus call. Returns false if daemon unavailable or update failed.
+     */
+    bool setDeviceName(const QString &deviceId, const QString &newName);
+
+    /**
      * @brief Checks if daemon is currently available
      * @return true if daemon is registered on D-Bus
      */
