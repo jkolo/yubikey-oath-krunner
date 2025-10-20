@@ -48,6 +48,15 @@ private:
     static constexpr const char *CONFIG_TOUCH_TIMEOUT = "TouchTimeout";
     static constexpr const char *CONFIG_NOTIFICATION_EXTRA_TIME = "NotificationExtraTime";
     static constexpr const char *CONFIG_PRIMARY_ACTION = "PrimaryAction";
+
+    /**
+     * @brief Template helper for reading config entries
+     * Reduces boilerplate in configuration reading methods
+     */
+    template<typename T>
+    T readConfigEntry(const char* key, const T& defaultValue) const {
+        return m_configGroup().readEntry(key, defaultValue);
+    }
 };
 
 } // namespace YubiKey

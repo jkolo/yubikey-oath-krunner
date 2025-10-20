@@ -19,42 +19,42 @@ KRunnerConfiguration::KRunnerConfiguration(std::function<KConfigGroup()> configG
 
 bool KRunnerConfiguration::showNotifications() const
 {
-    return m_configGroup().readEntry(CONFIG_SHOW_NOTIFICATIONS, true);
+    return readConfigEntry(CONFIG_SHOW_NOTIFICATIONS, true);
 }
 
 bool KRunnerConfiguration::showUsername() const
 {
-    return m_configGroup().readEntry(CONFIG_SHOW_USERNAME, true);
+    return readConfigEntry(CONFIG_SHOW_USERNAME, true);
 }
 
 bool KRunnerConfiguration::showCode() const
 {
-    return m_configGroup().readEntry(CONFIG_SHOW_CODE, false);
+    return readConfigEntry(CONFIG_SHOW_CODE, false);
 }
 
 bool KRunnerConfiguration::showDeviceName() const
 {
-    return m_configGroup().readEntry(CONFIG_SHOW_DEVICE_NAME, false);
+    return readConfigEntry(CONFIG_SHOW_DEVICE_NAME, false);
 }
 
 bool KRunnerConfiguration::showDeviceNameOnlyWhenMultiple() const
 {
-    return m_configGroup().readEntry(CONFIG_SHOW_DEVICE_NAME_ONLY_WHEN_MULTIPLE, true);
+    return readConfigEntry(CONFIG_SHOW_DEVICE_NAME_ONLY_WHEN_MULTIPLE, true);
 }
 
 int KRunnerConfiguration::touchTimeout() const
 {
-    return m_configGroup().readEntry(CONFIG_TOUCH_TIMEOUT, 10);
+    return readConfigEntry(CONFIG_TOUCH_TIMEOUT, 10);
 }
 
 int KRunnerConfiguration::notificationExtraTime() const
 {
-    return m_configGroup().readEntry(CONFIG_NOTIFICATION_EXTRA_TIME, 15);
+    return readConfigEntry(CONFIG_NOTIFICATION_EXTRA_TIME, 15);
 }
 
 QString KRunnerConfiguration::primaryAction() const
 {
-    return m_configGroup().readEntry(CONFIG_PRIMARY_ACTION, QStringLiteral("copy"));
+    return readConfigEntry(CONFIG_PRIMARY_ACTION, QStringLiteral("copy"));
 }
 
 } // namespace YubiKey
