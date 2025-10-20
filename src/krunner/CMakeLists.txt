@@ -9,6 +9,9 @@ set(krunner_yubikey_SRCS
     config/configuration_provider.cpp
     config/krunner_configuration.cpp
 
+    # Shared utilities
+    ../shared/utils/async_waiter.cpp
+
     # Action components
     actions/action_executor.cpp
     actions/action_manager.cpp
@@ -18,9 +21,10 @@ set(krunner_yubikey_SRCS
 
     # Workflow components
     workflows/notification_orchestrator.cpp
+    workflows/notification_helper.cpp
+    workflows/notification_utils.cpp
     workflows/touch_workflow_coordinator.cpp
     workflows/touch_handler.cpp
-    workflows/notification_helper.cpp
 
     # Formatting components
     formatting/credential_formatter.cpp
@@ -32,7 +36,6 @@ set(krunner_yubikey_SRCS
     input/wayland_text_input.cpp
     input/portal_text_input.cpp
     input/text_input_factory.cpp
-    input/process_executor.cpp
 
     # Clipboard components
     clipboard/clipboard_manager.cpp

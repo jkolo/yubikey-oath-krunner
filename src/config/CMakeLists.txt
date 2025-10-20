@@ -3,7 +3,6 @@ set(kcm_krunner_yubikey_SRCS
     yubikey_config.cpp
     yubikey_device_model.cpp
     logging_categories.cpp
-    ../shared/utils/resource_initializer.cpp
 )
 
 # Wrap UI files BEFORE adding resources
