@@ -9,6 +9,7 @@
 #include <QString>
 #include <QDateTime>
 #include <QPointer>
+#include <functional>
 
 // Forward declarations for Qt/KDE classes (must be outside namespace)
 class QTimer;
@@ -156,6 +157,30 @@ private Q_SLOTS:
     void onNotificationClosed(uint id, uint reason);
 
 private:
+    /**
+     * @brief Helper for updating countdown notifications
+     *
+     * Centralized logic for notification updates with progress bars and
+     * countdown timers. Reduces code duplication between code and touch notifications.
+     *
+     * @param notificationId Reference to notification ID (updated on success)
+     * @param updateTimer Timer to stop on expiration
+     * @param expirationTime When notification should expire
+     * @param totalSeconds Total countdown duration
+     * @param title Notification title
+     * @param bodyFormatter Function to format body text from remaining seconds
+     * @param onExpired Callback when timer expires (optional)
+     */
+    void updateNotificationWithProgress(
+        uint& notificationId,
+        QTimer* updateTimer,
+        const QDateTime& expirationTime,
+        int totalSeconds,
+        const QString& title,
+        std::function<QString(int)> bodyFormatter,
+        std::function<void()> onExpired = nullptr
+    );
+
     DBusNotificationManager *m_notificationManager;
     const ConfigurationProvider *m_config;
 

@@ -7,6 +7,7 @@
 #include "../config/configuration_provider.h"
 #include "../notification/dbus_notification_manager.h"
 #include "notification_helper.h"
+#include "notification_utils.h"
 #include "../logging_categories.h"
 
 #include <KLocalizedString>
@@ -57,10 +58,8 @@ void NotificationOrchestrator::showCodeNotification(const QString &code,
     QString body = i18n("%1 • Copied\n", credentialName.toHtmlEscaped());
     body += i18n("Expires in %1s", expirationSeconds);
 
-    // Prepare hints with progress bar
-    QVariantMap hints;
-    hints[QStringLiteral("urgency")] = 1; // Normal urgency
-    hints[QStringLiteral("value")] = 100; // Start at 100%
+    // Prepare hints with progress bar (100% at start)
+    QVariantMap hints = NotificationUtils::createNotificationHints(1, 100);
 
     // Show notification without timeout - we'll close it manually
     m_codeNotificationId = m_notificationManager->showNotification(
@@ -102,10 +101,8 @@ void NotificationOrchestrator::showTouchNotification(const QString &credentialNa
     // Format message - simple and concise
     QString body = i18n("Timeout in %1s", timeoutSeconds);
 
-    // Prepare hints with progress bar
-    QVariantMap hints;
-    hints[QStringLiteral("urgency")] = 1; // Normal urgency
-    hints[QStringLiteral("value")] = 100; // Start at 100%
+    // Prepare hints with progress bar (100% at start)
+    QVariantMap hints = NotificationUtils::createNotificationHints(1, 100);
 
     // Add Cancel action
     QStringList actions;
@@ -166,109 +163,106 @@ void NotificationOrchestrator::showSimpleNotification(const QString &title, cons
     notification->sendEvent();
 }
 
-void NotificationOrchestrator::updateCodeNotification()
+void NotificationOrchestrator::updateNotificationWithProgress(
+    uint& notificationId,
+    QTimer* updateTimer,
+    const QDateTime& expirationTime,
+    int totalSeconds,
+    const QString& title,
+    std::function<QString(int)> bodyFormatter,
+    std::function<void()> onExpired)
 {
-    if (m_codeNotificationId == 0 || !m_notificationManager) {
-        m_codeUpdateTimer->stop();
+    if (notificationId == 0 || !m_notificationManager) {
+        updateTimer->stop();
         return;
     }
 
-    // Calculate remaining time
-    qint64 now = QDateTime::currentSecsSinceEpoch();
-    qint64 expirationTime = m_codeExpirationTime.toSecsSinceEpoch();
-    int remainingSeconds = static_cast<int>(expirationTime - now);
+    // Calculate timer progress using helper
+    auto progress = NotificationHelper::calculateTimerProgress(expirationTime, totalSeconds);
 
-    if (remainingSeconds <= 0) {
-        // Time's up, close notification
-        qCDebug(NotificationOrchestratorLog) << "Code expired, closing notification";
-        m_notificationManager->closeNotification(m_codeNotificationId);
-        m_codeNotificationId = 0;
-        m_codeUpdateTimer->stop();
+    if (progress.expired) {
+        // Time's up - handle expiration
+        if (onExpired) {
+            onExpired();
+        } else {
+            // Default behavior: close notification
+            qCDebug(NotificationOrchestratorLog) << "Notification expired, closing";
+            m_notificationManager->closeNotification(notificationId);
+            notificationId = 0;
+            updateTimer->stop();
+        }
         return;
     }
 
-    // Calculate progress (100% at start, 0% at end)
-    int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config);
-    int progress = (remainingSeconds * 100) / totalSeconds;
+    qCDebug(NotificationOrchestratorLog) << "Updating notification - remaining:" << progress.remainingSeconds
+             << "progress:" << progress.progressPercent << "%";
 
-    qCDebug(NotificationOrchestratorLog) << "Updating code notification - remaining:" << remainingSeconds
-             << "progress:" << progress << "%";
-
-    // Update notification body with countdown - simple and concise
-    QString body = i18n("%1 • Copied\n", m_currentCredentialName.toHtmlEscaped());
-    body += i18n("Expires in %1s", remainingSeconds);
+    // Format body using provided formatter
+    QString body = bodyFormatter(progress.remainingSeconds);
 
     // Update hints with new progress value
-    QVariantMap hints;
-    hints[QStringLiteral("urgency")] = 1;
-    hints[QStringLiteral("value")] = progress;
+    QVariantMap hints = NotificationUtils::createNotificationHints(1, progress.progressPercent);
 
-    m_codeNotificationId = m_notificationManager->updateNotification(
-        m_codeNotificationId,
-        i18n("Code Copied"),
+    notificationId = m_notificationManager->updateNotification(
+        notificationId,
+        title,
         body,
         hints,
         0 // no timeout
     );
 }
 
+void NotificationOrchestrator::updateCodeNotification()
+{
+    int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config);
+
+    // Use helper with custom body formatter
+    updateNotificationWithProgress(
+        m_codeNotificationId,
+        m_codeUpdateTimer,
+        m_codeExpirationTime,
+        totalSeconds,
+        i18n("Code Copied"),
+        [this](int remainingSeconds) {
+            QString body = i18n("%1 • Copied\n", m_currentCredentialName.toHtmlEscaped());
+            body += i18n("Expires in %1s", remainingSeconds);
+            return body;
+        }
+    );
+}
+
 void NotificationOrchestrator::updateTouchNotification()
 {
-    if (m_touchNotificationId == 0 || !m_notificationManager) {
-        m_touchUpdateTimer->stop();
-        return;
-    }
-
-    // Calculate remaining time
-    qint64 now = QDateTime::currentSecsSinceEpoch();
-    qint64 expirationTime = m_touchExpirationTime.toSecsSinceEpoch();
-    int remainingSeconds = static_cast<int>(expirationTime - now);
-
-    if (remainingSeconds <= 0) {
-        // Time's up - show timeout message then close
-        qCDebug(NotificationOrchestratorLog) << "Touch timeout, showing timeout message";
-        m_touchUpdateTimer->stop();
-
-        // Show timeout message - simple and concise
-        QString body = i18n("Operation cancelled");
-
-        QVariantMap hints;
-        hints[QStringLiteral("urgency")] = 1;
-        hints[QStringLiteral("value")] = 0; // 0% - timeout reached
-
-        m_notificationManager->updateNotification(
-            m_touchNotificationId,
-            i18n("Touch Timeout"),
-            body,
-            hints,
-            5000 // Auto-close after 5 seconds
-        );
-
-        m_touchNotificationId = 0;
-        return;
-    }
-
-    // Calculate progress (100% at start, 0% at end)
     int totalSeconds = m_config->touchTimeout();
-    int progress = (remainingSeconds * 100) / totalSeconds;
 
-    qCDebug(NotificationOrchestratorLog) << "Updating touch notification - remaining:" << remainingSeconds
-             << "progress:" << progress << "%";
-
-    // Update notification body with countdown - simple and concise
-    QString body = i18n("Timeout in %1s", remainingSeconds);
-
-    // Update hints with new progress value
-    QVariantMap hints;
-    hints[QStringLiteral("urgency")] = 1;
-    hints[QStringLiteral("value")] = progress;
-
-    m_touchNotificationId = m_notificationManager->updateNotification(
+    // Use helper with custom body formatter and expiration handler
+    updateNotificationWithProgress(
         m_touchNotificationId,
+        m_touchUpdateTimer,
+        m_touchExpirationTime,
+        totalSeconds,
         i18n("Please touch your YubiKey"),
-        body,
-        hints,
-        0 // no timeout
+        [](int remainingSeconds) {
+            return i18n("Timeout in %1s", remainingSeconds);
+        },
+        [this]() {
+            // Custom expiration behavior: show timeout message
+            qCDebug(NotificationOrchestratorLog) << "Touch timeout, showing timeout message";
+            m_touchUpdateTimer->stop();
+
+            QString body = i18n("Operation cancelled");
+            QVariantMap hints = NotificationUtils::createNotificationHints(1, 0); // 0% - timeout reached
+
+            m_notificationManager->updateNotification(
+                m_touchNotificationId,
+                i18n("Touch Timeout"),
+                body,
+                hints,
+                5000 // Auto-close after 5 seconds
+            );
+
+            m_touchNotificationId = 0;
+        }
     );
 }
 
