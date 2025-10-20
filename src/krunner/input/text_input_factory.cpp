@@ -14,27 +14,39 @@
 namespace KRunner {
 namespace YubiKey {
 
+namespace {
+/**
+ * @brief Helper to try creating a text input provider
+ * @tparam T Provider type to create
+ * @param parent Parent QObject
+ * @param description Human-readable description for logging
+ * @return Provider instance if compatible, nullptr otherwise
+ */
+template<typename T>
+std::unique_ptr<TextInputProvider> tryCreateProvider(QObject* parent, const char* description)
+{
+    auto provider = std::make_unique<T>(parent);
+    if (provider->isCompatible()) {
+        qCDebug(TextInputLog) << "TextInputFactory: Created" << description << "provider";
+        return provider;
+    }
+    return nullptr;
+}
+} // anonymous namespace
+
 std::unique_ptr<TextInputProvider> TextInputFactory::createProvider(QObject *parent)
 {
-    // Try modern xdg-desktop-portal approach first (recommended for Wayland)
-    auto portalProvider = std::make_unique<PortalTextInput>(parent);
-    if (portalProvider->isCompatible()) {
-        qCDebug(TextInputLog) << "TextInputFactory: Created Portal provider (xdg-desktop-portal + libei)";
-        return portalProvider;
+    // Try providers in priority order: Portal → Wayland → X11
+    if (auto provider = tryCreateProvider<PortalTextInput>(parent, "Portal (xdg-desktop-portal + libei)")) {
+        return provider;
     }
 
-    // Fallback to legacy KWayland FakeInput
-    auto waylandProvider = std::make_unique<WaylandTextInput>(parent);
-    if (waylandProvider->isCompatible()) {
-        qCDebug(TextInputLog) << "TextInputFactory: Created Wayland provider (legacy KWayland FakeInput)";
-        return waylandProvider;
+    if (auto provider = tryCreateProvider<WaylandTextInput>(parent, "Wayland (legacy KWayland FakeInput)")) {
+        return provider;
     }
 
-    // Try X11
-    auto x11Provider = std::make_unique<X11TextInput>(parent);
-    if (x11Provider->isCompatible()) {
-        qCDebug(TextInputLog) << "TextInputFactory: Created X11 provider";
-        return x11Provider;
+    if (auto provider = tryCreateProvider<X11TextInput>(parent, "X11")) {
+        return provider;
     }
 
     qCWarning(TextInputLog) << "TextInputFactory: No compatible text input provider found";
