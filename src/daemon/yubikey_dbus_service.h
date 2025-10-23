@@ -133,6 +133,13 @@ private:
      */
     CredentialInfo convertCredential(const OathCredential &credential) const;
 
+    /**
+     * @brief Generates default device name for new devices
+     * @param deviceId Device ID
+     * @return Default device name in format "YubiKey <deviceId>"
+     */
+    QString generateDefaultDeviceName(const QString &deviceId) const;
+
     std::unique_ptr<YubiKeyDeviceManager> m_deviceManager;
     std::unique_ptr<YubiKeyDatabase> m_database;
     std::unique_ptr<PasswordStorage> m_passwordStorage;

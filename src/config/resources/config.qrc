@@ -1,6 +1,5 @@
 <RCC>
     <qresource prefix="/">
         <file alias="qml/config/YubiKeyConfig.qml">ui/YubiKeyConfig.qml</file>
-        <file alias="qml/config/PasswordDialog.qml">ui/PasswordDialog.qml</file>
     </qresource>
 </RCC>

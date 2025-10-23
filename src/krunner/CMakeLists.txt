@@ -12,6 +12,11 @@ set(krunner_yubikey_SRCS
     # Shared utilities
     ../shared/utils/async_waiter.cpp
 
+    # Shared UI components
+    ../shared/ui/password_dialog.cpp
+    ../shared/ui/password_dialog_helper.cpp
+    ../shared/ui/logging_categories.cpp
+
     # Action components
     actions/action_executor.cpp
     actions/action_manager.cpp

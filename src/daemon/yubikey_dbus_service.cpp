@@ -96,12 +96,8 @@ QList<DeviceInfo> YubiKeyDBusService::ListDevices()
             info.deviceName = dbRecord->deviceName;
             info.requiresPassword = dbRecord->requiresPassword;
         } else {
-            // New device - generate name
-            QString shortId = deviceId.left(6);
-            if (deviceId.length() > 6) {
-                shortId += QStringLiteral("...");
-            }
-            info.deviceName = QStringLiteral("YubiKey ") + shortId;
+            // New device - generate name with full device ID
+            info.deviceName = generateDefaultDeviceName(deviceId);
 
             // Default to requiring password (safer)
             info.requiresPassword = true;
@@ -293,11 +289,8 @@ void YubiKeyDBusService::onDeviceConnectedInternal(const QString &deviceId)
 
     // Add to database if not exists
     if (!m_database->hasDevice(deviceId)) {
-        QString shortId = deviceId.left(6);
-        if (deviceId.length() > 6) {
-            shortId += QStringLiteral("...");
-        }
-        const QString deviceName = QStringLiteral("YubiKey ") + shortId;
+        // Generate name with full device ID
+        const QString deviceName = generateDefaultDeviceName(deviceId);
         m_database->addDevice(deviceId, deviceName, true);
     }
 
@@ -389,6 +382,11 @@ CredentialInfo YubiKeyDBusService::convertCredential(const OathCredential &crede
     info.deviceId = credential.deviceId;
 
     return info;
+}
+
+QString YubiKeyDBusService::generateDefaultDeviceName(const QString &deviceId) const
+{
+    return QStringLiteral("YubiKey ") + deviceId;
 }
 
 } // namespace YubiKey

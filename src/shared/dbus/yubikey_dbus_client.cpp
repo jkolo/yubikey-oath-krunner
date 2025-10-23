@@ -180,6 +180,17 @@ bool YubiKeyDBusClient::setDeviceName(const QString &deviceId, const QString &ne
     return reply.value();
 }
 
+QString YubiKeyDBusClient::getDeviceName(const QString &deviceId)
+{
+    QList<DeviceInfo> devices = listDevices();
+    for (const auto &device : devices) {
+        if (device.deviceId == deviceId) {
+            return device.deviceName;
+        }
+    }
+    return deviceId; // Fallback to device ID if not found
+}
+
 bool YubiKeyDBusClient::isDaemonAvailable() const
 {
     return m_daemonAvailable;

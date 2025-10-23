@@ -112,7 +112,9 @@ ColumnLayout {
                             text: i18n("Authorize")
                             icon.name: "password-show-on"
                             visible: model.showAuthorizeButton
-                            onClicked: deviceModel.authorizeDevice(model.deviceId)
+                            onClicked: {
+                                deviceModel.showPasswordDialog(model.deviceId, model.deviceName)
+                            }
                         }
 
                         // Forget button

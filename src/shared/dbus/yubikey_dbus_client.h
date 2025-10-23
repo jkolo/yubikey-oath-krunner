@@ -88,6 +88,16 @@ public:
     bool setDeviceName(const QString &deviceId, const QString &newName);
 
     /**
+     * @brief Gets device name from daemon
+     * @param deviceId Device ID
+     * @return Device name if found, or deviceId as fallback
+     *
+     * Synchronous D-Bus call. Queries listDevices() and searches for matching device.
+     * Returns deviceId as fallback if daemon unavailable or device not found.
+     */
+    QString getDeviceName(const QString &deviceId);
+
+    /**
      * @brief Checks if daemon is currently available
      * @return true if daemon is registered on D-Bus
      */

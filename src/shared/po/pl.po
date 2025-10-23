@@ -304,6 +304,16 @@ msgstr ""
 msgid "Refresh Device List"
 msgstr "Odśwież listę urządzeń"
 
+#: src/shared/ui/password_dialog.cpp:54
+#, kde-format
+msgid "Enter YubiKey OATH password for device:"
+msgstr "Wprowadź hasło dla YubiKey OATH dla urządzenia:"
+
+#: src/shared/ui/password_dialog.cpp:88
+#, kde-format
+msgid "Password:"
+msgstr "Hasło:"
+
 #, kde-format
 #~ msgid "Failed to open YubiKey configuration"
 #~ msgstr "Nie udało się otworzyć konfiguracji YubiKey"

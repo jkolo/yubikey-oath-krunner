@@ -49,8 +49,10 @@ target_link_libraries(yubikey-oath-daemon
     ${PCSCLITE_LIBRARIES}
 )
 
-# Compiler flags for PC/SC
-target_compile_definitions(yubikey-oath-daemon PRIVATE
+# Compiler options for PC/SC
+# Note: Use target_compile_options instead of target_compile_definitions
+# because PCSCLITE_CFLAGS_OTHER contains compiler flags like -pthread, not defines
+target_compile_options(yubikey-oath-daemon PRIVATE
     ${PCSCLITE_CFLAGS_OTHER}
 )
 

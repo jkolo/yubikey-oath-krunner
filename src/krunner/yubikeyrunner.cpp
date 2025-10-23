@@ -7,6 +7,7 @@
 #include "input/text_input_factory.h"
 #include "workflows/notification_helper.h"
 #include "../shared/utils/deferred_execution.h"
+#include "../shared/ui/password_dialog_helper.h"
 #include "logging_categories.h"
 
 #include <KConfigGroup>
@@ -14,9 +15,7 @@
 #include <KPluginFactory>
 #include <QDebug>
 #include <QEventLoop>
-#include <QInputDialog>
-#include <QLineEdit>
-#include <QProcess>
+#include <QPointer>
 #include <QTimer>
 
 namespace KRunner {
@@ -233,8 +232,11 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
 
         qCDebug(YubiKeyRunnerLog) << "Requesting password for device:" << deviceId;
 
-        // Show password dialog immediately (recursive until success or cancel)
-        showPasswordDialogForDevice(deviceId, QString());
+        // Get device name from D-Bus
+        QString deviceName = m_dbusClient->getDeviceName(deviceId);
+
+        // Show password dialog (non-modal, with retry on error)
+        showPasswordDialog(deviceId, deviceName);
 
         return;
     }
@@ -393,69 +395,27 @@ void YubiKeyRunner::onDaemonUnavailable()
         1);
 }
 
+void YubiKeyRunner::showPasswordDialog(const QString &deviceId,
+                                        const QString &deviceName)
+{
+    PasswordDialogHelper::showDialog(
+        deviceId,
+        deviceName,
+        m_dbusClient.get(),
+        this,
+        [this]() {
+            // Success - show notification
+            m_notificationOrchestrator->showSimpleNotification(
+                i18n("YubiKey OATH"),
+                i18n("Password saved successfully"),
+                0);
+        }
+    );
+}
+
 void YubiKeyRunner::onNotificationRequested(const QString &title, const QString &message, int type)
 {
     m_notificationOrchestrator->showSimpleNotification(title, message, type);
-}
-
-void YubiKeyRunner::showPasswordDialogForDevice(const QString &deviceId, const QString &errorMessage)
-{
-    qCDebug(YubiKeyRunnerLog) << "showPasswordDialogForDevice() for device:" << deviceId;
-
-    // Create QProcess with parent to ensure cleanup
-    QProcess *process = new QProcess(this);
-
-    // Connect to finished signal to get the password
-    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, process, deviceId, errorMessage](int exitCode, QProcess::ExitStatus exitStatus) {
-        Q_UNUSED(exitStatus)
-
-        if (exitCode == 0) {
-            // User entered password
-            QString password = QString::fromUtf8(process->readAllStandardOutput()).trimmed();
-
-            if (!password.isEmpty()) {
-                // SavePassword will test and save the password
-                qCDebug(YubiKeyRunnerLog) << "Saving password for device:" << deviceId;
-
-                if (m_dbusClient->savePassword(deviceId, password)) {
-                    qCDebug(YubiKeyRunnerLog) << "Password saved successfully";
-
-                    m_notificationOrchestrator->showSimpleNotification(
-                        i18n("YubiKey OATH"),
-                        i18n("Password saved successfully"),
-                        0);
-                } else {
-                    // Invalid password or save failed - show dialog again with error message
-                    qCDebug(YubiKeyRunnerLog) << "Invalid password or save failed - showing dialog again";
-                    showPasswordDialogForDevice(deviceId, i18n("Invalid password. Please try again."));
-                }
-            } else {
-                qCDebug(YubiKeyRunnerLog) << "Empty password entered";
-            }
-        } else {
-            qCDebug(YubiKeyRunnerLog) << "Password dialog cancelled";
-        }
-
-        process->deleteLater();
-    });
-
-    // Build dialog message
-    QString dialogMessage;
-    if (!errorMessage.isEmpty()) {
-        dialogMessage = errorMessage + QStringLiteral("\n\n") +
-                       i18n("This YubiKey requires a password.\nPlease enter the OATH password:");
-    } else {
-        dialogMessage = i18n("This YubiKey requires a password.\nPlease enter the OATH password:");
-    }
-
-    // Start kdialog process
-    process->start(QStringLiteral("kdialog"), QStringList{
-        QStringLiteral("--password"),
-        dialogMessage,
-        QStringLiteral("--title"),
-        i18n("YubiKey OATH Password")
-    });
 }
 
 } // namespace YubiKey

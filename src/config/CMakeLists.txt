@@ -3,6 +3,11 @@ set(kcm_krunner_yubikey_SRCS
     yubikey_config.cpp
     yubikey_device_model.cpp
     logging_categories.cpp
+
+    # Shared UI components
+    ../shared/ui/password_dialog.cpp
+    ../shared/ui/password_dialog_helper.cpp
+    ../shared/ui/logging_categories.cpp
 )
 
 # Wrap UI files BEFORE adding resources

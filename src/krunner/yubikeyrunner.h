@@ -34,6 +34,9 @@
 namespace KRunner {
 namespace YubiKey {
 
+// Forward declarations
+class PasswordDialog;
+
 /**
  * @brief KRunner plugin for generating YubiKey OATH TOTP codes
  *
@@ -75,7 +78,16 @@ private:
                                const QString &actionId,
                                const QString &deviceId);
 
-    void showPasswordDialogForDevice(const QString &deviceId, const QString &errorMessage);
+    /**
+     * @brief Shows password dialog for device authorization
+     * @param deviceId Device ID requiring password
+     * @param deviceName Friendly device name
+     *
+     * Creates non-modal password dialog using PasswordDialogHelper.
+     * On success, shows notification. On failure, dialog stays open with error.
+     */
+    void showPasswordDialog(const QString &deviceId,
+                           const QString &deviceName);
 
 private:
     // Core components

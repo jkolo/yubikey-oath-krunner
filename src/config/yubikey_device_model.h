@@ -16,6 +16,7 @@ namespace YubiKey {
 
 // Forward declarations
 class YubiKeyDBusClient;
+class PasswordDialog;
 
 /**
  * @brief Model for displaying YubiKey devices in configuration UI
@@ -68,10 +69,33 @@ public:
      * @param deviceId Device ID to authorize
      *
      * This method is called from QML when user clicks "Authorize" button.
-     * Shows native kdialog for password entry (same as KRunner plugin).
-     * Recursively re-prompts on invalid password.
+     * Shows QML PasswordDialog for password entry.
      */
     Q_INVOKABLE void authorizeDevice(const QString &deviceId);
+
+    /**
+     * @brief Tests and saves password for device
+     * @param deviceId Device ID
+     * @param password Password to test
+     * @return true if password valid and saved, false otherwise
+     *
+     * This method is called from PasswordDialog.qml.
+     * It tests the password via D-Bus and saves it if valid.
+     * Emits passwordTestFailed signal if password invalid.
+     */
+    Q_INVOKABLE bool testAndSavePassword(const QString &deviceId, const QString &password);
+
+    /**
+     * @brief Shows password dialog and handles password entry
+     * @param deviceId Device ID
+     * @param deviceName Friendly device name
+     *
+     * Shows password dialog using PasswordDialogHelper. Validates device state first.
+     * On success, refreshes device list from daemon. On failure, dialog stays open with error.
+     * Called from QML "Authorize" button.
+     */
+    Q_INVOKABLE void showPasswordDialog(const QString &deviceId,
+                                         const QString &deviceName);
 
     /**
      * @brief Forgets device - removes from daemon database and deletes password
@@ -95,6 +119,14 @@ public:
     Q_INVOKABLE bool setDeviceName(const QString &deviceId, const QString &newName);
 
 Q_SIGNALS:
+    /**
+     * @brief Emitted when password test failed
+     * @param deviceId Device ID
+     * @param error Error message
+     *
+     * Used by PasswordDialog.qml to display error messages.
+     */
+    void passwordTestFailed(const QString &deviceId, const QString &error);
 
 private Q_SLOTS:
     /**
@@ -118,16 +150,6 @@ private Q_SLOTS:
 private:
     YubiKeyDBusClient *m_dbusClient;
     QList<DeviceInfo> m_devices;
-
-    /**
-     * @brief Shows password dialog using kdialog (same as KRunner)
-     * @param deviceId Device ID requiring password
-     * @param errorMessage Optional error message to display (e.g., "Invalid password")
-     *
-     * Uses QProcess to launch kdialog --password.
-     * Recursively calls itself on invalid password until success or cancel.
-     */
-    void showPasswordDialogForDevice(const QString &deviceId, const QString &errorMessage);
 
     /**
      * @brief Finds device info by ID

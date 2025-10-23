@@ -5,11 +5,11 @@
 
 #include "yubikey_device_model.h"
 #include "../shared/dbus/yubikey_dbus_client.h"
+#include "../shared/ui/password_dialog_helper.h"
 #include "logging_categories.h"
 
 #include <KLocalizedString>
 #include <QDebug>
-#include <QProcess>
 
 namespace KRunner {
 namespace YubiKey {
@@ -120,84 +120,79 @@ void YubiKeyDeviceModel::authorizeDevice(const QString &deviceId)
         return;
     }
 
-    // Show password dialog immediately (recursive until success or cancel)
-    showPasswordDialogForDevice(deviceId, QString());
+    // PasswordDialog will be opened from QML via authorizeDevice() signal/method
+    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device ready for authorization";
 }
 
-void YubiKeyDeviceModel::showPasswordDialogForDevice(const QString &deviceId, const QString &errorMessage)
+bool YubiKeyDeviceModel::testAndSavePassword(const QString &deviceId, const QString &password)
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: showPasswordDialogForDevice() for device:" << deviceId;
+    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Testing password for device:" << deviceId;
 
-    // Create QProcess with parent to ensure cleanup
-    QProcess *process = new QProcess(this);
+    if (password.isEmpty()) {
+        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Empty password provided";
+        Q_EMIT passwordTestFailed(deviceId, i18n("Password cannot be empty"));
+        return false;
+    }
 
-    // Connect to finished signal to get the password
-    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            this, [this, process, deviceId, errorMessage](int exitCode, QProcess::ExitStatus exitStatus) {
-        Q_UNUSED(exitStatus)
+    // Test and save password via D-Bus
+    bool success = m_dbusClient->savePassword(deviceId, password);
 
-        if (exitCode == 0) {
-            // User entered password
-            QString password = QString::fromUtf8(process->readAllStandardOutput()).trimmed();
+    if (success) {
+        qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Password saved successfully";
 
-            if (!password.isEmpty()) {
-                // SavePassword will test and save the password
-                qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Saving password for device:" << deviceId;
+        // Update device info
+        DeviceInfo *device = findDevice(deviceId);
+        if (device) {
+            device->hasValidPassword = true;
+            device->requiresPassword = true;
 
-                if (m_dbusClient->savePassword(deviceId, password)) {
-                    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Password saved successfully";
-
-                    // Update device info
-                    DeviceInfo *device = findDevice(deviceId);
-                    if (device) {
-                        device->hasValidPassword = true;
-                        device->requiresPassword = true;
-
-                        // Notify QML of change
-                        int row = findDeviceIndex(deviceId);
-                        if (row >= 0) {
-                            QModelIndex idx = index(row);
-                            Q_EMIT dataChanged(idx, idx);
-                        }
-                    }
-                } else {
-                    // Invalid password or save failed - show dialog again with error message
-                    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Invalid password or save failed - showing dialog again";
-                    showPasswordDialogForDevice(deviceId, i18n("Invalid password. Please try again."));
-                }
-            } else {
-                qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Empty password entered";
+            // Notify QML of change
+            int row = findDeviceIndex(deviceId);
+            if (row >= 0) {
+                QModelIndex idx = index(row);
+                Q_EMIT dataChanged(idx, idx);
             }
-        } else {
-            qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Password dialog cancelled";
         }
-
-        process->deleteLater();
-    });
-
-    // Find device name for display
-    QString deviceName = deviceId;
-    DeviceInfo *device = findDevice(deviceId);
-    if (device) {
-        deviceName = device->deviceName;
-    }
-
-    // Build dialog message
-    QString dialogMessage;
-    if (!errorMessage.isEmpty()) {
-        dialogMessage = errorMessage + QStringLiteral("\n\n") +
-                       i18n("Device: %1\n\nPlease enter the OATH password:", deviceName);
+        return true;
     } else {
-        dialogMessage = i18n("Device: %1\n\nThis YubiKey requires a password.\nPlease enter the OATH password:", deviceName);
+        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Invalid password or save failed";
+        Q_EMIT passwordTestFailed(deviceId, i18n("Invalid password. Please try again."));
+        return false;
+    }
+}
+
+void YubiKeyDeviceModel::showPasswordDialog(const QString &deviceId,
+                                             const QString &deviceName)
+{
+    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Showing password dialog for device:" << deviceId;
+
+    // Validate device state first (same as authorizeDevice)
+    DeviceInfo *device = findDevice(deviceId);
+    if (!device) {
+        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found:" << deviceId;
+        return;
     }
 
-    // Start kdialog process
-    process->start(QStringLiteral("kdialog"), QStringList{
-        QStringLiteral("--password"),
-        dialogMessage,
-        QStringLiteral("--title"),
-        i18n("YubiKey OATH Password")
-    });
+    if (!device->isConnected) {
+        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not connected:" << deviceId;
+        return;
+    }
+
+    if (!device->requiresPassword) {
+        qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device does not require password:" << deviceId;
+        return;
+    }
+
+    PasswordDialogHelper::showDialog(
+        deviceId,
+        deviceName,
+        m_dbusClient,
+        this,
+        [this]() {
+            // Success - refresh device list from daemon
+            refreshDevices();
+        }
+    );
 }
 
 void YubiKeyDeviceModel::forgetDevice(const QString &deviceId)
