@@ -12,6 +12,7 @@ namespace YubiKey {
 
 class YubiKeyDBusClient;
 class YubiKeyDeviceModel;
+class PortalPermissionManager;
 
 class YubiKeyConfigForm : public QWidget, public Ui::YubiKeyConfigForm
 {
@@ -39,12 +40,17 @@ public Q_SLOTS:
 private Q_SLOTS:
     void markAsChanged();
     void validateOptions();
+    void onScreenshotPermissionChanged(bool enabled);
+    void onRemoteDesktopPermissionChanged(bool enabled);
 
 private:
+    void loadPortalPermissions();
+
     YubiKeyConfigForm *m_ui;
     KConfigGroup m_config;
     std::unique_ptr<YubiKeyDBusClient> m_dbusClient;
     std::unique_ptr<YubiKeyDeviceModel> m_deviceModel;
+    std::unique_ptr<PortalPermissionManager> m_permissionManager;
 };
 } // namespace YubiKey
 } // namespace KRunner

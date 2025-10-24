@@ -29,5 +29,13 @@ Q_DECLARE_LOGGING_CATEGORY(CardReaderMonitorLog)
 Q_DECLARE_LOGGING_CATEGORY(PasswordStorageLog)
 Q_DECLARE_LOGGING_CATEGORY(YubiKeyDatabaseLog)
 
+// Action and workflow components (moved from krunner)
+Q_DECLARE_LOGGING_CATEGORY(YubiKeyActionCoordinatorLog)
+Q_DECLARE_LOGGING_CATEGORY(ActionExecutorLog)
+Q_DECLARE_LOGGING_CATEGORY(NotificationOrchestratorLog)
+Q_DECLARE_LOGGING_CATEGORY(TouchWorkflowCoordinatorLog)
+Q_DECLARE_LOGGING_CATEGORY(TextInputLog)
+Q_DECLARE_LOGGING_CATEGORY(DBusNotificationLog)
+
 } // namespace YubiKey
 } // namespace KRunner

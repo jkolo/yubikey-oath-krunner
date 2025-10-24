@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=YubiKey OATH Daemon
+Comment=Background service for YubiKey OATH integration
+Icon=yubikey
+Exec=/usr/bin/yubikey-oath-daemon
+Terminal=false
+NoDisplay=true
+Categories=System;
+X-DBUS-ServiceName=org.kde.plasma.krunner.yubikey
+X-DBUS-StartupType=Unique

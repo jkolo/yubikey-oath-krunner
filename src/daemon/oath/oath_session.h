@@ -9,9 +9,9 @@
 #include <QString>
 #include <QList>
 #include <QObject>
-#include "../../shared/types/oath_credential.h"
+#include "types/oath_credential.h"
 #include "oath_protocol.h"
-#include "../../shared/common/result.h"
+#include "common/result.h"
 
 // Forward declarations for PC/SC types
 #ifdef __APPLE__
@@ -120,6 +120,22 @@ public:
      * Each authentication requires fresh SELECT to get new challenge.
      */
     Result<void> authenticate(const QString &password, const QString &deviceId);
+
+    /**
+     * @brief Adds or updates credential on YubiKey
+     * @param data Credential data (name, secret, algorithm, etc.)
+     * @return Result with success or error message
+     *
+     * Uses PUT command (0x01) to add new credential or overwrite existing.
+     * Requires authentication if validation is configured on YubiKey.
+     *
+     * Possible errors:
+     * - Invalid Base32 secret
+     * - Insufficient space (0x6a84)
+     * - Authentication required (0x6982)
+     * - Wrong data format (0x6a80)
+     */
+    Result<void> putCredential(const OathCredentialData &data);
 
     /**
      * @brief Cancels pending operation by sending SELECT

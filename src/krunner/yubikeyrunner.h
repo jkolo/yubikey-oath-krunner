@@ -16,20 +16,13 @@
 #include <KRunner/QueryMatch>
 
 // Local includes - core components
-#include "../shared/dbus/yubikey_dbus_client.h"
-#include "notification/dbus_notification_manager.h"
-#include "clipboard/clipboard_manager.h"
-#include "input/text_input_provider.h"
-#include "workflows/touch_handler.h"
+#include "dbus/yubikey_dbus_client.h"
 
 // Local includes - runner components
 #include "config/configuration_provider.h"
 #include "config/krunner_configuration.h"
-#include "actions/action_executor.h"
 #include "actions/action_manager.h"
 #include "matching/match_builder.h"
-#include "workflows/notification_orchestrator.h"
-#include "workflows/touch_workflow_coordinator.h"
 
 namespace KRunner {
 namespace YubiKey {
@@ -66,17 +59,10 @@ private Q_SLOTS:
     void onDeviceDisconnected(const QString &deviceId);
     void onCredentialsUpdated(const QString &deviceId);
     void onDaemonUnavailable();
-    void onNotificationRequested(const QString &title, const QString &message, int type);
 
 private:
     void setupActions();
     void reloadConfiguration() override;
-    void processCredentialAsync(const QString &credentialName,
-                               const QString &displayName,
-                               const QString &code,
-                               bool requiresTouch,
-                               const QString &actionId,
-                               const QString &deviceId);
 
     /**
      * @brief Shows password dialog for device authorization
@@ -92,24 +78,14 @@ private:
 private:
     // Core components
     std::unique_ptr<YubiKeyDBusClient> m_dbusClient;
-    std::unique_ptr<DBusNotificationManager> m_notificationManager;
-    std::unique_ptr<ClipboardManager> m_clipboardManager;
-    std::unique_ptr<TextInputProvider> m_textInput;
-    std::unique_ptr<TouchHandler> m_touchHandler;
 
-    // Runner components (SOLID refactoring)
+    // Runner components - thin client for match building
     std::unique_ptr<ConfigurationProvider> m_config;
-    std::unique_ptr<ActionExecutor> m_actionExecutor;
     std::unique_ptr<ActionManager> m_actionManager;
     std::unique_ptr<MatchBuilder> m_matchBuilder;
-    std::unique_ptr<NotificationOrchestrator> m_notificationOrchestrator;
-    std::unique_ptr<TouchWorkflowCoordinator> m_touchWorkflowCoordinator;
 
     // Actions
     KRunner::Actions m_actions;
-
-    // Configuration keys (for password migration)
-    static constexpr const char *CONFIG_PASSWORD = "Password";
 };
 
 } // namespace YubiKey

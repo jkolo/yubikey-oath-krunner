@@ -5,8 +5,8 @@
 
 #include "match_builder.h"
 #include "../config/configuration_provider.h"
-#include "../formatting/credential_formatter.h"
-#include "../../shared/dbus/yubikey_dbus_client.h"
+#include "formatting/credential_formatter.h"
+#include "dbus/yubikey_dbus_client.h"
 #include "../logging_categories.h"
 
 #include <KLocalizedString>

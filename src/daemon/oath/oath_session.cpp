@@ -179,12 +179,16 @@ Result<QString> OathSession::calculateCode(const QString &name)
         return Result<QString>::error(tr("Failed to communicate with YubiKey"));
     }
 
-    // Check for touch required before parsing
+    // Check for touch required and authentication before parsing
     quint16 sw = OathProtocol::getStatusWord(response);
     if (sw == 0x6985) {
         qCDebug(YubiKeyOathDeviceLog) << "Touch required (SW=6985)";
         Q_EMIT touchRequired();
         return Result<QString>::error(tr("Touch required"));
+    }
+    if (sw == OathProtocol::SW_SECURITY_STATUS_NOT_SATISFIED) {
+        qCDebug(YubiKeyOathDeviceLog) << "Password required for CALCULATE (SW=6982)";
+        return Result<QString>::error(tr("Password required"));
     }
 
     QString code = OathProtocol::parseCode(response);
@@ -327,6 +331,66 @@ Result<void> OathSession::authenticate(const QString &password, const QString &d
 
     qCDebug(YubiKeyOathDeviceLog) << "Authentication failed with unknown error";
     return Result<void>::error(tr("Authentication failed"));
+}
+
+Result<void> OathSession::putCredential(const OathCredentialData &data)
+{
+    qCDebug(YubiKeyOathDeviceLog) << "putCredential() for device" << m_deviceId
+                                   << "credential:" << data.name;
+
+    // Validate credential data
+    QString validationError = data.validate();
+    if (!validationError.isEmpty()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Invalid credential data:" << validationError;
+        return Result<void>::error(validationError);
+    }
+
+    // Create PUT command
+    QByteArray command = OathProtocol::createPutCommand(data);
+    if (command.isEmpty()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Failed to create PUT command";
+        return Result<void>::error(tr("Failed to encode credential data"));
+    }
+
+    qCDebug(YubiKeyOathDeviceLog) << "Sending PUT command, length:" << command.length();
+
+    // Send command
+    QByteArray response = sendApdu(command);
+
+    if (response.isEmpty()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Empty response from PUT command";
+        return Result<void>::error(tr("No response from YubiKey"));
+    }
+
+    // Check status word
+    quint16 sw = OathProtocol::getStatusWord(response);
+    qCDebug(YubiKeyOathDeviceLog) << "PUT status word:" << QString::number(sw, 16);
+
+    if (sw == OathProtocol::SW_SUCCESS) {
+        qCDebug(YubiKeyOathDeviceLog) << "Credential added successfully";
+        return Result<void>::success();
+    }
+
+    // Handle specific error cases
+    if (sw == OathProtocol::SW_INSUFFICIENT_SPACE) {
+        qCWarning(YubiKeyOathDeviceLog) << "Insufficient space on YubiKey";
+        return Result<void>::error(tr("Insufficient space on YubiKey"));
+    }
+
+    if (sw == OathProtocol::SW_SECURITY_STATUS_NOT_SATISFIED) {
+        qCWarning(YubiKeyOathDeviceLog) << "Authentication required";
+        return Result<void>::error(tr("Authentication required - YubiKey is password protected"));
+    }
+
+    if (sw == OathProtocol::SW_WRONG_DATA) {
+        qCWarning(YubiKeyOathDeviceLog) << "Wrong data format";
+        return Result<void>::error(tr("Invalid credential data format"));
+    }
+
+    // Unknown error
+    qCWarning(YubiKeyOathDeviceLog) << "PUT failed with status word:" << QString::number(sw, 16);
+    return Result<void>::error(tr("Failed to add credential (error code: 0x%1)")
+                                .arg(sw, 4, 16, QLatin1Char('0')));
 }
 
 void OathSession::cancelOperation()

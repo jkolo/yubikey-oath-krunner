@@ -4,7 +4,7 @@
  */
 
 #include <QtTest>
-#include "krunner/formatting/code_validator.h"
+#include "daemon/formatting/code_validator.h"
 
 using namespace KRunner::YubiKey;
 

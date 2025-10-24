@@ -98,6 +98,64 @@ public:
     QString getDeviceName(const QString &deviceId);
 
     /**
+     * @brief Adds or updates OATH credential on YubiKey
+     * @param deviceId Device ID (empty string = use first available device)
+     * @param name Full credential name (issuer:account)
+     * @param secret Base32-encoded secret key
+     * @param type Credential type ("TOTP" or "HOTP")
+     * @param algorithm Hash algorithm ("SHA1", "SHA256", or "SHA512")
+     * @param digits Number of digits (6-8)
+     * @param period TOTP period in seconds (default 30, ignored for HOTP)
+     * @param counter Initial HOTP counter value (ignored for TOTP)
+     * @param requireTouch Whether to require physical touch
+     * @return Empty string on success, error message on failure
+     *
+     * Synchronous D-Bus call. Returns error message if daemon unavailable or operation failed.
+     */
+    QString addCredential(const QString &deviceId,
+                         const QString &name,
+                         const QString &secret,
+                         const QString &type,
+                         const QString &algorithm,
+                         int digits,
+                         int period,
+                         int counter,
+                         bool requireTouch);
+
+    /**
+     * @brief Copies TOTP code to clipboard
+     * @param deviceId Device ID (empty string = use first available device)
+     * @param credentialName Full credential name (issuer:username)
+     * @return true on success, false on failure
+     *
+     * Synchronous D-Bus call. Delegates to daemon's CopyCodeToClipboard method.
+     * Generates code and copies to clipboard with auto-clear support.
+     * Shows notification if enabled in configuration.
+     */
+    bool copyCodeToClipboard(const QString &deviceId, const QString &credentialName);
+
+    /**
+     * @brief Types TOTP code via keyboard emulation
+     * @param deviceId Device ID (empty string = use first available device)
+     * @param credentialName Full credential name (issuer:username)
+     * @return true on success, false on failure
+     *
+     * Synchronous D-Bus call. Delegates to daemon's TypeCode method.
+     * Generates code and types it using appropriate input method (Portal/Wayland/X11).
+     * Handles touch requirements with user notifications.
+     */
+    bool typeCode(const QString &deviceId, const QString &credentialName);
+
+    /**
+     * @brief Starts workflow to add credential from screenshot QR code
+     * @return QVariantMap with keys: "success" (bool), "error" (string, optional)
+     *
+     * Synchronous D-Bus call. Delegates to daemon's AddCredentialFromScreen method.
+     * Captures screenshot, parses QR code, shows dialog, and saves to YubiKey.
+     */
+    QVariantMap addCredentialFromScreen();
+
+    /**
      * @brief Checks if daemon is currently available
      * @return true if daemon is registered on D-Bus
      */

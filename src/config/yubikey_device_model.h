@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "../shared/dbus/yubikey_dbus_types.h"
+#include "dbus/yubikey_dbus_types.h"
 #include <QAbstractListModel>
 #include <QDateTime>
 #include <QString>

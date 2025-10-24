@@ -4,8 +4,8 @@
  */
 
 #include <QtTest>
-#include "krunner/formatting/credential_formatter.h"
-#include "shared/types/oath_credential.h"
+#include "formatting/credential_formatter.h"
+#include "types/oath_credential.h"
 
 using namespace KRunner::YubiKey;
 

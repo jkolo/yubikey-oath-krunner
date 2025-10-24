@@ -4,21 +4,33 @@
  */
 
 #include "yubikey_dbus_service.h"
-#include "../shared/dbus/yubikey_dbus_types.h"
+#include "dbus/yubikey_dbus_types.h"
 
-#include <QCoreApplication>
+#include <QApplication>
 #include <QDBusConnection>
 #include <QDBusError>
 #include <QDBusMetaType>
 #include <QDebug>
+#include <KLocalizedString>
 
 int main(int argc, char *argv[])
 {
-    // NOLINTNEXTLINE(misc-const-correctness) - QCoreApplication is modified internally by Qt
-    QCoreApplication app(argc, argv);
+    // NOLINTNEXTLINE(misc-const-correctness) - QApplication is modified internally by Qt
+    QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("yubikey-oath-daemon"));
     app.setOrganizationName(QStringLiteral("KDE"));
     app.setOrganizationDomain(QStringLiteral("kde.org"));
+
+    // Set translation domain for i18n
+    KLocalizedString::setApplicationDomain("krunner_yubikey");
+
+    // Set desktop file name for XDG Portal app ID
+    app.setDesktopFileName(QStringLiteral("org.kde.plasma.krunner.yubikey"));
+
+    // Log Qt platform plugin and clipboard availability
+    qWarning() << "Qt platform:" << QApplication::platformName();
+    qWarning() << "Wayland display:" << qgetenv("WAYLAND_DISPLAY");
+    qWarning() << "X11 display:" << qgetenv("DISPLAY");
 
     // Register custom types for D-Bus marshaling
     qRegisterMetaType<KRunner::YubiKey::DeviceInfo>("KRunner::YubiKey::DeviceInfo");

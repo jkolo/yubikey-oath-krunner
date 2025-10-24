@@ -12,6 +12,7 @@
 #include <QDBusReply>
 #include <QDBusMetaType>
 #include <QDebug>
+#include <KLocalizedString>
 
 namespace KRunner {
 namespace YubiKey {
@@ -189,6 +190,105 @@ QString YubiKeyDBusClient::getDeviceName(const QString &deviceId)
         }
     }
     return deviceId; // Fallback to device ID if not found
+}
+
+QString YubiKeyDBusClient::addCredential(const QString &deviceId,
+                                         const QString &name,
+                                         const QString &secret,
+                                         const QString &type,
+                                         const QString &algorithm,
+                                         int digits,
+                                         int period,
+                                         int counter,
+                                         bool requireTouch)
+{
+    if (!m_daemonAvailable) {
+        qWarning() << "YubiKeyDBusClient: Daemon not available";
+        return i18n("Daemon not available");
+    }
+
+    QDBusReply<QString> reply = m_interface->call(
+        QStringLiteral("AddCredential"),
+        deviceId,
+        name,
+        secret,
+        type,
+        algorithm,
+        digits,
+        period,
+        counter,
+        requireTouch
+    );
+
+    if (!reply.isValid()) {
+        qWarning() << "YubiKeyDBusClient: AddCredential failed:" << reply.error().message();
+        return reply.error().message();
+    }
+
+    return reply.value(); // Empty string = success, otherwise error message
+}
+
+bool YubiKeyDBusClient::copyCodeToClipboard(const QString &deviceId, const QString &credentialName)
+{
+    if (!m_daemonAvailable) {
+        qWarning() << "YubiKeyDBusClient: Daemon not available";
+        return false;
+    }
+
+    // Call asynchronously (fire-and-forget) to avoid blocking KRunner window
+    // Daemon will handle all UI (touch notifications, copying, code notification, etc.)
+    m_interface->asyncCall(
+        QStringLiteral("CopyCodeToClipboard"),
+        deviceId,
+        credentialName
+    );
+
+    // Return true immediately - daemon will handle the workflow
+    return true;
+}
+
+bool YubiKeyDBusClient::typeCode(const QString &deviceId, const QString &credentialName)
+{
+    if (!m_daemonAvailable) {
+        qWarning() << "YubiKeyDBusClient: Daemon not available";
+        return false;
+    }
+
+    // Call asynchronously (fire-and-forget) to avoid blocking KRunner window
+    // Daemon will handle all UI (touch notifications, typing, etc.)
+    m_interface->asyncCall(
+        QStringLiteral("TypeCode"),
+        deviceId,
+        credentialName
+    );
+
+    // Return true immediately - daemon will handle the workflow
+    return true;
+}
+
+QVariantMap YubiKeyDBusClient::addCredentialFromScreen()
+{
+    QVariantMap result;
+
+    if (!m_daemonAvailable) {
+        qWarning() << "YubiKeyDBusClient: Daemon not available";
+        result[QStringLiteral("success")] = false;
+        result[QStringLiteral("error")] = i18n("Daemon not available");
+        return result;
+    }
+
+    QDBusReply<QVariantMap> reply = m_interface->call(
+        QStringLiteral("AddCredentialFromScreen")
+    );
+
+    if (!reply.isValid()) {
+        qWarning() << "YubiKeyDBusClient: AddCredentialFromScreen failed:" << reply.error().message();
+        result[QStringLiteral("success")] = false;
+        result[QStringLiteral("error")] = reply.error().message();
+        return result;
+    }
+
+    return reply.value();
 }
 
 bool YubiKeyDBusClient::isDaemonAvailable() const

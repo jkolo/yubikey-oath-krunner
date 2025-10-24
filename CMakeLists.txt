@@ -97,6 +97,12 @@ pkg_check_modules(XKBCOMMON REQUIRED xkbcommon)
 pkg_check_modules(LIBEI REQUIRED libei-1.0)
 pkg_check_modules(LIBOEFFIS REQUIRED liboeffis-1.0)
 
+# Use system ZXing-C++ library for QR code scanning
+find_package(ZXing REQUIRED)
+
+# Add shared/ to include paths globally to avoid ../shared/ in includes
+include_directories(${CMAKE_SOURCE_DIR}/src/shared)
+
 add_subdirectory(src)
 
 # Enable testing

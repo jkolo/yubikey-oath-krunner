@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: krunner-yubikey 1.0.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-06 01:31+0200\n"
+"POT-Creation-Date: 2025-10-24 18:38+0200\n"
 "PO-Revision-Date: 2025-10-06 00:40+0200\n"
 "Last-Translator: Polish Translation Team\n"
 "Language-Team: Polish\n"
@@ -18,279 +18,583 @@ msgstr ""
 "Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 "
 "|| n%100>=20) ? 1 : 2);\n"
 
-#: src/runner/action_executor.cpp:36 src/runner/action_executor.cpp:76
-#: src/runner/action_executor.cpp:90 src/runner/yubikeyrunner.cpp:278
-#: src/runner/yubikeyrunner.cpp:320 src/runner/yubikeyrunner.cpp:328
-#: src/runner/yubikeyrunner.cpp:385
+#: src/daemon/ui/add_credential_dialog.cpp:28 src/krunner/yubikeyrunner.cpp:124
 #, kde-format
-msgid "Error"
-msgstr "Błąd"
+msgid "Add OATH Credential to YubiKey"
+msgstr "Dodaj dane OATH do YubiKey"
 
-#: src/runner/action_executor.cpp:37
+#: src/daemon/ui/add_credential_dialog.cpp:44
 #, kde-format
-msgid "Text input not available"
-msgstr "Wprowadzanie tekstu niedostępne"
+msgid "e.g., Google, GitHub"
+msgstr "np. Google, GitHub"
 
-#: src/runner/action_executor.cpp:61 src/runner/yubikeyrunner.cpp:314
+#: src/daemon/ui/add_credential_dialog.cpp:45
 #, kde-format
-msgid "YubiKey OATH"
-msgstr "YubiKey OATH"
+msgid "Issuer:"
+msgstr "Wystawca:"
 
-#: src/runner/action_executor.cpp:62
+#: src/daemon/ui/add_credential_dialog.cpp:49
 #, kde-format
-msgid "Failed to type code, copied to clipboard instead"
-msgstr "Nie udało się wpisać kodu, skopiowano do schowka"
+msgid "e.g., user@example.com"
+msgstr "np. użytkownik@przykład.pl"
 
-#: src/runner/action_executor.cpp:77
+#: src/daemon/ui/add_credential_dialog.cpp:50
 #, kde-format
-msgid "Clipboard not available"
-msgstr "Schowek niedostępny"
+msgid "Account:"
+msgstr "Konto:"
 
-#: src/runner/action_executor.cpp:91
+#: src/daemon/ui/add_credential_dialog.cpp:56
 #, kde-format
-msgid "Failed to copy to clipboard"
-msgstr "Nie udało się skopiować do schowka"
+msgid "Base32 encoded secret"
+msgstr "Sekret zakodowany w Base32"
 
-#: src/runner/yubikeyrunner.cpp:156
+#: src/daemon/ui/add_credential_dialog.cpp:58
 #, kde-format
-msgid "Type code"
-msgstr "Wpisz kod"
+msgid "Show/hide secret"
+msgstr "Pokaż/ukryj sekret"
 
-#: src/runner/yubikeyrunner.cpp:161
+#: src/daemon/ui/add_credential_dialog.cpp:62
 #, kde-format
-msgid "Copy to clipboard"
-msgstr "Kopiuj do schowka"
+msgid "Secret:"
+msgstr "Sekret:"
 
-#: src/runner/yubikeyrunner.cpp:279
+#: src/daemon/ui/add_credential_dialog.cpp:66
 #, kde-format
-msgid "No YubiKey connected"
-msgstr "Brak podłączonego YubiKey"
+msgid "TOTP (Time-based)"
+msgstr "TOTP (Oparty na czasie)"
 
-#: src/runner/yubikeyrunner.cpp:291
+#: src/daemon/ui/add_credential_dialog.cpp:67
 #, kde-format
-msgid "YubiKey OATH Password"
-msgstr "Hasło YubiKey OATH"
+msgid "HOTP (Counter-based)"
+msgstr "HOTP (Oparty na liczniku)"
 
-#: src/runner/yubikeyrunner.cpp:292
+#: src/daemon/ui/add_credential_dialog.cpp:69
 #, kde-format
-msgid ""
-"This YubiKey requires a password.\n"
-"Please enter the OATH password:"
-msgstr ""
-"Ten YubiKey wymaga hasła.\n"
-"Wprowadź hasło OATH:"
+msgid "Type:"
+msgstr "Typ:"
 
-#: src/runner/yubikeyrunner.cpp:315
+#: src/daemon/ui/add_credential_dialog.cpp:79
 #, kde-format
-msgid "Password saved successfully"
-msgstr "Hasło zapisano pomyślnie"
+msgid "Algorithm:"
+msgstr "Algorytm:"
 
-#: src/runner/yubikeyrunner.cpp:321
+#: src/daemon/ui/add_credential_dialog.cpp:85
 #, kde-format
-msgid "Failed to save password"
-msgstr "Nie udało się zapisać hasła"
+msgid "Digits:"
+msgstr "Cyfry:"
 
-#: src/runner/yubikeyrunner.cpp:329 qml/config/PasswordDialog.qml:155
+#: src/daemon/ui/add_credential_dialog.cpp:91
 #, kde-format
-msgid "Invalid password. Please try again."
-msgstr "Nieprawidłowe hasło. Spróbuj ponownie."
+msgid " seconds"
+msgstr " sekund"
 
-#: src/runner/yubikeyrunner.cpp:459
+#: src/daemon/ui/add_credential_dialog.cpp:92
 #, kde-format
-msgid "YubiKey Error"
-msgstr "Błąd YubiKey"
+msgid "Period:"
+msgstr "Okres:"
 
-#: src/runner/touch_workflow_coordinator.cpp:169
+#: src/daemon/ui/add_credential_dialog.cpp:98
+#, kde-format
+msgid "Initial Counter:"
+msgstr "Licznik początkowy:"
+
+#: src/daemon/ui/add_credential_dialog.cpp:101
+#, kde-format
+msgid "Require physical touch to generate code"
+msgstr "Wymagaj fizycznego dotknięcia do generowania kodu"
+
+#: src/daemon/ui/add_credential_dialog.cpp:108
+#, kde-format
+msgid "No devices available"
+msgstr "Brak dostępnych urządzeń"
+
+#: src/daemon/ui/add_credential_dialog.cpp:115
+#, kde-format
+msgid "Target Device:"
+msgstr "Urządzenie docelowe:"
+
+#: src/daemon/ui/add_credential_dialog.cpp:132
+#, kde-format
+msgid "Add to YubiKey"
+msgstr "Dodaj do YubiKey"
+
+#: src/daemon/ui/add_credential_dialog.cpp:194
+#, kde-format
+msgid "Issuer is required"
+msgstr "Wystawca jest wymagany"
+
+#: src/daemon/ui/add_credential_dialog.cpp:203
+#, kde-format
+msgid "Account is required"
+msgstr "Konto jest wymagane"
+
+#: src/daemon/ui/add_credential_dialog.cpp:212
+#: src/shared/types/oath_credential_data.h:61
+#, kde-format
+msgid "Secret is required"
+msgstr "Sekret jest wymagany"
+
+#: src/daemon/workflows/add_credential_workflow.cpp:62
+#, kde-format
+msgid "No QR code found in screenshot: %1"
+msgstr "Nie znaleziono kodu QR w zrzucie ekranu: %1"
+
+#: src/daemon/workflows/add_credential_workflow.cpp:77
+#, kde-format
+msgid "Invalid otpauth:// URI: %1"
+msgstr "Nieprawidłowy URI otpauth://: %1"
+
+#: src/daemon/workflows/add_credential_workflow.cpp:97
+#: src/daemon/workflows/add_credential_workflow.cpp:98
+#, fuzzy, kde-format
+msgid "No YubiKey devices connected"
+msgstr "Nie znaleziono urządzeń YubiKey"
+
+#: src/daemon/workflows/add_credential_workflow.cpp:129
+#, kde-format
+msgid "Internal error: dialog cast failed"
+msgstr "Błąd wewnętrzny: niepowodzenie rzutowania dialogu"
+
+#: src/daemon/workflows/add_credential_workflow.cpp:130
+#, kde-format
+msgid "Internal error"
+msgstr "Błąd wewnętrzny"
+
+#: src/daemon/workflows/add_credential_workflow.cpp:140
+#: src/daemon/workflows/add_credential_workflow.cpp:141
+#, kde-format
+msgid "No device selected"
+msgstr "Nie wybrano urządzenia"
+
+#: src/daemon/workflows/add_credential_workflow.cpp:163
+#, kde-format
+msgid "Failed to add credential: %1"
+msgstr "Nie udało się dodać danych uwierzytelniających: %1"
+
+#: src/daemon/workflows/add_credential_workflow.cpp:184
+#, kde-format
+msgid "Add Credential Failed"
+msgstr "Dodawanie danych uwierzytelniających nie powiodło się"
+
+#: src/daemon/workflows/add_credential_workflow.cpp:195
+#, kde-format
+msgid "Credential Added"
+msgstr "Dodano dane uwierzytelniające"
+
+#: src/daemon/workflows/add_credential_workflow.cpp:196
+#, kde-format
+msgid "Successfully added %1 to YubiKey"
+msgstr "Pomyślnie dodano %1 do YubiKey"
+
+#: src/daemon/workflows/touch_workflow_coordinator.cpp:77
+#, kde-format
+msgid "Failed to generate code"
+msgstr "Nie udało się wygenerować kodu"
+
+#: src/daemon/workflows/touch_workflow_coordinator.cpp:218
 #, kde-format
 msgid "Cancelled"
 msgstr "Anulowano"
 
-#: src/runner/touch_workflow_coordinator.cpp:170
+#: src/daemon/workflows/touch_workflow_coordinator.cpp:219
 #, kde-format
 msgid "Touch operation cancelled for '%1'"
 msgstr "Operacja dotknięcia anulowana dla '%1'"
 
-#: src/runner/match_builder.cpp:72
+#: src/daemon/workflows/notification_orchestrator.cpp:61
+#: src/daemon/workflows/notification_orchestrator.cpp:304
 #, kde-format
-msgid "YubiKey OATH %1"
-msgstr "YubiKey OATH %1"
+msgid "%1 (copied) • expires in %2s"
+msgstr "%1 (w schowku) • do wygaśnięcia %2s"
 
-#: src/runner/match_builder.cpp:98
+#: src/daemon/workflows/notification_orchestrator.cpp:104
+#: src/daemon/workflows/notification_orchestrator.cpp:191
+#: src/daemon/workflows/notification_orchestrator.cpp:321
+#: src/daemon/workflows/notification_orchestrator.cpp:358
 #, kde-format
-msgid "YubiKey OATH authentication failed"
-msgstr "Uwierzytelnianie YubiKey OATH nie powiodło się"
+msgid "Timeout in %1s"
+msgstr "Limit czasu: %1s"
 
-#: src/runner/match_builder.cpp:99
-#, kde-format
-msgid "Click to open settings and configure password"
-msgstr "Kliknij, aby otworzyć ustawienia i skonfigurować hasło"
-
-#: src/runner/notification_orchestrator.cpp:58
-#: src/runner/notification_orchestrator.cpp:203
-#, kde-format
-msgid "Code for %1\n"
-msgstr "Kod dla %1\n"
-
-#: src/runner/notification_orchestrator.cpp:59
-#: src/runner/notification_orchestrator.cpp:204
-#, kde-format
-msgid ""
-"✓ Copied to clipboard\n"
-"\n"
-msgstr ""
-"✓ Skopiowano do schowka\n"
-"\n"
-
-#: src/runner/notification_orchestrator.cpp:60
-#: src/runner/notification_orchestrator.cpp:205
-#, kde-format
-msgid "Expires in %1 second"
-msgid_plural "Expires in %1 seconds"
-msgstr[0] "Wygasa za %1 sekundę"
-msgstr[1] "Wygasa za %1 sekundy"
-msgstr[2] "Wygasa za %1 sekund"
-
-#: src/runner/notification_orchestrator.cpp:72
-#: src/runner/notification_orchestrator.cpp:214
-#, kde-format
-msgid "YubiKey OATH Code"
-msgstr "Kod YubiKey OATH"
-
-#: src/runner/notification_orchestrator.cpp:105
-#: src/runner/notification_orchestrator.cpp:266
-#, kde-format
-msgid ""
-"Please touch your YubiKey to generate the code for\n"
-"<b>%1</b>\n"
-"\n"
-"Timeout in %2 seconds"
-msgstr ""
-"Dotknij YubiKey, aby wygenerować kod dla\n"
-"<b>%1</b>\n"
-"\n"
-"Limit czasu: %2 sekund"
-
-#: src/runner/notification_orchestrator.cpp:116
-#: qml/config/PasswordDialog.qml:118
+#: src/daemon/workflows/notification_orchestrator.cpp:111
 #, kde-format
 msgid "Cancel"
 msgstr "Anuluj"
 
-#: src/runner/notification_orchestrator.cpp:123
-#: src/runner/notification_orchestrator.cpp:277
+#: src/daemon/workflows/notification_orchestrator.cpp:118
+#: src/daemon/workflows/notification_orchestrator.cpp:319
 #, kde-format
-msgid "YubiKey Touch Required"
-msgstr "Wymagane dotknięcie YubiKey"
+msgid "Please touch your YubiKey"
+msgstr "Dotknij YubiKey"
 
-#: src/runner/notification_orchestrator.cpp:239
+#: src/daemon/workflows/notification_orchestrator.cpp:190
+#: src/daemon/workflows/notification_orchestrator.cpp:357
 #, kde-format
-msgid ""
-"Touch operation timed out for\n"
-"<b>%1</b>\n"
-"\n"
-"Operation cancelled"
-msgstr ""
-"Przekroczono limit czasu dotknięcia dla\n"
-"<b>%1</b>\n"
-"\n"
-"Operacja anulowana"
+msgid "Pressed keys: %1\n"
+msgstr "Wciśnięte klawisze: %1\n"
 
-#: src/runner/notification_orchestrator.cpp:248
+#: src/daemon/workflows/notification_orchestrator.cpp:201
+#: src/daemon/workflows/notification_orchestrator.cpp:354
 #, kde-format
-msgid "YubiKey Touch Timeout"
-msgstr "Przekroczono limit czasu dotknięcia YubiKey"
+msgid "Please release modifier keys"
+msgstr "Zwolnij klawisze modyfikujące"
 
-#: qml/config/PasswordDialog.qml:18
+#: src/daemon/workflows/notification_orchestrator.cpp:238
+#, kde-format
+msgid "Code Input Cancelled"
+msgstr "Wpisywanie kodu anulowane"
+
+#: src/daemon/workflows/notification_orchestrator.cpp:239
+#, kde-format
+msgid "Modifier keys were held down for too long"
+msgstr "Klawisze modyfikujące były trzymane zbyt długo"
+
+#: src/daemon/workflows/notification_orchestrator.cpp:328
+#, kde-format
+msgid "Operation cancelled"
+msgstr "Operacja anulowana"
+
+#: src/daemon/workflows/notification_orchestrator.cpp:333
+#, kde-format
+msgid "Touch Timeout"
+msgstr "Przekroczono limit czasu dotknięcia"
+
+#: src/daemon/input/modifier_key_checker.cpp:162
+#, kde-format
+msgid "Shift"
+msgstr "Shift"
+
+#: src/daemon/input/modifier_key_checker.cpp:165
+#, kde-format
+msgid "Ctrl"
+msgstr "Ctrl"
+
+#: src/daemon/input/modifier_key_checker.cpp:168
+#, kde-format
+msgid "Alt"
+msgstr "Alt"
+
+#: src/daemon/input/modifier_key_checker.cpp:171
+#, kde-format
+msgid "AltGr"
+msgstr "AltGr"
+
+#: src/daemon/actions/action_executor.cpp:41
+#: src/daemon/actions/action_executor.cpp:49
+#: src/daemon/actions/action_executor.cpp:109
+#: src/daemon/actions/action_executor.cpp:117
+#: src/daemon/actions/action_executor.cpp:129
+#, kde-format
+msgid "Error"
+msgstr "Błąd"
+
+#: src/daemon/actions/action_executor.cpp:42
+#, kde-format
+msgid "No code available to type"
+msgstr "Brak kodu do wpisania"
+
+#: src/daemon/actions/action_executor.cpp:50
+#, kde-format
+msgid "Text input not available"
+msgstr "Wprowadzanie tekstu niedostępne"
+
+#: src/daemon/actions/action_executor.cpp:77
+#, kde-format
+msgid "Permission Denied"
+msgstr "Odmowa dostępu"
+
+#: src/daemon/actions/action_executor.cpp:78
+#, kde-format
+msgid "Code: %1 (copied to clipboard)"
+msgstr "Kod: %1 (skopiowano do schowka)"
+
+#: src/daemon/actions/action_executor.cpp:93
+#, kde-format
+msgid "YubiKey OATH"
+msgstr "YubiKey OATH"
+
+#: src/daemon/actions/action_executor.cpp:94
+#, kde-format
+msgid "Failed to type code, copied to clipboard instead"
+msgstr "Nie udało się wpisać kodu, skopiowano do schowka"
+
+#: src/daemon/actions/action_executor.cpp:110
+#, kde-format
+msgid "No code available to copy"
+msgstr "Brak kodu do skopiowania"
+
+#: src/daemon/actions/action_executor.cpp:118
+#, kde-format
+msgid "Clipboard not available"
+msgstr "Schowek niedostępny"
+
+#: src/daemon/actions/action_executor.cpp:130
+#, kde-format
+msgid "Failed to copy to clipboard"
+msgstr "Nie udało się skopiować do schowka"
+
+#: src/daemon/services/yubikey_service.cpp:289
+#, kde-format
+msgid "Device not found"
+msgstr "Nie znaleziono urządzenia"
+
+#: src/daemon/services/yubikey_service.cpp:304
+#, kde-format
+msgid "Invalid credential type (must be TOTP or HOTP)"
+msgstr "Nieprawidłowy typ danych uwierzytelniających (musi być TOTP lub HOTP)"
+
+#: src/daemon/utils/screenshot_capture.cpp:51
+#, kde-format
+msgid "XDG Desktop Portal not available"
+msgstr "XDG Desktop Portal niedostępny"
+
+#: src/daemon/utils/screenshot_capture.cpp:80
+#, kde-format
+msgid "Failed to request screenshot: %1"
+msgstr "Nie udało się zażądać zrzutu ekranu: %1"
+
+#: src/daemon/utils/screenshot_capture.cpp:100
+#, kde-format
+msgid "Failed to connect to portal signal"
+msgstr "Nie udało się połączyć z sygnałem portalu"
+
+#: src/daemon/utils/screenshot_capture.cpp:130
+#, kde-format
+msgid "Timeout waiting for screenshot"
+msgstr "Przekroczono limit czasu oczekiwania na zrzut ekranu"
+
+#: src/daemon/utils/screenshot_capture.cpp:134
+#, kde-format
+msgid "Screenshot cancelled by user"
+msgstr "Zrzut ekranu anulowany przez użytkownika"
+
+#: src/daemon/utils/screenshot_capture.cpp:138
+#, kde-format
+msgid "No screenshot file path received"
+msgstr "Nie otrzymano ścieżki do pliku zrzutu ekranu"
+
+#: src/daemon/utils/otpauth_uri_parser.cpp:21
+#, kde-format
+msgid "Invalid URI format"
+msgstr "Nieprawidłowy format URI"
+
+#: src/daemon/utils/otpauth_uri_parser.cpp:26
+#, kde-format
+msgid "URI must start with otpauth://"
+msgstr "URI musi zaczynać się od otpauth://"
+
+#: src/daemon/utils/otpauth_uri_parser.cpp:32
+#, kde-format
+msgid "Type must be 'totp' or 'hotp'"
+msgstr "Typ musi być 'totp' lub 'hotp'"
+
+#: src/daemon/utils/otpauth_uri_parser.cpp:45
+#, kde-format
+msgid "Label (account name) is required"
+msgstr "Etykieta (nazwa konta) jest wymagana"
+
+#: src/daemon/utils/otpauth_uri_parser.cpp:54
+#, kde-format
+msgid "Secret parameter is required"
+msgstr "Parametr sekretu jest wymagany"
+
+#: src/daemon/utils/otpauth_uri_parser.cpp:96
+#, kde-format
+msgid "Invalid algorithm (must be SHA1, SHA256, or SHA512)"
+msgstr "Nieprawidłowy algorytm (musi być SHA1, SHA256 lub SHA512)"
+
+#: src/daemon/utils/otpauth_uri_parser.cpp:108
+#, kde-format
+msgid "Invalid digits (must be 6, 7, or 8)"
+msgstr "Nieprawidłowa liczba cyfr (musi być 6, 7 lub 8)"
+
+#: src/daemon/utils/otpauth_uri_parser.cpp:122
+#, kde-format
+msgid "Invalid period (must be positive integer)"
+msgstr "Nieprawidłowy okres (musi być dodatnią liczbą całkowitą)"
+
+#: src/daemon/utils/otpauth_uri_parser.cpp:134
+#, kde-format
+msgid "Counter parameter is required for HOTP"
+msgstr "Parametr licznika jest wymagany dla HOTP"
+
+#: src/daemon/utils/otpauth_uri_parser.cpp:140
+#, kde-format
+msgid "Invalid counter value"
+msgstr "Nieprawidłowa wartość licznika"
+
+#: src/daemon/utils/qr_code_parser.cpp:20
+#, kde-format
+msgid "Image file not found: %1"
+msgstr "Nie znaleziono pliku obrazu: %1"
+
+#: src/daemon/utils/qr_code_parser.cpp:26
+#, kde-format
+msgid "Failed to load image: %1"
+msgstr "Nie udało się wczytać obrazu: %1"
+
+#: src/daemon/utils/qr_code_parser.cpp:69
+#, kde-format
+msgid "No QR code found in image or failed to decode"
+msgstr "Nie znaleziono kodu QR w obrazie lub niepowodzenie dekodowania"
+
+#: src/shared/ui/password_dialog_helper.cpp:77
+#: src/config/yubikey_device_model.cpp:159
+#, kde-format
+msgid "Invalid password. Please try again."
+msgstr "Nieprawidłowe hasło. Spróbuj ponownie."
+
+#: src/shared/ui/password_dialog.cpp:40
 #, kde-format
 msgid "Authorize YubiKey"
 msgstr "Autoryzuj YubiKey"
 
-#: qml/config/PasswordDialog.qml:41
+#: src/shared/ui/password_dialog.cpp:54
 #, kde-format
-msgid "Device:"
-msgstr "Urządzenie:"
+msgid "Enter YubiKey OATH password for device:"
+msgstr "Wprowadź hasło dla YubiKey OATH dla urządzenia:"
 
-#: qml/config/PasswordDialog.qml:47
+#: src/shared/ui/password_dialog.cpp:72
 #, kde-format
-msgid "Device ID:"
-msgstr "ID urządzenia:"
+msgid "Edit device name"
+msgstr "Edytuj nazwę urządzenia"
 
-#: qml/config/PasswordDialog.qml:61
+#: src/shared/ui/password_dialog.cpp:80
 #, kde-format
-msgid "This YubiKey requires a password to access OATH credentials."
-msgstr "Ten YubiKey wymaga hasła do dostępu do danych OATH."
+msgid "Enter device name"
+msgstr "Wprowadź nazwę urządzenia"
 
-#: qml/config/PasswordDialog.qml:67
+#: src/shared/ui/password_dialog.cpp:88
 #, kde-format
-msgid "Please enter the password:"
-msgstr "Wprowadź hasło:"
+msgid "Password:"
+msgstr "Hasło:"
 
-#: qml/config/PasswordDialog.qml:75
+#: src/shared/ui/password_dialog.cpp:93 src/shared/ui/password_dialog.cpp:226
 #, kde-format
 msgid "YubiKey OATH password"
 msgstr "Hasło YubiKey OATH"
 
-#: qml/config/PasswordDialog.qml:130
+#: src/shared/ui/password_dialog.cpp:116
 #, kde-format
 msgid "OK"
 msgstr "OK"
 
-#: qml/config/YubiKeyConfig.qml:78
+#: src/shared/ui/password_dialog.cpp:224
+#, kde-format
+msgid "Verifying password..."
+msgstr "Weryfikacja hasła..."
+
+#: src/shared/types/oath_credential_data.h:57
+#, kde-format
+msgid "Credential name is required"
+msgstr "Nazwa danych jest wymagana"
+
+#: src/shared/types/oath_credential_data.h:68
+#, kde-format
+msgid "Secret must be valid Base32 (A-Z, 2-7)"
+msgstr "Sekret musi być w formacie Base32 (A-Z, 2-7)"
+
+#: src/shared/types/oath_credential_data.h:73
+#, kde-format
+msgid "Digits must be 6, 7, or 8"
+msgstr "Liczba cyfr musi wynosić 6, 7 lub 8"
+
+#: src/shared/types/oath_credential_data.h:78
+#, kde-format
+msgid "Period must be positive"
+msgstr "Okres musi być dodatni"
+
+#: src/shared/utils/portal_permission_manager.cpp:91
+#, kde-format
+msgid "Permission Store not available"
+msgstr "Magazyn uprawnień niedostępny"
+
+#: src/shared/utils/portal_permission_manager.cpp:109
+#, kde-format
+msgid "Failed to grant %1 permission: %2"
+msgstr "Nie udało się przyznać uprawnienia %1: %2"
+
+#: src/shared/utils/portal_permission_manager.cpp:127
+#, kde-format
+msgid "Failed to revoke %1 permission: %2"
+msgstr "Nie udało się odebrać uprawnienia %1: %2"
+
+#: src/shared/dbus/yubikey_dbus_client.cpp:207
+#: src/shared/dbus/yubikey_dbus_client.cpp:276
+#, kde-format
+msgid "Daemon not available"
+msgstr "Demon niedostępny"
+
+#: src/config/yubikey_device_model.cpp:133
+#, kde-format
+msgid "Password cannot be empty"
+msgstr "Hasło nie może być puste"
+
+#: src/config/yubikey_config.cpp:247 src/config/yubikey_config.cpp:272
+#, kde-format
+msgid "Permission Error"
+msgstr "Błąd uprawnień"
+
+#: src/config/yubikey_config.cpp:249 src/config/yubikey_config.cpp:274
+#, kde-format
+msgid "grant"
+msgstr "przyznać"
+
+#: src/config/yubikey_config.cpp:249 src/config/yubikey_config.cpp:274
+#, kde-format
+msgid "revoke"
+msgstr "odebrać"
+
+#: src/config/yubikey_config.cpp:248
+#, kde-format
+msgid "Failed to %1 screenshot permission: %2"
+msgstr "Nie udało się %1 uprawnienia do zrzutów ekranu: %2"
+
+#: src/config/yubikey_config.cpp:273
+#, kde-format
+msgid "Failed to %1 remote desktop permission: %2"
+msgstr "Nie udało się %1 uprawnienia do zdalnego pulpitu: %2"
+
+#: src/config/resources/ui/YubiKeyConfig.qml:73
 #, kde-format
 msgid "Device ID: %1"
 msgstr "ID urządzenia: %1"
 
-#: qml/config/YubiKeyConfig.qml:98
+#: src/config/resources/ui/YubiKeyConfig.qml:86
 #, kde-format
 msgid "Connected"
 msgstr "Podłączone"
 
-#: qml/config/YubiKeyConfig.qml:98
+#: src/config/resources/ui/YubiKeyConfig.qml:86
 #, kde-format
 msgid "Not connected"
 msgstr "Niepodłączone"
 
-#: qml/config/YubiKeyConfig.qml:119
-#, kde-format
-msgid "No password required"
-msgstr "Hasło niewymagane"
-
-#: qml/config/YubiKeyConfig.qml:121
-#, kde-format
-msgid "Password saved"
-msgstr "Hasło zapisane"
-
-#: qml/config/YubiKeyConfig.qml:123
-#, kde-format
-msgid "Password required"
-msgstr "Wymagane hasło"
-
-#: qml/config/YubiKeyConfig.qml:133
+#: src/config/resources/ui/YubiKeyConfig.qml:98
 #, kde-format
 msgid "Last seen: %1"
 msgstr "Ostatnio widziane: %1"
 
-#: qml/config/YubiKeyConfig.qml:147
+#: src/config/resources/ui/YubiKeyConfig.qml:112
 #, kde-format
 msgid "Authorize"
 msgstr "Autoryzuj"
 
-#: qml/config/YubiKeyConfig.qml:159
+#: src/config/resources/ui/YubiKeyConfig.qml:122
 #, kde-format
 msgid "Forget"
 msgstr "Zapomnij"
 
-#: qml/config/YubiKeyConfig.qml:163
+#: src/config/resources/ui/YubiKeyConfig.qml:126
 #, kde-format
 msgid "Forget this device and remove saved password"
 msgstr "Zapomnij to urządzenie i usuń zapisane hasło"
 
-#: qml/config/YubiKeyConfig.qml:182
+#: src/config/resources/ui/YubiKeyConfig.qml:139
 #, kde-format
 msgid "No YubiKey devices found"
 msgstr "Nie znaleziono urządzeń YubiKey"
 
-#: qml/config/YubiKeyConfig.qml:183
+#: src/config/resources/ui/YubiKeyConfig.qml:140
 #, kde-format
 msgid ""
 "Connect a YubiKey to see it listed here.\n"
@@ -299,20 +603,171 @@ msgstr ""
 "Podłącz YubiKey, aby go zobaczyć na liście.\n"
 "Urządzenia używane wcześniej będą zapamiętane."
 
-#: qml/config/YubiKeyConfig.qml:190
+#: src/config/resources/ui/YubiKeyConfig.qml:147
 #, kde-format
 msgid "Refresh Device List"
 msgstr "Odśwież listę urządzeń"
 
-#: src/shared/ui/password_dialog.cpp:54
+#: src/config/resources/ui/YubiKeyConfig.qml:184
 #, kde-format
-msgid "Enter YubiKey OATH password for device:"
-msgstr "Wprowadź hasło dla YubiKey OATH dla urządzenia:"
+msgid "No password required"
+msgstr "Hasło niewymagane"
 
-#: src/shared/ui/password_dialog.cpp:88
+#: src/config/resources/ui/YubiKeyConfig.qml:185
 #, kde-format
-msgid "Password:"
-msgstr "Hasło:"
+msgid "Password saved"
+msgstr "Hasło zapisane"
+
+#: src/config/resources/ui/YubiKeyConfig.qml:186
+#, kde-format
+msgid "Password required"
+msgstr "Wymagane hasło"
+
+#: src/krunner/yubikeyrunner.cpp:90 src/krunner/actions/action_manager.cpp:79
+#, kde-format
+msgid "Type code"
+msgstr "Wpisz kod"
+
+#: src/krunner/yubikeyrunner.cpp:95 src/krunner/actions/action_manager.cpp:77
+#, kde-format
+msgid "Copy to clipboard"
+msgstr "Kopiuj do schowka"
+
+#: src/krunner/yubikeyrunner.cpp:125
+#, kde-format
+msgid "Capture QR code and add credential"
+msgstr "Przechwyć kod QR i dodaj dane uwierzytelniające"
+
+#: src/krunner/actions/action_manager.cpp:81
+#, kde-format
+msgid "Unknown action"
+msgstr "Nieznana akcja"
+
+#: src/krunner/matching/match_builder.cpp:126
+#, kde-format
+msgid "YubiKey OATH TOTP/HOTP"
+msgstr "YubiKey OATH TOTP/HOTP"
+
+#: src/krunner/matching/match_builder.cpp:160
+#, kde-format
+msgid "YubiKey password required: %1"
+msgstr "Wymagane hasło YubiKey: %1"
+
+#: src/krunner/matching/match_builder.cpp:161
+#, kde-format
+msgid "Device: %1 - Click to enter password"
+msgstr "Urządzenie: %1 - Kliknij, aby wprowadzić hasło"
+
+#, kde-format
+#~ msgid "No YubiKey connected"
+#~ msgstr "Brak podłączonego YubiKey"
+
+#, kde-format
+#~ msgid "YubiKey OATH Password"
+#~ msgstr "Hasło YubiKey OATH"
+
+#, kde-format
+#~ msgid ""
+#~ "This YubiKey requires a password.\n"
+#~ "Please enter the OATH password:"
+#~ msgstr ""
+#~ "Ten YubiKey wymaga hasła.\n"
+#~ "Wprowadź hasło OATH:"
+
+#, kde-format
+#~ msgid "Password saved successfully"
+#~ msgstr "Hasło zapisano pomyślnie"
+
+#, kde-format
+#~ msgid "Failed to save password"
+#~ msgstr "Nie udało się zapisać hasła"
+
+#, kde-format
+#~ msgid "YubiKey Error"
+#~ msgstr "Błąd YubiKey"
+
+#, kde-format
+#~ msgid "YubiKey OATH %1"
+#~ msgstr "YubiKey OATH %1"
+
+#, kde-format
+#~ msgid "YubiKey OATH authentication failed"
+#~ msgstr "Uwierzytelnianie YubiKey OATH nie powiodło się"
+
+#, kde-format
+#~ msgid "Click to open settings and configure password"
+#~ msgstr "Kliknij, aby otworzyć ustawienia i skonfigurować hasło"
+
+#, kde-format
+#~ msgid "Code for %1\n"
+#~ msgstr "Kod dla %1\n"
+
+#, kde-format
+#~ msgid ""
+#~ "✓ Copied to clipboard\n"
+#~ "\n"
+#~ msgstr ""
+#~ "✓ Skopiowano do schowka\n"
+#~ "\n"
+
+#, kde-format
+#~ msgid "Expires in %1 second"
+#~ msgid_plural "Expires in %1 seconds"
+#~ msgstr[0] "Wygasa za %1 sekundę"
+#~ msgstr[1] "Wygasa za %1 sekundy"
+#~ msgstr[2] "Wygasa za %1 sekund"
+
+#, kde-format
+#~ msgid "YubiKey OATH Code"
+#~ msgstr "Kod YubiKey OATH"
+
+#, kde-format
+#~ msgid ""
+#~ "Please touch your YubiKey to generate the code for\n"
+#~ "<b>%1</b>\n"
+#~ "\n"
+#~ "Timeout in %2 seconds"
+#~ msgstr ""
+#~ "Dotknij YubiKey, aby wygenerować kod dla\n"
+#~ "<b>%1</b>\n"
+#~ "\n"
+#~ "Limit czasu: %2 sekund"
+
+#, kde-format
+#~ msgid "YubiKey Touch Required"
+#~ msgstr "Wymagane dotknięcie YubiKey"
+
+#, kde-format
+#~ msgid ""
+#~ "Touch operation timed out for\n"
+#~ "<b>%1</b>\n"
+#~ "\n"
+#~ "Operation cancelled"
+#~ msgstr ""
+#~ "Przekroczono limit czasu dotknięcia dla\n"
+#~ "<b>%1</b>\n"
+#~ "\n"
+#~ "Operacja anulowana"
+
+#, kde-format
+#~ msgid "YubiKey Touch Timeout"
+#~ msgstr "Przekroczono limit czasu dotknięcia YubiKey"
+
+#, kde-format
+#~ msgid "Device:"
+#~ msgstr "Urządzenie:"
+
+#, kde-format
+#~ msgid "Device ID:"
+#~ msgstr "ID urządzenia:"
+
+#, kde-format
+#~ msgid "This YubiKey requires a password to access OATH credentials."
+#~ msgstr "Ten YubiKey wymaga hasła do dostępu do danych OATH."
+
+#, kde-format
+#~ msgid "Please enter the password:"
+#~ msgstr "Wprowadź hasło:"
 
 #, kde-format
 #~ msgid "Failed to open YubiKey configuration"

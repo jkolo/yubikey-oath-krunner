@@ -17,10 +17,10 @@
 #include <unordered_map>
 
 // Local includes
-#include "../../shared/types/oath_credential.h"
+#include "types/oath_credential.h"
 #include "yubikey_oath_device.h"
 #include "../pcsc/card_reader_monitor.h"
-#include "../../shared/common/result.h"
+#include "common/result.h"
 
 // Forward declarations for PC/SC types
 #ifdef __APPLE__
@@ -118,6 +118,20 @@ public:
      * Use this method to access device-specific operations.
      */
     YubiKeyOathDevice* getDevice(const QString &deviceId);
+
+    /**
+     * @brief Gets device by ID or first available device if ID is empty
+     * @param deviceId Device ID to get (empty = use first connected device)
+     * @return Pointer to device instance or nullptr if no devices available
+     *
+     * Convenience method that implements the common pattern:
+     * - If deviceId is not empty: returns getDevice(deviceId)
+     * - If deviceId is empty: returns first connected device
+     * - If no devices connected: returns nullptr
+     *
+     * This eliminates the repetitive pattern found throughout the codebase.
+     */
+    YubiKeyOathDevice* getDeviceOrFirst(const QString &deviceId);
 
     /**
      * @brief Removes device from memory (called when device is forgotten)

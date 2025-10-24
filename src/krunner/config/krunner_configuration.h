@@ -5,7 +5,8 @@
 
 #pragma once
 
-#include "configuration_provider.h"
+#include "config/configuration_provider.h"
+#include "config/configuration_keys.h"
 #include <KConfigGroup>
 
 namespace KRunner {
@@ -39,15 +40,7 @@ public:
 private:
     std::function<KConfigGroup()> m_configGroup;
 
-    // Configuration keys
-    static constexpr const char *CONFIG_SHOW_NOTIFICATIONS = "ShowNotifications";
-    static constexpr const char *CONFIG_SHOW_USERNAME = "ShowUsername";
-    static constexpr const char *CONFIG_SHOW_CODE = "ShowCode";
-    static constexpr const char *CONFIG_SHOW_DEVICE_NAME = "ShowDeviceName";
-    static constexpr const char *CONFIG_SHOW_DEVICE_NAME_ONLY_WHEN_MULTIPLE = "ShowDeviceNameOnlyWhenMultiple";
-    static constexpr const char *CONFIG_TOUCH_TIMEOUT = "TouchTimeout";
-    static constexpr const char *CONFIG_NOTIFICATION_EXTRA_TIME = "NotificationExtraTime";
-    static constexpr const char *CONFIG_PRIMARY_ACTION = "PrimaryAction";
+    // Configuration keys now defined in shared/config/configuration_keys.h
 
     /**
      * @brief Template helper for reading config entries

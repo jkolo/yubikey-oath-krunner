@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "krunner/config/configuration_provider.h"
+#include "shared/config/configuration_provider.h"
 
 namespace KRunner {
 namespace YubiKey {

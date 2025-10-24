@@ -104,7 +104,30 @@ Result<QString> YubiKeyOathDevice::generateCode(const QString& name)
     // Serialize card access to prevent race conditions between threads
     QMutexLocker locker(&m_cardMutex);
 
-    return m_session->calculateCode(name);
+    auto result = m_session->calculateCode(name);
+
+    // Check if password required
+    if (result.isError() && result.error() == tr("Password required")) {
+        qCDebug(YubiKeyOathDeviceLog) << "Password required for CALCULATE";
+
+        if (!m_password.isEmpty()) {
+            qCDebug(YubiKeyOathDeviceLog) << "Attempting re-authentication";
+            auto authResult = m_session->authenticate(m_password, m_deviceId);
+            if (authResult.isSuccess()) {
+                // Retry CALCULATE command after authentication
+                qCDebug(YubiKeyOathDeviceLog) << "Re-authentication successful, retrying CALCULATE";
+                result = m_session->calculateCode(name);
+            } else {
+                qCDebug(YubiKeyOathDeviceLog) << "Re-authentication failed:" << authResult.error();
+                return Result<QString>::error(tr("Authentication failed"));
+            }
+        } else {
+            qCDebug(YubiKeyOathDeviceLog) << "No password available for re-authentication";
+            return Result<QString>::error(tr("Password required"));
+        }
+    }
+
+    return result;
 }
 
 Result<void> YubiKeyOathDevice::authenticateWithPassword(const QString& password)
@@ -117,6 +140,36 @@ Result<void> YubiKeyOathDevice::authenticateWithPassword(const QString& password
     auto result = m_session->authenticate(password, m_deviceId);
     if (result.isSuccess()) {
         m_password = password;
+    }
+
+    return result;
+}
+
+Result<void> YubiKeyOathDevice::addCredential(const OathCredentialData &data)
+{
+    qCDebug(YubiKeyOathDeviceLog) << "addCredential() for device" << m_deviceId
+                                   << "credential:" << data.name;
+
+    // Serialize card access to prevent race conditions between threads
+    QMutexLocker locker(&m_cardMutex);
+
+    // If device requires password and we have one, authenticate first
+    if (!m_password.isEmpty()) {
+        qCDebug(YubiKeyOathDeviceLog) << "Authenticating before adding credential";
+        auto authResult = m_session->authenticate(m_password, m_deviceId);
+        if (authResult.isError()) {
+            qCWarning(YubiKeyOathDeviceLog) << "Authentication failed:" << authResult.error();
+            return authResult;
+        }
+    }
+
+    // Add credential via session
+    auto result = m_session->putCredential(data);
+
+    if (result.isSuccess()) {
+        qCDebug(YubiKeyOathDeviceLog) << "Credential added successfully, triggering cache update";
+        // Trigger credential cache refresh to include new credential
+        updateCredentialCacheAsync(m_password);
     }
 
     return result;

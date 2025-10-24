@@ -4,19 +4,13 @@
  */
 
 #include "yubikeyrunner.h"
-#include "input/text_input_factory.h"
-#include "workflows/notification_helper.h"
-#include "../shared/utils/deferred_execution.h"
-#include "../shared/ui/password_dialog_helper.h"
+#include "ui/password_dialog_helper.h"
 #include "logging_categories.h"
 
 #include <KConfigGroup>
 #include <KLocalizedString>
 #include <KPluginFactory>
 #include <QDebug>
-#include <QEventLoop>
-#include <QPointer>
-#include <QTimer>
 
 namespace KRunner {
 namespace YubiKey {
@@ -24,12 +18,12 @@ namespace YubiKey {
 YubiKeyRunner::YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData)
     : KRunner::AbstractRunner(parent, metaData)
     , m_dbusClient(std::make_unique<YubiKeyDBusClient>(this))
-    , m_notificationManager(std::make_unique<DBusNotificationManager>(this))
-    , m_clipboardManager(std::make_unique<ClipboardManager>(this))
-    , m_textInput(TextInputFactory::createProvider(this))
-    , m_touchHandler(std::make_unique<TouchHandler>(this))
 {
-    qCDebug(YubiKeyRunnerLog) << "Constructor called";
+    qCDebug(YubiKeyRunnerLog) << "Constructor called - thin D-Bus client mode";
+
+    // Set translation domain for i18n
+    KLocalizedString::setApplicationDomain("krunner_yubikey");
+
     setObjectName(QStringLiteral("yubikey-oath"));
 
     // Create configuration provider
@@ -39,32 +33,7 @@ YubiKeyRunner::YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData)
     );
 
     // Create runner components
-    // Note: NotificationOrchestrator must be created before ActionExecutor
-    // because ActionExecutor needs it for modifier key notifications
-    m_notificationOrchestrator = std::make_unique<NotificationOrchestrator>(
-        m_notificationManager.get(),
-        m_config.get(),
-        this
-    );
-
-    m_actionExecutor = std::make_unique<ActionExecutor>(
-        m_textInput.get(),
-        m_clipboardManager.get(),
-        m_config.get(),
-        m_notificationOrchestrator.get(),
-        this
-    );
-
     m_actionManager = std::make_unique<ActionManager>();
-
-    m_touchWorkflowCoordinator = std::make_unique<TouchWorkflowCoordinator>(
-        m_dbusClient.get(),
-        m_touchHandler.get(),
-        m_actionExecutor.get(),
-        m_notificationOrchestrator.get(),
-        m_config.get(),
-        this
-    );
 
     // Setup actions first, before creating MatchBuilder
     setupActions();
@@ -84,9 +53,6 @@ YubiKeyRunner::YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData)
             this, &YubiKeyRunner::onCredentialsUpdated);
     connect(m_dbusClient.get(), &YubiKeyDBusClient::daemonUnavailable,
             this, &YubiKeyRunner::onDaemonUnavailable);
-
-    connect(m_actionExecutor.get(), &ActionExecutor::notificationRequested,
-            this, &YubiKeyRunner::onNotificationRequested);
 
     qCDebug(YubiKeyRunnerLog) << "Constructor finished";
 }
@@ -148,6 +114,21 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
 
     const QString query = context.query().toLower();
 
+    // Check for "Add OATH" command
+    if (query.contains(QStringLiteral("add")) &&
+        (query.contains(QStringLiteral("oath")) || query.contains(QStringLiteral("credential")))) {
+        qCDebug(YubiKeyRunnerLog) << "Detected 'Add OATH' command";
+
+        KRunner::QueryMatch match(this);
+        match.setId(QStringLiteral("add-oath-credential"));
+        match.setText(i18n("Add OATH Credential to YubiKey"));
+        match.setSubtext(i18n("Capture QR code and add credential"));
+        match.setIconName(QStringLiteral("list-add"));
+        match.setRelevance(1.0);
+
+        context.addMatch(match);
+    }
+
     // Get all devices to check their password status
     QList<DeviceInfo> devices = m_dbusClient->listDevices();
     qCDebug(YubiKeyRunnerLog) << "Found" << devices.size() << "known devices";
@@ -198,6 +179,21 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
     Q_UNUSED(context)
     qCDebug(YubiKeyRunnerLog) << "run() called with match ID:" << match.id();
 
+    // Handle "Add OATH Credential" command
+    if (match.id() == QStringLiteral("add-oath-credential")) {
+        qCDebug(YubiKeyRunnerLog) << "Starting Add OATH Credential workflow via daemon";
+
+        // Delegate to daemon - it handles the entire workflow
+        QVariantMap result = m_dbusClient->addCredentialFromScreen();
+
+        if (!result.value(QStringLiteral("success"), false).toBool()) {
+            qCWarning(YubiKeyRunnerLog) << "Add credential workflow failed:"
+                                        << result.value(QStringLiteral("error")).toString();
+        }
+
+        return;
+    }
+
     QStringList data = match.data().toStringList();
     if (data.size() < 5) {
         qCDebug(YubiKeyRunnerLog) << "Invalid match data";
@@ -206,14 +202,16 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
 
     QString credentialName = data.at(0);
     QString displayName = data.at(1);
+    Q_UNUSED(displayName)
     QString code = data.at(2);
+    Q_UNUSED(code)
     bool requiresTouch = data.at(3) == QStringLiteral("true");
+    Q_UNUSED(requiresTouch)
     bool isPasswordError = data.at(4) == QStringLiteral("true");
     QString deviceId = data.size() > 5 ? data.at(5) : QString();
 
     qCDebug(YubiKeyRunnerLog) << "credentialName:" << credentialName
              << "deviceId:" << deviceId
-             << "requiresTouch:" << requiresTouch
              << "isPasswordError:" << isPasswordError;
 
     // Handle password error match
@@ -223,10 +221,6 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         // Use device ID from match data
         if (deviceId.isEmpty()) {
             qCDebug(YubiKeyRunnerLog) << "No device ID in match data";
-            m_notificationOrchestrator->showSimpleNotification(
-                i18n("Error"),
-                i18n("No YubiKey connected"),
-                1);
             return;
         }
 
@@ -254,130 +248,57 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
              << "determined action:" << actionId
              << "action name:" << m_actionManager->getActionName(actionId);
 
-    // Process asynchronously
-    DeferredExecution::defer(this, [this, credentialName, displayName, code, requiresTouch, actionId, deviceId]() {
-        processCredentialAsync(credentialName, displayName, code, requiresTouch, actionId, deviceId);
-    });
+    // Execute action via daemon D-Bus methods
+    bool success = false;
+    if (actionId == QStringLiteral("type")) {
+        qCDebug(YubiKeyRunnerLog) << "Delegating type action to daemon";
+        success = m_dbusClient->typeCode(deviceId, credentialName);
+    } else {  // copy
+        qCDebug(YubiKeyRunnerLog) << "Delegating copy action to daemon";
+        success = m_dbusClient->copyCodeToClipboard(deviceId, credentialName);
+    }
 
-    qCDebug(YubiKeyRunnerLog) << "run() completed, processing continues asynchronously";
+    if (!success) {
+        qCWarning(YubiKeyRunnerLog) << "Action failed:" << actionId;
+    } else {
+        qCDebug(YubiKeyRunnerLog) << "Action completed successfully:" << actionId;
+    }
 }
 
-void YubiKeyRunner::processCredentialAsync(const QString &credentialName,
-                                           const QString &displayName,
-                                           const QString &code,
-                                           bool requiresTouch,
-                                           const QString &actionId,
-                                           const QString &deviceId)
+void YubiKeyRunner::showPasswordDialog(const QString &deviceId, const QString &deviceName)
 {
-    Q_UNUSED(displayName)
-    qCDebug(YubiKeyRunnerLog) << "processCredentialAsync() started for:" << credentialName << "device:" << deviceId;
+    qCDebug(YubiKeyRunnerLog) << "showPasswordDialog() for device:" << deviceId;
 
-    QString actualCode = code;
-
-    if (actualCode.isEmpty()) {
-        qCDebug(YubiKeyRunnerLog) << "Generating new code for credential:" << credentialName;
-
-        if (requiresTouch) {
-            qCDebug(YubiKeyRunnerLog) << "Touch required - starting touch workflow";
-            m_touchWorkflowCoordinator->startTouchWorkflow(credentialName, actionId, deviceId);
-            return;
+    // Use PasswordDialogHelper for non-modal password dialog with retry
+    PasswordDialogHelper::showDialog(
+        deviceId,
+        deviceName,
+        m_dbusClient.get(),
+        this,
+        []() {
+            // Password success callback - daemon already saved password
+            qCDebug(YubiKeyRunnerLog) << "Password saved successfully";
         }
-
-        // Generate code for non-touch credentials
-        m_touchHandler->startTouchOperation(credentialName, 0);
-        GenerateCodeResult codeResult = m_dbusClient->generateCode(deviceId, credentialName);
-
-        if (codeResult.code.isEmpty()) {
-            qCDebug(YubiKeyRunnerLog) << "Failed to generate code via D-Bus";
-            m_notificationOrchestrator->showSimpleNotification(
-                i18n("Error"),
-                i18n("Failed to generate code"),
-                1);
-            return;
-        }
-
-        actualCode = codeResult.code;
-    }
-
-    qCDebug(YubiKeyRunnerLog) << "Executing action:" << actionId;
-
-    // Execute action
-    if (actionId == QStringLiteral("type")) {
-        qCDebug(YubiKeyRunnerLog) << "[TIMING] Deferring type action by 150ms to allow KRunner to close and focus to return";
-
-        // Defer typing to allow KRunner window to close and focus to return to previous window
-        // Without this delay, key events are sent while KRunner has focus, causing them to be lost
-        QTimer::singleShot(150, this, [this, actualCode, credentialName]() {
-            qCDebug(YubiKeyRunnerLog) << "[TIMING] Executing deferred type action now";
-
-            auto result = m_actionExecutor->executeTypeAction(actualCode, credentialName);
-
-            qCDebug(YubiKeyRunnerLog) << "executeTypeAction() returned result:" << static_cast<int>(result);
-
-            // Handle different results
-            if (result == ActionExecutor::ActionResult::Success) {
-                qCDebug(YubiKeyRunnerLog) << "Type action succeeded";
-            } else if (result == ActionExecutor::ActionResult::WaitingForPermission) {
-                qCDebug(YubiKeyRunnerLog) << "Type action waiting for permission - user needs to approve dialog";
-                // Don't show any notification - waiting for user to approve permission dialog
-                // On next attempt (after approval), typing will work
-            } else if (result == ActionExecutor::ActionResult::Failed) {
-                qCDebug(YubiKeyRunnerLog) << "Type action failed - code was copied to clipboard as fallback";
-                // If permission was rejected or type failed, code was copied to clipboard as fallback
-                // Show code notification (ActionExecutor already showed "Permission Denied" notification if rejected)
-                int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config.get());
-
-                m_notificationOrchestrator->showCodeNotification(actualCode, credentialName, totalSeconds);
-            }
-        });
-    } else {
-        auto result = m_actionExecutor->executeCopyAction(actualCode, credentialName);
-
-        qCDebug(YubiKeyRunnerLog) << "executeCopyAction() returned result:" << static_cast<int>(result);
-
-        // Show code notification for copy action
-        if (result == ActionExecutor::ActionResult::Success) {
-            qCDebug(YubiKeyRunnerLog) << "Copy action succeeded";
-            int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config.get());
-
-            m_notificationOrchestrator->showCodeNotification(actualCode, credentialName, totalSeconds);
-        } else {
-            qCDebug(YubiKeyRunnerLog) << "Copy action failed";
-        }
-    }
-
-    qCDebug(YubiKeyRunnerLog) << "processCredentialAsync() completed";
+    );
 }
 
 void YubiKeyRunner::reloadConfiguration()
 {
-    qCDebug(YubiKeyRunnerLog) << "reloadConfiguration() called - notifying components";
+    qCDebug(YubiKeyRunnerLog) << "reloadConfiguration() called";
 
-    // Rebuild actions based on new primary action configuration
+    // Configuration is automatically reloaded via callback
+    // Just rebuild actions with potentially new primary action
     setupActions();
-
-    // Update MatchBuilder with new actions
-    m_matchBuilder = std::make_unique<MatchBuilder>(
-        this,
-        m_config.get(),
-        m_actions
-    );
-
-    // Password management is now handled by the daemon
-    // Just notify all components that configuration has changed
-    Q_EMIT m_config->configurationChanged();
 }
 
 void YubiKeyRunner::onDeviceConnected(const QString &deviceId)
 {
     qCDebug(YubiKeyRunnerLog) << "Device connected:" << deviceId;
-    // Credentials will be automatically available from daemon
 }
 
 void YubiKeyRunner::onDeviceDisconnected(const QString &deviceId)
 {
     qCDebug(YubiKeyRunnerLog) << "Device disconnected:" << deviceId;
-    // Credential cache will be updated by daemon
 }
 
 void YubiKeyRunner::onCredentialsUpdated(const QString &deviceId)
@@ -387,43 +308,12 @@ void YubiKeyRunner::onCredentialsUpdated(const QString &deviceId)
 
 void YubiKeyRunner::onDaemonUnavailable()
 {
-    qCWarning(YubiKeyRunnerLog) << "D-Bus daemon became unavailable";
-
-    m_notificationOrchestrator->showSimpleNotification(
-        i18n("YubiKey OATH"),
-        i18n("YubiKey daemon disconnected"),
-        1);
+    qCWarning(YubiKeyRunnerLog) << "Daemon became unavailable";
 }
 
-void YubiKeyRunner::showPasswordDialog(const QString &deviceId,
-                                        const QString &deviceName)
-{
-    PasswordDialogHelper::showDialog(
-        deviceId,
-        deviceName,
-        m_dbusClient.get(),
-        this,
-        [this]() {
-            // Success - show notification
-            m_notificationOrchestrator->showSimpleNotification(
-                i18n("YubiKey OATH"),
-                i18n("Password saved successfully"),
-                0);
-        }
-    );
-}
-
-void YubiKeyRunner::onNotificationRequested(const QString &title, const QString &message, int type)
-{
-    m_notificationOrchestrator->showSimpleNotification(title, message, type);
-}
+K_PLUGIN_CLASS_WITH_JSON(YubiKeyRunner, "yubikeyrunner.json")
 
 } // namespace YubiKey
 } // namespace KRunner
 
-// Must use unqualified name for K_PLUGIN_CLASS - MOC doesn't support namespaced names
-using KRunner::YubiKey::YubiKeyRunner;
-K_PLUGIN_CLASS_WITH_JSON(YubiKeyRunner, "yubikeyrunner.json")
-
 #include "yubikeyrunner.moc"
-#include "moc_yubikeyrunner.cpp"

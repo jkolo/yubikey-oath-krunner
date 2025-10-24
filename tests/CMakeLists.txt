@@ -52,6 +52,7 @@ add_yubikey_test(test_result
 add_yubikey_test(test_oath_protocol
     SOURCES test_oath_protocol.cpp
             ../src/daemon/oath/oath_protocol.cpp
+    LIBRARIES KF6::I18n
 )
 
 # Test: ActionManager (requires KRunner and I18n)
@@ -82,7 +83,7 @@ endif()
 # Test: CodeValidator
 add_yubikey_test(test_code_validator
     SOURCES test_code_validator.cpp
-            ../src/krunner/formatting/code_validator.cpp
+            ../src/daemon/formatting/code_validator.cpp
 )
 
 # Test: CredentialFormatter formatWithCode and detailed formatting (requires I18n and DBus)
@@ -90,7 +91,7 @@ find_package(KF6 COMPONENTS I18n QUIET)
 if(KF6_I18n_FOUND)
     add_yubikey_test(test_flexible_display_strategy
         SOURCES test_flexible_display_strategy.cpp
-                ../src/krunner/formatting/credential_formatter.cpp
+                ../src/shared/formatting/credential_formatter.cpp
                 ../src/shared/dbus/yubikey_dbus_types.cpp
         LIBRARIES KF6::I18n Qt6::DBus
     )
@@ -104,7 +105,7 @@ find_package(KF6 COMPONENTS I18n QUIET)
 if(KF6_I18n_FOUND)
     add_yubikey_test(test_credential_formatter
         SOURCES test_credential_formatter.cpp
-                ../src/krunner/formatting/credential_formatter.cpp
+                ../src/shared/formatting/credential_formatter.cpp
                 ../src/shared/dbus/yubikey_dbus_types.cpp
         LIBRARIES Qt6::DBus KF6::I18n
     )
@@ -119,9 +120,8 @@ if(KF6_Runner_FOUND AND KF6_I18n_FOUND)
     add_yubikey_test(test_match_builder
         SOURCES test_match_builder.cpp
                 mocks/mock_configuration_provider.cpp
-                ../src/krunner/config/configuration_provider.cpp
+                ../src/shared/config/configuration_provider.cpp
                 ../src/krunner/matching/match_builder.cpp
-                ../src/krunner/formatting/credential_formatter.cpp
                 ../src/krunner/logging_categories.cpp
         LIBRARIES KF6::Runner KF6::I18n Qt6::DBus yubikey_dbus_client
     )
@@ -136,9 +136,9 @@ find_package(X11 QUIET)
 if(KF6_I18n_FOUND AND X11_FOUND)
     add_yubikey_test(test_modifier_key_checker
         SOURCES test_modifier_key_checker.cpp
-                ../src/krunner/input/modifier_key_checker.cpp
+                ../src/daemon/input/modifier_key_checker.cpp
                 ../src/krunner/logging_categories.cpp
-        LIBRARIES Qt6::Gui KF6::I18n ${X11_LIBRARIES}
+        LIBRARIES Qt6::Gui Qt6::Widgets KF6::I18n ${X11_LIBRARIES}
     )
 else()
     message(STATUS "I18n or X11 not found - skipping test_modifier_key_checker")

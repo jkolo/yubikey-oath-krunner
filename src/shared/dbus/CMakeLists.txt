@@ -28,6 +28,8 @@ set(DBUS_INTERFACE_SRCS ${DBUS_INTERFACE_H} ${DBUS_INTERFACE_CPP})
 add_library(yubikey_dbus_client STATIC
     yubikey_dbus_client.cpp
     yubikey_dbus_types.cpp
+    type_conversions.cpp
+    ../formatting/credential_formatter.cpp
     ${DBUS_INTERFACE_SRCS}
 )
 
@@ -39,6 +41,7 @@ set_target_properties(yubikey_dbus_client PROPERTIES
 target_link_libraries(yubikey_dbus_client
     Qt6::Core
     Qt6::DBus
+    KF6::I18n
 )
 
 target_include_directories(yubikey_dbus_client PUBLIC

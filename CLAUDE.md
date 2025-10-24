@@ -96,9 +96,15 @@ The source code is organized into clear component boundaries:
 src/
 ├── shared/              # Shared components used by multiple modules
 │   ├── common/          # Core utilities (result.h)
-│   ├── dbus/            # D-Bus client and types (used by krunner + config)
-│   ├── types/           # Shared data structures (oath_credential.h)
-│   ├── config/          # Shared configuration schema (krunner_yubikey.kcfg)
+│   ├── dbus/            # D-Bus client and type conversions (used by krunner + config)
+│   ├── types/           # Shared data structures (oath_credential.h, oath_credential_data.h)
+│   ├── config/          # Shared configuration keys and providers
+│   ├── ui/              # Shared UI components (password_dialog)
+│   ├── utils/           # Shared utilities (portal_permission_manager, deferred_execution)
+│   ├── po/              # Project translations
+│   │   ├── CMakeLists.txt
+│   │   ├── krunner_yubikey.pot
+│   │   └── pl.po
 │   └── resources/       # Shared resources (icons)
 │       ├── shared.qrc   # Qt resource file for shared assets
 │       └── yubikey.svg  # Application icon
@@ -106,58 +112,79 @@ src/
 ├── daemon/              # D-Bus daemon service
 │   ├── main.cpp, yubikey_dbus_service.{h,cpp}
 │   ├── logging_categories.{h,cpp}  # Daemon-specific logging
+│   ├── services/        # Business logic layer (YubiKeyService)
+│   ├── actions/         # Action coordination and execution
+│   ├── config/          # Daemon configuration (DaemonConfiguration)
+│   ├── workflows/       # Touch workflow coordination, notification orchestration
+│   ├── clipboard/       # Clipboard management
+│   ├── input/           # Text input emulation (X11, Wayland, Portal)
+│   ├── notification/    # D-Bus notification manager
+│   ├── formatting/      # Code validation
+│   ├── ui/              # UI components (add_credential_dialog)
+│   ├── utils/           # Daemon utilities (async_waiter, qr/otpauth parsers, screenshot_capture)
 │   ├── oath/            # OATH protocol implementation
 │   ├── storage/         # Database and KWallet
 │   └── pcsc/            # PC/SC card reader monitoring
 │
-├── krunner/             # KRunner plugin
+├── krunner/             # KRunner plugin (lightweight - delegates to daemon)
 │   ├── yubikeyrunner.{h,cpp}  # Entry point (root level)
 │   ├── logging_categories.{h,cpp}  # KRunner-specific logging
-│   ├── actions/         # Action execution (copy, type)
-│   ├── config/          # Configuration management
-│   ├── matching/        # Match building
-│   ├── workflows/       # Workflow coordination (touch, notifications)
-│   ├── formatting/      # Credential formatting and validation
-│   │   └── display_strategies/  # Display strategy implementations
-│   ├── clipboard/       # Clipboard management
-│   ├── input/           # Text input emulation (X11, Wayland, Portal)
-│   └── notification/    # D-Bus notification manager
+│   ├── actions/         # Action management (ActionManager)
+│   ├── config/          # Configuration management (KRunnerConfiguration)
+│   ├── matching/        # Match building (MatchBuilder)
+│   └── formatting/      # Credential formatting (CredentialFormatter)
 │
-├── config/              # KCM configuration module
-│   ├── yubikey_config.{h,cpp}, yubikey_device_model.{h,cpp}
-│   ├── logging_categories.{h,cpp}  # Config-specific logging
-│   └── resources/       # Config module resources
-│       ├── config.qrc   # Qt resource file for QML UI
-│       └── ui/          # QML UI files
-│           ├── YubiKeyConfig.qml
-│           └── PasswordDialog.qml
-│
-└── po/                  # Project translations
-    ├── CMakeLists.txt
-    ├── krunner_yubikey.pot
-    └── pl.po
+└── config/              # KCM configuration module
+    ├── yubikey_config.{h,cpp}, yubikey_device_model.{h,cpp}
+    ├── logging_categories.{h,cpp}  # Config-specific logging
+    └── resources/       # Config module resources
+        ├── config.qrc   # Qt resource file for QML UI
+        └── ui/          # QML UI files
+            └── YubiKeyConfig.qml
 ```
 
 **Key principles:**
 - **Component isolation**: Each module (daemon, krunner, config) has its own subdirectory
 - **Shared resources**: Common code and assets in `shared/` to avoid duplication
+- **Daemon-centric architecture**: Most business logic moved to daemon; krunner is now lightweight
 - **Resource organization**: Icons in shared/, QML UI in config/resources/
-- **Configuration schema**: Shared config schema in `shared/config/` (used by both krunner and config modules)
-- **Logical grouping**: KRunner files organized into subdirectories by function
+- **Configuration keys**: Shared configuration keys in `shared/config/configuration_keys.h`
+- **Logical grouping**: Files organized into subdirectories by function
 - **Entry point visibility**: Main entry points (like `yubikeyrunner.cpp`) stay at module root level
 - **Local logging**: Each module has its own `logging_categories.{h,cpp}`
-- **Translations centralized**: All translation files in `src/po/`
+- **Translations centralized**: All translation files in `src/shared/po/`
 
 ### D-Bus Service Layer (Daemon)
 
+The daemon uses a **layered architecture** separating D-Bus marshaling from business logic:
+
+```
+YubiKeyDBusService (D-Bus marshaling - thin layer)
+    ↓ delegates
+YubiKeyService (business logic layer)
+    ↓ uses
+Components (DeviceManager, Database, PasswordStorage, ActionCoordinator)
+```
+
 **YubiKeyDBusService** (`src/daemon/yubikey_dbus_service.{h,cpp}`)
+- **THIN D-Bus marshaling layer** (~135 lines)
 - Standalone daemon binary: `yubikey-oath-daemon`
 - D-Bus interface: `org.kde.plasma.krunner.yubikey.Device`
 - Object path: `/Device`
-- Aggregates YubiKeyDeviceManager, YubiKeyDatabase, and PasswordStorage
-- Provides methods: `ListDevices`, `GetCredentials`, `GenerateCode`, `SavePassword`, `ForgetDevice`
-- Uses `getDevice(deviceId)` to access individual devices for operations
+- Single responsibility: Convert D-Bus types ↔ internal types and delegate to YubiKeyService
+- Provides methods: `ListDevices`, `GetCredentials`, `GenerateCode`, `SavePassword`, `ForgetDevice`, `SetDeviceName`, `AddCredential`, `CopyCodeToClipboard`, `TypeCode`, `AddCredentialFromScreen`
 - Emits signals: `DeviceConnected`, `DeviceDisconnected`, `CredentialsUpdated`
+- **NO business logic** - pure delegation to YubiKeyService
+- Uses TypeConversions utility for D-Bus type conversions
+
+**YubiKeyService** (`src/daemon/services/yubikey_service.{h,cpp}`)
+- **Business logic layer** (~430 lines)
+- Aggregates and coordinates all daemon components
+- Owns: YubiKeyDeviceManager, YubiKeyDatabase, PasswordStorage, DaemonConfiguration, YubiKeyActionCoordinator
+- Implements all business logic for device management, credential operations, password handling
+- Handles device lifecycle events (connection, disconnection, credential updates)
+- Provides action coordinator for copy/type operations
+- Emits signals forwarded to D-Bus layer
 - **Note:** Authentication failures are handled internally - empty credential list indicates auth failure, no separate signal emitted
 
 **YubiKeyDBusClient** (`src/shared/dbus/yubikey_dbus_client.{h,cpp}`)
@@ -166,6 +193,14 @@ src/
 - Handles daemon availability detection
 - Auto-fallback to direct PC/SC if daemon unavailable
 - Located in `shared/` as it's used by both krunner and config modules
+
+**TypeConversions** (`src/shared/dbus/type_conversions.{h,cpp}`)
+- **Static utility class** for D-Bus type conversions
+- Converts between internal types (OathCredential) and D-Bus types (CredentialInfo)
+- Methods: `toCredentialInfo(const OathCredential&)`
+- Used by YubiKeyDBusService for marshaling
+- Located in `shared/dbus/` as part of D-Bus client library
+- Pure utility class (deleted constructor, all static methods)
 
 **Daemon Architecture Pattern:**
 - Daemon runs as separate process for persistent YubiKey monitoring
@@ -177,21 +212,23 @@ src/
 
 1. **Startup:**
    - Daemon starts and registers D-Bus service `org.kde.plasma.krunner.yubikey`
-   - Initializes YubiKeyDeviceManager, YubiKeyDatabase, PasswordStorage
-   - Starts PC/SC card reader monitoring
+   - YubiKeyDBusService creates YubiKeyService
+   - YubiKeyService initializes: YubiKeyDeviceManager, YubiKeyDatabase, PasswordStorage, DaemonConfiguration, YubiKeyActionCoordinator
+   - YubiKeyDeviceManager starts PC/SC card reader monitoring
    - Detects already-connected YubiKeys
-   - Emits `DeviceConnected` for existing devices
+   - YubiKeyService emits `DeviceConnected` (forwarded to D-Bus by YubiKeyDBusService)
 
 2. **Runtime:**
-   - Monitors for YubiKey insertion/removal via PC/SC
-   - Emits `DeviceConnected`/`DeviceDisconnected` signals
-   - Maintains credential cache per device
-   - Handles authentication (password prompts via KWallet)
-   - Background credential fetching
+   - YubiKeyDeviceManager monitors for YubiKey insertion/removal via PC/SC
+   - YubiKeyService emits `DeviceConnected`/`DeviceDisconnected` signals (forwarded to D-Bus)
+   - YubiKeyOathDevice maintains credential cache per device
+   - YubiKeyService handles authentication (loads passwords from KWallet)
+   - Background credential fetching via YubiKeyOathDevice
 
 3. **KRunner Integration:**
    - YubiKeyRunner plugin connects to daemon via D-Bus
    - Uses YubiKeyDBusClient to proxy requests
+   - YubiKeyDBusService receives D-Bus calls → delegates to YubiKeyService
    - Falls back to direct PC/SC if daemon unavailable
 
 ### Core Components
@@ -268,6 +305,16 @@ OathProtocol (static utility functions)
 - Returns ActionResult::Success/Failure
 - Used by both YubiKeyRunner and TouchWorkflowCoordinator
 - Integrates with ClipboardManager and TextInputFactory
+
+**YubiKeyActionCoordinator** (`src/daemon/actions/yubikey_action_coordinator.{h,cpp}`)
+- **Daemon-side action coordinator** (high-level orchestration)
+- Coordinates YubiKey actions: copy, type, add credential
+- Checks touch requirements before executing actions
+- Delegates to TouchWorkflowCoordinator for touch-required credentials
+- Delegates to ActionExecutor for direct action execution
+- Aggregates: ActionExecutor, TouchWorkflowCoordinator, ClipboardManager, TextInputProvider, NotificationOrchestrator
+- **DRY implementation**: `executeActionInternal()` handles common logic for copy/type
+- Used by YubiKeyService to execute D-Bus action requests
 
 **ActionManager** (`src/krunner/actions/action_manager.{h,cpp}`)
 - Manages KRunner actions (copy, type)

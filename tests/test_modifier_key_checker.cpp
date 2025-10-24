@@ -5,7 +5,7 @@
 
 #include <QtTest>
 #include <QGuiApplication>
-#include "krunner/input/modifier_key_checker.h"
+#include "daemon/input/modifier_key_checker.h"
 
 using namespace KRunner::YubiKey;
 

@@ -4,8 +4,8 @@
  */
 
 #include "yubikey_device_model.h"
-#include "../shared/dbus/yubikey_dbus_client.h"
-#include "../shared/ui/password_dialog_helper.h"
+#include "dbus/yubikey_dbus_client.h"
+#include "ui/password_dialog_helper.h"
 #include "logging_categories.h"
 
 #include <KLocalizedString>

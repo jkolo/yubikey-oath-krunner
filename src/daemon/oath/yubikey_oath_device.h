@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "../../shared/types/oath_credential.h"
+#include "types/oath_credential.h"
 #include "oath_session.h"
-#include "../../shared/common/result.h"
+#include "common/result.h"
 
 #include <QByteArray>
 #include <QList>
@@ -105,6 +105,16 @@ public:
      * @return Result indicating success or containing error message
      */
     Result<void> authenticateWithPassword(const QString &password);
+
+    /**
+     * @brief Adds or updates OATH credential on device
+     * @param data Credential data (name, secret, algorithm, etc.)
+     * @return Result indicating success or containing error message
+     *
+     * Requires authentication if device is password protected.
+     * Use setPassword() before calling if authentication needed.
+     */
+    Result<void> addCredential(const OathCredentialData &data);
 
     /**
      * @brief Sets password for this device

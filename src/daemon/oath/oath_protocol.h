@@ -8,7 +8,8 @@
 #include <QByteArray>
 #include <QString>
 #include <QList>
-#include "../../shared/types/oath_credential.h"
+#include "types/oath_credential.h"
+#include "types/oath_credential_data.h"
 
 namespace KRunner {
 namespace YubiKey {
@@ -32,6 +33,7 @@ public:
     static constexpr quint8 CLA = 0x00;
 
     // Instruction codes
+    static constexpr quint8 INS_PUT = 0x01;
     static constexpr quint8 INS_SELECT = 0xa4;
     static constexpr quint8 INS_LIST = 0xa1;
     static constexpr quint8 INS_CALCULATE = 0xa2;
@@ -45,15 +47,19 @@ public:
     static constexpr quint16 SW_MORE_DATA = 0x6100;
     static constexpr quint16 SW_SECURITY_STATUS_NOT_SATISFIED = 0x6982;
     static constexpr quint16 SW_WRONG_DATA = 0x6A80;
+    static constexpr quint16 SW_INSUFFICIENT_SPACE = 0x6A84;
 
     // TLV tags
     static constexpr quint8 TAG_NAME = 0x71;
     static constexpr quint8 TAG_NAME_SALT = 0x71;  // Same as TAG_NAME, context-dependent
     static constexpr quint8 TAG_NAME_LIST = 0x72;
+    static constexpr quint8 TAG_KEY = 0x73;
     static constexpr quint8 TAG_CHALLENGE = 0x74;
     static constexpr quint8 TAG_RESPONSE = 0x75;
     static constexpr quint8 TAG_TOTP_RESPONSE = 0x76;
     static constexpr quint8 TAG_HOTP = 0x77;
+    static constexpr quint8 TAG_PROPERTY = 0x78;
+    static constexpr quint8 TAG_IMF = 0x7a;
     static constexpr quint8 TAG_TOUCH = 0x7c;
 
     // OATH Application Identifier
@@ -100,6 +106,24 @@ public:
      * @return APDU command bytes
      */
     static QByteArray createSendRemainingCommand();
+
+    /**
+     * @brief Creates PUT command for adding/updating credential
+     * @param data Credential data (name, secret, algorithm, etc.)
+     * @return APDU command bytes
+     *
+     * Format (TLV):
+     *   TAG_NAME (0x71): credential name (UTF-8)
+     *   TAG_KEY (0x73): [algo_byte][digits][key_bytes]
+     *     algo_byte = (type << 4) | algorithm
+     *       type: 0x1=HOTP, 0x2=TOTP
+     *       algorithm: 0x1=SHA1, 0x2=SHA256, 0x3=SHA512
+     *     digits: 0x06, 0x07, or 0x08
+     *     key_bytes: Base32 decoded secret (min 14 bytes, padded)
+     *   TAG_PROPERTY (0x78): 0x02 if requireTouch
+     *   TAG_IMF (0x7a): 4-byte counter (HOTP only)
+     */
+    static QByteArray createPutCommand(const OathCredentialData &data);
 
     // Response parsing
     /**
@@ -185,6 +209,16 @@ public:
      * @return Formatted code string with leading zeros
      */
     static QString formatCode(const QByteArray &rawCode, int digits);
+
+    /**
+     * @brief Decodes Base32 string to binary data
+     * @param base32 Base32 encoded string (A-Z, 2-7, optional padding =)
+     * @return Decoded bytes, or empty if invalid
+     *
+     * RFC 3548 Base32 decoding without padding requirement.
+     * Used for decoding OATH secrets from otpauth:// URIs.
+     */
+    static QByteArray decodeBase32(const QString &base32);
 
 private:
     // Private constructor - utility class only

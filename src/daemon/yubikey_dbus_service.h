@@ -7,15 +7,13 @@
 
 #include <QObject>
 #include <memory>
-#include "../shared/dbus/yubikey_dbus_types.h"
-#include "../shared/types/oath_credential.h"
+#include "dbus/yubikey_dbus_types.h"
+#include "types/oath_credential.h"
 
 // Forward declarations
 namespace KRunner {
 namespace YubiKey {
-    class YubiKeyDeviceManager;
-    class YubiKeyDatabase;
-    class PasswordStorage;
+    class YubiKeyService;
 }
 }
 
@@ -23,13 +21,27 @@ namespace KRunner {
 namespace YubiKey {
 
 /**
- * @brief D-Bus service for YubiKey OATH operations
+ * @brief D-Bus service for YubiKey OATH operations (thin marshaling layer)
  *
- * This class implements the D-Bus interface for YubiKey OATH operations.
- * It aggregates YubiKeyDeviceManager, YubiKeyDatabase, and PasswordStorage components
- * and exposes their functionality through D-Bus.
+ * Single Responsibility: D-Bus marshaling - convert between D-Bus types and business logic
  *
- * Single Responsibility: D-Bus service layer - marshaling between D-Bus and business logic
+ * This is a THIN layer that:
+ * 1. Receives D-Bus method calls
+ * 2. Converts D-Bus types to internal types (using TypeConversions)
+ * 3. Delegates to YubiKeyService (business logic layer)
+ * 4. Converts results back to D-Bus types
+ * 5. Forwards signals from YubiKeyService
+ *
+ * @par Architecture
+ * ```
+ * D-Bus Client
+ *     ↓ calls
+ * YubiKeyDBusService (marshaling) ← YOU ARE HERE
+ *     ↓ delegates
+ * YubiKeyService (business logic)
+ * ```
+ *
+ * NO business logic should be in this class!
  */
 class YubiKeyDBusService : public QObject
 {
@@ -92,6 +104,54 @@ public Q_SLOTS:
      */
     bool SetDeviceName(const QString &deviceId, const QString &newName);
 
+    /**
+     * @brief Copies TOTP code to clipboard
+     * @param deviceId Device ID (empty string = use first available device)
+     * @param credentialName Full credential name (issuer:username)
+     * @return true on success, false on failure
+     *
+     * Generates code and copies to clipboard with auto-clear support.
+     * Shows notification if enabled in configuration.
+     */
+    bool CopyCodeToClipboard(const QString &deviceId, const QString &credentialName);
+
+    /**
+     * @brief Types TOTP code via keyboard emulation
+     * @param deviceId Device ID (empty string = use first available device)
+     * @param credentialName Full credential name (issuer:username)
+     * @return true on success, false on failure
+     *
+     * Generates code and types it using appropriate input method (Portal/Wayland/X11).
+     * Handles touch requirements with user notifications.
+     */
+    bool TypeCode(const QString &deviceId, const QString &credentialName);
+
+    /**
+     * @brief Adds or updates OATH credential on YubiKey
+     * @param deviceId Device ID (empty string = use first available device)
+     * @param name Full credential name (issuer:account)
+     * @param secret Base32-encoded secret key
+     * @param type Credential type ("TOTP" or "HOTP")
+     * @param algorithm Hash algorithm ("SHA1", "SHA256", or "SHA512")
+     * @param digits Number of digits (6-8)
+     * @param period TOTP period in seconds (default 30, ignored for HOTP)
+     * @param counter Initial HOTP counter value (ignored for TOTP)
+     * @param requireTouch Whether to require physical touch
+     * @return Empty string on success, error message on failure
+     *
+     * Requires authentication if YubiKey is password protected.
+     * Returns error if insufficient space (0x6a84) or other errors occur.
+     */
+    QString AddCredential(const QString &deviceId,
+                         const QString &name,
+                         const QString &secret,
+                         const QString &type,
+                         const QString &algorithm,
+                         int digits,
+                         int period,
+                         int counter,
+                         bool requireTouch);
+
 Q_SIGNALS:
     /**
      * @brief Emitted when a YubiKey device is connected
@@ -111,38 +171,8 @@ Q_SIGNALS:
      */
     void CredentialsUpdated(const QString &deviceId);
 
-private Q_SLOTS:
-    // Internal signal handlers from YubiKeyDeviceManager
-    void onDeviceConnectedInternal(const QString &deviceId);
-    void onDeviceDisconnectedInternal(const QString &deviceId);
-    void onCredentialCacheFetched(const QString &deviceId,
-                                 const QList<OathCredential> &credentials);
-
 private:
-    /**
-     * @brief Clears device from memory (called directly by ForgetDevice)
-     * @param deviceId Device ID to clear
-     *
-     * This is a private method (not a signal) to avoid D-Bus exposure.
-     */
-    void clearDeviceFromMemory(const QString &deviceId);
-    /**
-     * @brief Converts OathCredential to CredentialInfo for D-Bus transfer
-     * @param credential OathCredential from YubiKeyDeviceManager
-     * @return CredentialInfo for D-Bus
-     */
-    CredentialInfo convertCredential(const OathCredential &credential) const;
-
-    /**
-     * @brief Generates default device name for new devices
-     * @param deviceId Device ID
-     * @return Default device name in format "YubiKey <deviceId>"
-     */
-    QString generateDefaultDeviceName(const QString &deviceId) const;
-
-    std::unique_ptr<YubiKeyDeviceManager> m_deviceManager;
-    std::unique_ptr<YubiKeyDatabase> m_database;
-    std::unique_ptr<PasswordStorage> m_passwordStorage;
+    std::unique_ptr<YubiKeyService> m_service;
 };
 
 } // namespace YubiKey

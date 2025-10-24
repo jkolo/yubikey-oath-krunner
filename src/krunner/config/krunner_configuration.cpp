@@ -19,42 +19,50 @@ KRunnerConfiguration::KRunnerConfiguration(std::function<KConfigGroup()> configG
 
 bool KRunnerConfiguration::showNotifications() const
 {
-    return readConfigEntry(CONFIG_SHOW_NOTIFICATIONS, true);
+    return readConfigEntry(ConfigKeys::SHOW_NOTIFICATIONS, true);
 }
 
 bool KRunnerConfiguration::showUsername() const
 {
-    return readConfigEntry(CONFIG_SHOW_USERNAME, true);
+    return readConfigEntry(ConfigKeys::SHOW_USERNAME, true);
 }
 
 bool KRunnerConfiguration::showCode() const
 {
-    return readConfigEntry(CONFIG_SHOW_CODE, false);
+    // NOTE: Default is 'false' in krunner (different from DaemonConfiguration which defaults to 'true')
+    // This is intentional - krunner shows code in match list, not in notification
+    return readConfigEntry(ConfigKeys::SHOW_CODE, false);
 }
 
 bool KRunnerConfiguration::showDeviceName() const
 {
-    return readConfigEntry(CONFIG_SHOW_DEVICE_NAME, false);
+    // NOTE: Default is 'false' in krunner (different from DaemonConfiguration which defaults to 'true')
+    // This is intentional - krunner shows device in match list, not in notification
+    return readConfigEntry(ConfigKeys::SHOW_DEVICE_NAME, false);
 }
 
 bool KRunnerConfiguration::showDeviceNameOnlyWhenMultiple() const
 {
-    return readConfigEntry(CONFIG_SHOW_DEVICE_NAME_ONLY_WHEN_MULTIPLE, true);
+    return readConfigEntry(ConfigKeys::SHOW_DEVICE_NAME_ONLY_WHEN_MULTIPLE, true);
 }
 
 int KRunnerConfiguration::touchTimeout() const
 {
-    return readConfigEntry(CONFIG_TOUCH_TIMEOUT, 10);
+    // NOTE: Default is 10 seconds in krunner (different from DaemonConfiguration which defaults to 15)
+    // This is intentional - krunner uses shorter timeout for interactive operations
+    return readConfigEntry(ConfigKeys::TOUCH_TIMEOUT, 10);
 }
 
 int KRunnerConfiguration::notificationExtraTime() const
 {
-    return readConfigEntry(CONFIG_NOTIFICATION_EXTRA_TIME, 15);
+    // NOTE: Default is 15 in krunner (different from DaemonConfiguration which defaults to 0)
+    // This is intentional - krunner adds extra time for user visibility in interactive context
+    return readConfigEntry(ConfigKeys::NOTIFICATION_EXTRA_TIME, 15);
 }
 
 QString KRunnerConfiguration::primaryAction() const
 {
-    return readConfigEntry(CONFIG_PRIMARY_ACTION, QStringLiteral("copy"));
+    return readConfigEntry(ConfigKeys::PRIMARY_ACTION, QStringLiteral("copy"));
 }
 
 } // namespace YubiKey

@@ -20,5 +20,13 @@ Q_LOGGING_CATEGORY(CardReaderMonitorLog, "org.kde.plasma.krunner.yubikey.pcsc", 
 Q_LOGGING_CATEGORY(PasswordStorageLog, "org.kde.plasma.krunner.yubikey.storage", QtWarningMsg)
 Q_LOGGING_CATEGORY(YubiKeyDatabaseLog, "org.kde.plasma.krunner.yubikey.database", QtWarningMsg)
 
+// Action and workflow components (moved from krunner)
+Q_LOGGING_CATEGORY(YubiKeyActionCoordinatorLog, "org.kde.plasma.krunner.yubikey.actioncoordinator", QtWarningMsg)
+Q_LOGGING_CATEGORY(ActionExecutorLog, "org.kde.plasma.krunner.yubikey.action", QtWarningMsg)
+Q_LOGGING_CATEGORY(NotificationOrchestratorLog, "org.kde.plasma.krunner.yubikey.notification", QtWarningMsg)
+Q_LOGGING_CATEGORY(TouchWorkflowCoordinatorLog, "org.kde.plasma.krunner.yubikey.touch", QtWarningMsg)
+Q_LOGGING_CATEGORY(TextInputLog, "org.kde.plasma.krunner.yubikey.input", QtWarningMsg)
+Q_LOGGING_CATEGORY(DBusNotificationLog, "org.kde.plasma.krunner.yubikey.dbus", QtWarningMsg)
+
 } // namespace YubiKey
 } // namespace KRunner

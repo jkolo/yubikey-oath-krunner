@@ -242,6 +242,55 @@
     </widget>
    </item>
    <item>
+    <widget class="QGroupBox" name="portalPermissionsGroupBox">
+     <property name="title">
+      <string>Portal Permissions</string>
+     </property>
+     <layout class="QVBoxLayout" name="portalLayout">
+      <item>
+       <widget class="QLabel" name="portalPermissionsDescription">
+        <property name="text">
+         <string>Grant permanent access to XDG Desktop Portal features to avoid permission dialogs:</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="screenshotPermissionCheckbox">
+        <property name="text">
+         <string>Allow automatic screenshots</string>
+        </property>
+        <property name="toolTip">
+         <string>Grant permission to capture screenshots without prompts (required for Add OATH workflow)</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="remoteDesktopPermissionCheckbox">
+        <property name="text">
+         <string>Allow automatic text input</string>
+        </property>
+        <property name="toolTip">
+         <string>Grant permission to emulate keyboard input without prompts (required for auto-type feature)</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="portalPermissionsWarning">
+        <property name="text">
+         <string>&lt;small&gt;&lt;i&gt;Note: These permissions affect all applications, not just this plugin. Enable only if you trust the applications using these features.&lt;/i&gt;&lt;/small&gt;</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <spacer name="verticalSpacer">
      <property name="orientation">
       <enum>Qt::Vertical</enum>

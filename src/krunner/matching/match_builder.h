@@ -7,7 +7,7 @@
 
 #include <KRunner/QueryMatch>
 #include <KRunner/Action>
-#include "../../shared/dbus/yubikey_dbus_types.h"
+#include "dbus/yubikey_dbus_types.h"
 
 namespace KRunner {
 namespace YubiKey {

@@ -484,6 +484,21 @@ YubiKeyOathDevice* YubiKeyDeviceManager::getDevice(const QString &deviceId)
     return nullptr;
 }
 
+YubiKeyOathDevice* YubiKeyDeviceManager::getDeviceOrFirst(const QString &deviceId)
+{
+    if (!deviceId.isEmpty()) {
+        // Specific device requested
+        return getDevice(deviceId);
+    }
+
+    // Get first available device
+    QStringList connectedIds = getConnectedDeviceIds();
+    if (connectedIds.isEmpty()) {
+        return nullptr;
+    }
+
+    return getDevice(connectedIds.first());
+}
 
 void YubiKeyDeviceManager::removeDeviceFromMemory(const QString &deviceId)
 {

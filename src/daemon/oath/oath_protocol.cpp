@@ -130,6 +130,88 @@ QByteArray OathProtocol::createSendRemainingCommand()
     return command;
 }
 
+QByteArray OathProtocol::createPutCommand(const OathCredentialData &data)
+{
+    QByteArray command;
+    command.append(static_cast<char>(CLA));      // CLA
+    command.append(static_cast<char>(INS_PUT));  // INS = PUT
+    command.append((char)0x00);                  // P1
+    command.append((char)0x00);                  // P2
+
+    // Build TLV data
+    QByteArray tlvData;
+
+    // TAG_NAME (0x71): credential name in UTF-8
+    QByteArray nameBytes = data.name.toUtf8();
+    if (nameBytes.length() > 64) {
+        nameBytes = nameBytes.left(64); // Max 64 bytes per spec
+    }
+    tlvData.append(static_cast<char>(TAG_NAME));
+    tlvData.append(static_cast<char>(nameBytes.length()));
+    tlvData.append(nameBytes);
+
+    // TAG_KEY (0x73): [algo_byte][digits][key_bytes]
+    // Decode Base32 secret
+    QByteArray keyBytes = decodeBase32(data.secret);
+    if (keyBytes.isEmpty()) {
+        qWarning() << "Failed to decode Base32 secret";
+        return QByteArray(); // Return empty on error
+    }
+
+    // Pad to minimum 14 bytes
+    while (keyBytes.length() < 14) {
+        keyBytes.append((char)0x00);
+    }
+
+    // Build KEY tag data
+    QByteArray keyTagData;
+
+    // algo_byte = (type << 4) | algorithm
+    quint8 typeBits = static_cast<quint8>(data.type) & 0x0F;
+    quint8 algoBits = static_cast<quint8>(data.algorithm) & 0x0F;
+    quint8 algoByte = (typeBits << 4) | algoBits;
+    keyTagData.append(static_cast<char>(algoByte));
+
+    // digits
+    keyTagData.append(static_cast<char>(data.digits));
+
+    // key bytes
+    keyTagData.append(keyBytes);
+
+    // Append KEY tag
+    tlvData.append(static_cast<char>(TAG_KEY));
+    tlvData.append(static_cast<char>(keyTagData.length()));
+    tlvData.append(keyTagData);
+
+    // TAG_PROPERTY (0x78): 0x02 if requireTouch
+    if (data.requireTouch) {
+        tlvData.append(static_cast<char>(TAG_PROPERTY));
+        tlvData.append((char)0x01);  // Length = 1
+        tlvData.append((char)0x02);  // Value = 0x02 (require touch)
+    }
+
+    // TAG_IMF (0x7a): 4-byte counter (HOTP only)
+    if (data.type == OathType::HOTP) {
+        tlvData.append(static_cast<char>(TAG_IMF));
+        tlvData.append((char)0x04);  // Length = 4
+        // Big-endian counter
+        tlvData.append(static_cast<char>((data.counter >> 24) & 0xFF));
+        tlvData.append(static_cast<char>((data.counter >> 16) & 0xFF));
+        tlvData.append(static_cast<char>((data.counter >> 8) & 0xFF));
+        tlvData.append(static_cast<char>(data.counter & 0xFF));
+    }
+
+    // Append Lc (data length)
+    command.append(static_cast<char>(tlvData.length()));
+
+    // Append data
+    command.append(tlvData);
+
+    // No Le per YubiKey OATH spec
+
+    return command;
+}
+
 // =============================================================================
 // Response Parsing
 // =============================================================================
@@ -478,6 +560,43 @@ QString OathProtocol::formatCode(const QByteArray &rawCode, int digits)
     }
 
     return code;
+}
+
+QByteArray OathProtocol::decodeBase32(const QString &base32)
+{
+    // Remove padding and convert to uppercase
+    QString cleaned = base32.toUpper().remove(QLatin1Char('='));
+
+    // Base32 alphabet: A-Z (0-25), 2-7 (26-31)
+    static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+
+    QByteArray result;
+    quint64 buffer = 0;
+    int bitsInBuffer = 0;
+
+    for (const QChar &ch : cleaned) {
+        // Find character position in alphabet
+        const char *pos = strchr(alphabet, ch.toLatin1());
+        if (!pos) {
+            // Invalid character
+            qWarning() << "Invalid Base32 character:" << ch;
+            return QByteArray();
+        }
+
+        int value = pos - alphabet;
+
+        // Accumulate bits
+        buffer = (buffer << 5) | value;
+        bitsInBuffer += 5;
+
+        // Extract bytes when we have at least 8 bits
+        if (bitsInBuffer >= 8) {
+            bitsInBuffer -= 8;
+            result.append(static_cast<char>((buffer >> bitsInBuffer) & 0xFF));
+        }
+    }
+
+    return result;
 }
 
 } // namespace YubiKey
