@@ -73,3 +73,20 @@ const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::Gene
     arg.endStructure();
     return arg;
 }
+
+// AddCredentialResult marshaling
+QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::AddCredentialResult &result)
+{
+    arg.beginStructure();
+    arg << result.status << result.message;
+    arg.endStructure();
+    return arg;
+}
+
+const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::AddCredentialResult &result)
+{
+    arg.beginStructure();
+    arg >> result.status >> result.message;
+    arg.endStructure();
+    return arg;
+}

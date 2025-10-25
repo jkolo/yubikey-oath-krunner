@@ -80,17 +80,17 @@ bool YubiKeyDBusService::SetDeviceName(const QString &deviceId, const QString &n
     return m_service->setDeviceName(deviceId, newName);
 }
 
-QString YubiKeyDBusService::AddCredential(const QString &deviceId,
-                                          const QString &name,
-                                          const QString &secret,
-                                          const QString &type,
-                                          const QString &algorithm,
-                                          int digits,
-                                          int period,
-                                          int counter,
-                                          bool requireTouch)
+AddCredentialResult YubiKeyDBusService::AddCredential(const QString &deviceId,
+                                                      const QString &name,
+                                                      const QString &secret,
+                                                      const QString &type,
+                                                      const QString &algorithm,
+                                                      int digits,
+                                                      int period,
+                                                      int counter,
+                                                      bool requireTouch)
 {
-    // Pure delegation
+    // Pure delegation to service layer
     return m_service->addCredential(deviceId, name, secret, type, algorithm,
                                    digits, period, counter, requireTouch);
 }

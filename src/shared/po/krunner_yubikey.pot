@@ -133,6 +133,31 @@ msgstr ""
 msgid "Secret is required"
 msgstr ""
 
+#: src/daemon/ui/add_credential_dialog.cpp:154
+#, kde-format
+msgid "Capture screenshot and scan QR code"
+msgstr ""
+
+#: src/daemon/ui/add_credential_dialog.cpp:382
+#, kde-format
+msgid "Scanning screen"
+msgstr ""
+
+#: src/daemon/ui/add_credential_dialog.cpp:471
+#, kde-format
+msgid "Processing QR code"
+msgstr ""
+
+#: src/daemon/ui/add_credential_dialog.cpp:482
+#, kde-format
+msgid "No QR code found in the screenshot. Please try again."
+msgstr ""
+
+#: src/daemon/ui/add_credential_dialog.cpp:523
+#, kde-format
+msgid "QR code scanned successfully. Please review the information below."
+msgstr ""
+
 #: src/daemon/workflows/add_credential_workflow.cpp:62
 #, kde-format
 msgid "No QR code found in screenshot: %1"

@@ -20,6 +20,7 @@ namespace YubiKey {
     class PasswordStorage;
     class DaemonConfiguration;
     class YubiKeyActionCoordinator;
+    struct OathCredentialData;
 }
 }
 
@@ -117,17 +118,22 @@ public:
      * @param period TOTP period (seconds)
      * @param counter HOTP counter
      * @param requireTouch Require physical touch
-     * @return Empty string on success, error message on failure
+     * @return AddCredentialResult with status and message
+     *
+     * Returns immediately:
+     * - status="Success": Credential added successfully
+     * - status="Interactive": Dialog shown asynchronously (non-blocking)
+     * - status="Error": Error occurred with message
      */
-    QString addCredential(const QString &deviceId,
-                         const QString &name,
-                         const QString &secret,
-                         const QString &type,
-                         const QString &algorithm,
-                         int digits,
-                         int period,
-                         int counter,
-                         bool requireTouch);
+    AddCredentialResult addCredential(const QString &deviceId,
+                                     const QString &name,
+                                     const QString &secret,
+                                     const QString &type,
+                                     const QString &algorithm,
+                                     int digits,
+                                     int period,
+                                     int counter,
+                                     bool requireTouch);
 
     /**
      * @brief Copies TOTP code to clipboard
@@ -189,6 +195,18 @@ private:
      * @param deviceId Device ID
      */
     void clearDeviceFromMemory(const QString &deviceId);
+
+    /**
+     * @brief Shows add credential dialog asynchronously (non-blocking)
+     * @param deviceId Preselected device ID
+     * @param initialData Initial credential data
+     *
+     * Dialog is shown in background, doesn't block D-Bus call.
+     * On accept: adds credential and emits credentialsUpdated signal.
+     * On reject: dialog is closed and deleted.
+     */
+    void showAddCredentialDialogAsync(const QString &deviceId,
+                                      const OathCredentialData &initialData);
 
     std::unique_ptr<YubiKeyDeviceManager> m_deviceManager;
     std::unique_ptr<YubiKeyDatabase> m_database;

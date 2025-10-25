@@ -128,29 +128,35 @@ public Q_SLOTS:
 
     /**
      * @brief Adds or updates OATH credential on YubiKey
-     * @param deviceId Device ID (empty string = use first available device)
-     * @param name Full credential name (issuer:account)
-     * @param secret Base32-encoded secret key
-     * @param type Credential type ("TOTP" or "HOTP")
-     * @param algorithm Hash algorithm ("SHA1", "SHA256", or "SHA512")
-     * @param digits Number of digits (6-8)
-     * @param period TOTP period in seconds (default 30, ignored for HOTP)
+     * @param deviceId Device ID (empty = show dialog to select)
+     * @param name Full credential name (issuer:account, empty = show dialog)
+     * @param secret Base32-encoded secret key (empty = show dialog)
+     * @param type Credential type ("TOTP" or "HOTP", empty = default "TOTP")
+     * @param algorithm Hash algorithm ("SHA1", "SHA256", "SHA512", empty = default "SHA1")
+     * @param digits Number of digits (6-8, 0 = default 6)
+     * @param period TOTP period in seconds (0 = default 30, ignored for HOTP)
      * @param counter Initial HOTP counter value (ignored for TOTP)
-     * @param requireTouch Whether to require physical touch
-     * @return Empty string on success, error message on failure
+     * @param requireTouch Whether to require physical touch (default false)
+     * @return AddCredentialResult with status and message
+     *
+     * Supports two modes:
+     * - **Interactive mode**: If deviceId, name, or secret are empty → shows dialog asynchronously
+     *   Returns status="Interactive" immediately, dialog shown in background
+     *   Dialog allows manual entry or QR code scanning via "Scan QR" button
+     * - **Automatic mode**: If all required fields provided → adds directly without dialog
+     *   Returns status="Success" or status="Error" with message
      *
      * Requires authentication if YubiKey is password protected.
-     * Returns error if insufficient space (0x6a84) or other errors occur.
      */
-    QString AddCredential(const QString &deviceId,
-                         const QString &name,
-                         const QString &secret,
-                         const QString &type,
-                         const QString &algorithm,
-                         int digits,
-                         int period,
-                         int counter,
-                         bool requireTouch);
+    AddCredentialResult AddCredential(const QString &deviceId,
+                                     const QString &name,
+                                     const QString &secret,
+                                     const QString &type,
+                                     const QString &algorithm,
+                                     int digits,
+                                     int period,
+                                     int counter,
+                                     bool requireTouch);
 
 Q_SIGNALS:
     /**

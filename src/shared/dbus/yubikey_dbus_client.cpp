@@ -266,31 +266,6 @@ bool YubiKeyDBusClient::typeCode(const QString &deviceId, const QString &credent
     return true;
 }
 
-QVariantMap YubiKeyDBusClient::addCredentialFromScreen()
-{
-    QVariantMap result;
-
-    if (!m_daemonAvailable) {
-        qWarning() << "YubiKeyDBusClient: Daemon not available";
-        result[QStringLiteral("success")] = false;
-        result[QStringLiteral("error")] = i18n("Daemon not available");
-        return result;
-    }
-
-    QDBusReply<QVariantMap> reply = m_interface->call(
-        QStringLiteral("AddCredentialFromScreen")
-    );
-
-    if (!reply.isValid()) {
-        qWarning() << "YubiKeyDBusClient: AddCredentialFromScreen failed:" << reply.error().message();
-        result[QStringLiteral("success")] = false;
-        result[QStringLiteral("error")] = reply.error().message();
-        return result;
-    }
-
-    return reply.value();
-}
-
 bool YubiKeyDBusClient::isDaemonAvailable() const
 {
     return m_daemonAvailable;

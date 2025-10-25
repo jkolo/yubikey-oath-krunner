@@ -7,6 +7,12 @@ qt6_add_dbus_adaptor(DBUS_ADAPTOR_SRCS
     KRunner::YubiKey::YubiKeyDBusService
 )
 
+# Add Qt resources for icons
+set(DAEMON_RESOURCES)
+qt6_add_resources(DAEMON_RESOURCES
+    ../shared/resources/shared.qrc
+)
+
 # Daemon executable
 add_executable(yubikey-oath-daemon
     # Main daemon files
@@ -15,6 +21,7 @@ add_executable(yubikey-oath-daemon
     ../shared/dbus/yubikey_dbus_types.cpp
     ../shared/config/configuration_provider.cpp
     ${DBUS_ADAPTOR_SRCS}
+    ${DAEMON_RESOURCES}
 
     # OATH components (PC/SC communication)
     oath/yubikey_device_manager.cpp
@@ -63,6 +70,7 @@ add_executable(yubikey-oath-daemon
 
     # UI
     ui/add_credential_dialog.cpp
+    ui/processing_overlay.cpp
 
     # Utils
     utils/screenshot_capture.cpp
@@ -85,7 +93,7 @@ target_include_directories(yubikey-oath-daemon PRIVATE
 
 # Find required packages for daemon features
 find_package(Qt6 REQUIRED COMPONENTS Gui Widgets Qml Quick)
-find_package(KF6 REQUIRED COMPONENTS Notifications Config GuiAddons)
+find_package(KF6 REQUIRED COMPONENTS Notifications Config GuiAddons WidgetsAddons)
 find_package(KWayland REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZXing REQUIRED IMPORTED_TARGET zxing)
@@ -110,6 +118,7 @@ target_link_libraries(yubikey-oath-daemon
     KF6::Notifications
     KF6::ConfigCore  # Provides KSharedConfig
     KF6::GuiAddons   # Provides KSystemClipboard for Wayland
+    KF6::WidgetsAddons  # Provides KMessageWidget for inline messages
     Plasma::KWaylandClient
     yubikey_dbus_client  # D-Bus client library for workflows
     ${PCSCLITE_LIBRARIES}

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: krunner-yubikey 1.0.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-10-24 18:38+0200\n"
-"PO-Revision-Date: 2025-10-06 00:40+0200\n"
+"POT-Creation-Date: 2025-10-25 08:00+0200\n"
+"PO-Revision-Date: 2025-10-25 08:00+0200\n"
 "Last-Translator: Polish Translation Team\n"
 "Language-Team: Polish\n"
 "Language: pl\n"
@@ -133,6 +133,31 @@ msgstr "Konto jest wymagane"
 #, kde-format
 msgid "Secret is required"
 msgstr "Sekret jest wymagany"
+
+#: src/daemon/ui/add_credential_dialog.cpp:154
+#, kde-format
+msgid "Capture screenshot and scan QR code"
+msgstr "Przechwyć zrzut ekranu i zeskanuj kod QR"
+
+#: src/daemon/ui/add_credential_dialog.cpp:382
+#, kde-format
+msgid "Scanning screen"
+msgstr "Skanowanie ekranu"
+
+#: src/daemon/ui/add_credential_dialog.cpp:471
+#, kde-format
+msgid "Processing QR code"
+msgstr "Przetwarzanie kodu QR"
+
+#: src/daemon/ui/add_credential_dialog.cpp:482
+#, kde-format
+msgid "No QR code found in the screenshot. Please try again."
+msgstr "Nie znaleziono kodu QR w zrzucie ekranu. Spróbuj ponownie."
+
+#: src/daemon/ui/add_credential_dialog.cpp:523
+#, kde-format
+msgid "QR code scanned successfully. Please review the information below."
+msgstr "Kod QR zeskanowany pomyślnie. Sprawdź poniższe informacje."
 
 #: src/daemon/workflows/add_credential_workflow.cpp:62
 #, kde-format

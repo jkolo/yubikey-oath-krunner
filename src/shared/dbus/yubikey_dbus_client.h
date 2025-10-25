@@ -147,15 +147,6 @@ public:
     bool typeCode(const QString &deviceId, const QString &credentialName);
 
     /**
-     * @brief Starts workflow to add credential from screenshot QR code
-     * @return QVariantMap with keys: "success" (bool), "error" (string, optional)
-     *
-     * Synchronous D-Bus call. Delegates to daemon's AddCredentialFromScreen method.
-     * Captures screenshot, parses QR code, shows dialog, and saves to YubiKey.
-     */
-    QVariantMap addCredentialFromScreen();
-
-    /**
      * @brief Checks if daemon is currently available
      * @return true if daemon is registered on D-Bus
      */

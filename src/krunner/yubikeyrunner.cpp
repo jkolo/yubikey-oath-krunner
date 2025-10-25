@@ -183,12 +183,21 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
     if (match.id() == QStringLiteral("add-oath-credential")) {
         qCDebug(YubiKeyRunnerLog) << "Starting Add OATH Credential workflow via daemon";
 
-        // Delegate to daemon - it handles the entire workflow
-        QVariantMap result = m_dbusClient->addCredentialFromScreen();
+        // Delegate to daemon with empty parameters to trigger interactive mode (dialog)
+        QString errorMessage = m_dbusClient->addCredential(
+            QString(),  // deviceId - empty triggers dialog
+            QString(),  // name - empty triggers dialog
+            QString(),  // secret - empty triggers dialog
+            QString(),  // type - will default to TOTP
+            QString(),  // algorithm - will default to SHA1
+            0,          // digits - will default to 6
+            0,          // period - will default to 30
+            0,          // counter - will default to 0
+            false       // requireTouch
+        );
 
-        if (!result.value(QStringLiteral("success"), false).toBool()) {
-            qCWarning(YubiKeyRunnerLog) << "Add credential workflow failed:"
-                                        << result.value(QStringLiteral("error")).toString();
+        if (!errorMessage.isEmpty()) {
+            qCWarning(YubiKeyRunnerLog) << "Add credential workflow failed:" << errorMessage;
         }
 
         return;

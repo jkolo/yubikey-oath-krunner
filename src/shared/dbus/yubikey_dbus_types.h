@@ -43,6 +43,18 @@ struct GenerateCodeResult {
     qint64 validUntil;          ///< Unix timestamp when code expires
 };
 
+/**
+ * @brief Result of adding a credential to YubiKey
+ */
+struct AddCredentialResult {
+    QString status;             ///< Status: "Success", "Interactive", "Error"
+    QString message;            ///< Success/error message or empty string
+
+    AddCredentialResult() = default;
+    AddCredentialResult(const QString &s, const QString &m = QString())
+        : status(s), message(m) {}
+};
+
 } // namespace YubiKey
 } // namespace KRunner
 
@@ -50,6 +62,7 @@ struct GenerateCodeResult {
 Q_DECLARE_METATYPE(KRunner::YubiKey::DeviceInfo)
 Q_DECLARE_METATYPE(KRunner::YubiKey::CredentialInfo)
 Q_DECLARE_METATYPE(KRunner::YubiKey::GenerateCodeResult)
+Q_DECLARE_METATYPE(KRunner::YubiKey::AddCredentialResult)
 
 // D-Bus marshaling operators
 QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::DeviceInfo &device);
@@ -60,3 +73,6 @@ const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::Cred
 
 QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::GenerateCodeResult &result);
 const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::GenerateCodeResult &result);
+
+QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::AddCredentialResult &result);
+const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::AddCredentialResult &result);

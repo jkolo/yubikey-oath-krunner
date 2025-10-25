@@ -6,13 +6,11 @@
 #include "screenshot_capture.h"
 #include <QDBusInterface>
 #include <QDBusConnection>
+#include <QDBusConnectionInterface>
 #include <QDBusReply>
-#include <QDBusMessage>
-#include <QDBusPendingCall>
-#include <QDBusPendingReply>
-#include <QEventLoop>
-#include <QTimer>
-#include <QUrl>
+#include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QThread>
 #include <QDebug>
 #include <KLocalizedString>
 
@@ -21,164 +19,210 @@ namespace YubiKey {
 
 ScreenshotCapture::ScreenshotCapture(QObject *parent)
     : QObject(parent)
-    , m_portalInterface(nullptr)
+    , m_spectacleInterface(nullptr)
     , m_responseReceived(false)
     , m_cancelled(false)
 {
-    // Create D-Bus interface to XDG Desktop Portal
-    m_portalInterface = new QDBusInterface(
-        QStringLiteral("org.freedesktop.portal.Desktop"),
-        QStringLiteral("/org/freedesktop/portal/desktop"),
-        QStringLiteral("org.freedesktop.portal.Screenshot"),
+    // Connect to Spectacle D-Bus interface
+    m_spectacleInterface = new QDBusInterface(
+        QStringLiteral("org.kde.Spectacle"),
+        QStringLiteral("/"),
+        QStringLiteral("org.kde.Spectacle"),
         QDBusConnection::sessionBus(),
         this
     );
 
-    if (!m_portalInterface->isValid()) {
-        qWarning() << "ScreenshotCapture: Failed to connect to XDG Desktop Portal:"
-                   << m_portalInterface->lastError().message();
+    if (!m_spectacleInterface->isValid()) {
+        qWarning() << "ScreenshotCapture: Failed to connect to Spectacle:"
+                   << m_spectacleInterface->lastError().message();
     }
 }
 
 ScreenshotCapture::~ScreenshotCapture()
 {
-    // QObject parent will delete m_portalInterface
+    // QObject parent will delete m_spectacleInterface
+}
+
+bool ScreenshotCapture::ensureSpectacleConnection()
+{
+    // If interface is already valid, we're good
+    if (m_spectacleInterface && m_spectacleInterface->isValid()) {
+        return true;
+    }
+
+    // Check if Spectacle D-Bus service is registered
+    QDBusConnectionInterface *iface = QDBusConnection::sessionBus().interface();
+    if (!iface) {
+        qWarning() << "ScreenshotCapture: Cannot access D-Bus connection interface";
+        return false;
+    }
+
+    const QString serviceName = QStringLiteral("org.kde.Spectacle");
+    if (!iface->isServiceRegistered(serviceName)) {
+        qDebug() << "ScreenshotCapture: Spectacle service not registered on D-Bus";
+        return false;
+    }
+
+    // Service is available - recreate interface
+    qDebug() << "ScreenshotCapture: Recreating Spectacle D-Bus interface";
+
+    // Delete old interface if exists
+    if (m_spectacleInterface) {
+        delete m_spectacleInterface;
+        m_spectacleInterface = nullptr;
+    }
+
+    // Create new interface
+    m_spectacleInterface = new QDBusInterface(
+        serviceName,
+        QStringLiteral("/"),
+        serviceName,
+        QDBusConnection::sessionBus(),
+        this
+    );
+
+    if (!m_spectacleInterface->isValid()) {
+        qWarning() << "ScreenshotCapture: Failed to recreate Spectacle interface:"
+                   << m_spectacleInterface->lastError().message();
+        return false;
+    }
+
+    qDebug() << "ScreenshotCapture: Successfully connected to Spectacle";
+    return true;
 }
 
 Result<QString> ScreenshotCapture::captureInteractive(int timeout)
 {
-    if (!m_portalInterface || !m_portalInterface->isValid()) {
-        return Result<QString>::error(i18n("XDG Desktop Portal not available"));
+    // Ensure Spectacle connection is valid (recreate if needed)
+    if (!ensureSpectacleConnection()) {
+        return Result<QString>::error(i18n("Spectacle not available"));
     }
 
-    qDebug() << "ScreenshotCapture: Starting interactive capture";
+    qDebug() << "ScreenshotCapture: Using Spectacle for fullscreen capture";
 
     // Reset state
     m_responseReceived = false;
     m_cancelled = false;
     m_capturedFilePath.clear();
-    m_requestPath.clear();
 
-    // Prepare Screenshot method call
-    // Screenshot(parent_window: s, options: a{sv}) -> handle: o
-    QString parentWindow; // Empty = no parent window
-    QVariantMap options;
-    options[QStringLiteral("modal")] = false;        // Non-modal capture
-    options[QStringLiteral("interactive")] = false;  // Capture full screen without dialog
-
-    // Call Screenshot method
-    QDBusReply<QDBusObjectPath> reply = m_portalInterface->call(
-        QStringLiteral("Screenshot"),
-        parentWindow,
-        options
-    );
-
-    if (!reply.isValid()) {
-        qWarning() << "ScreenshotCapture: Screenshot call failed:"
-                   << reply.error().message();
-        return Result<QString>::error(
-            i18n("Failed to request screenshot: %1", reply.error().message()));
-    }
-
-    // Get request handle path
-    m_requestPath = reply.value().path();
-    qDebug() << "ScreenshotCapture: Got request handle:" << m_requestPath;
-
-    // Subscribe to Response signal on the request handle
-    // Signal: Response(response: u, results: a{sv})
+    // Connect to ScreenshotTaken signal
     bool signalConnected = QDBusConnection::sessionBus().connect(
-        QStringLiteral("org.freedesktop.portal.Desktop"),
-        m_requestPath,
-        QStringLiteral("org.freedesktop.portal.Request"),
-        QStringLiteral("Response"),
+        QStringLiteral("org.kde.Spectacle"),
+        QStringLiteral("/"),
+        QStringLiteral("org.kde.Spectacle"),
+        QStringLiteral("ScreenshotTaken"),
         this,
-        SLOT(onPortalResponse(uint, QVariantMap))
+        SLOT(onSpectacleScreenshotTaken(QString))
     );
 
     if (!signalConnected) {
-        qWarning() << "ScreenshotCapture: Failed to connect to Response signal";
-        return Result<QString>::error(i18n("Failed to connect to portal signal"));
+        qWarning() << "ScreenshotCapture: Failed to connect to Spectacle ScreenshotTaken signal";
+        return Result<QString>::error(i18n("Failed to connect to Spectacle signal"));
     }
 
-    // Wait for response using event loop with timeout
-    QEventLoop loop;
-    QTimer timeoutTimer;
-
-    // Connect completion signals
-    connect(this, &ScreenshotCapture::screenshotCaptured, &loop, &QEventLoop::quit);
-    connect(this, &ScreenshotCapture::screenshotCancelled, &loop, &QEventLoop::quit);
-    connect(&timeoutTimer, &QTimer::timeout, &loop, &QEventLoop::quit);
-
-    timeoutTimer.setSingleShot(true);
-    timeoutTimer.start(timeout);
-
-    qDebug() << "ScreenshotCapture: Waiting for user to select window...";
-    loop.exec(); // Block until signal or timeout
-
-    // Disconnect signal
-    QDBusConnection::sessionBus().disconnect(
-        QStringLiteral("org.freedesktop.portal.Desktop"),
-        m_requestPath,
-        QStringLiteral("org.freedesktop.portal.Request"),
-        QStringLiteral("Response"),
+    // Connect to ScreenshotFailed signal
+    QDBusConnection::sessionBus().connect(
+        QStringLiteral("org.kde.Spectacle"),
+        QStringLiteral("/"),
+        QStringLiteral("org.kde.Spectacle"),
+        QStringLiteral("ScreenshotFailed"),
         this,
-        SLOT(onPortalResponse(uint, QVariantMap))
+        SLOT(onSpectacleScreenshotFailed(QString))
+    );
+
+    // Call FullScreen method (0 = don't include mouse pointer)
+    QDBusReply<void> reply = m_spectacleInterface->call(QStringLiteral("FullScreen"), 0);
+
+    if (!reply.isValid()) {
+        qWarning() << "ScreenshotCapture: Spectacle FullScreen call failed:"
+                   << reply.error().message();
+
+        // Disconnect signals
+        QDBusConnection::sessionBus().disconnect(
+            QStringLiteral("org.kde.Spectacle"),
+            QStringLiteral("/"),
+            QStringLiteral("org.kde.Spectacle"),
+            QStringLiteral("ScreenshotTaken"),
+            this,
+            SLOT(onSpectacleScreenshotTaken(QString))
+        );
+        QDBusConnection::sessionBus().disconnect(
+            QStringLiteral("org.kde.Spectacle"),
+            QStringLiteral("/"),
+            QStringLiteral("org.kde.Spectacle"),
+            QStringLiteral("ScreenshotFailed"),
+            this,
+            SLOT(onSpectacleScreenshotFailed(QString))
+        );
+
+        return Result<QString>::error(
+            i18n("Failed to request Spectacle screenshot: %1", reply.error().message()));
+    }
+
+    qDebug() << "ScreenshotCapture: Spectacle FullScreen requested, waiting for signal...";
+
+    // Wait for response with processEvents to keep UI responsive
+    QElapsedTimer timer;
+    timer.start();
+
+    while (!m_responseReceived && timer.elapsed() < timeout) {
+        // Process events to keep UI responsive (100ms max per iteration)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+        // Small sleep to avoid busy-waiting
+        QThread::msleep(50);
+    }
+
+    // Disconnect signals
+    QDBusConnection::sessionBus().disconnect(
+        QStringLiteral("org.kde.Spectacle"),
+        QStringLiteral("/"),
+        QStringLiteral("org.kde.Spectacle"),
+        QStringLiteral("ScreenshotTaken"),
+        this,
+        SLOT(onSpectacleScreenshotTaken(QString))
+    );
+    QDBusConnection::sessionBus().disconnect(
+        QStringLiteral("org.kde.Spectacle"),
+        QStringLiteral("/"),
+        QStringLiteral("org.kde.Spectacle"),
+        QStringLiteral("ScreenshotFailed"),
+        this,
+        SLOT(onSpectacleScreenshotFailed(QString))
     );
 
     // Check result
     if (!m_responseReceived) {
-        return Result<QString>::error(i18n("Timeout waiting for screenshot"));
+        return Result<QString>::error(i18n("Timeout waiting for Spectacle screenshot"));
     }
 
     if (m_cancelled) {
-        return Result<QString>::error(i18n("Screenshot cancelled by user"));
+        return Result<QString>::error(i18n("Spectacle screenshot failed"));
     }
 
     if (m_capturedFilePath.isEmpty()) {
-        return Result<QString>::error(i18n("No screenshot file path received"));
+        return Result<QString>::error(i18n("No screenshot file path received from Spectacle"));
     }
 
-    qDebug() << "ScreenshotCapture: Successfully captured screenshot:" << m_capturedFilePath;
+    qDebug() << "ScreenshotCapture: Spectacle captured screenshot:" << m_capturedFilePath;
     return Result<QString>::success(m_capturedFilePath);
 }
 
-void ScreenshotCapture::onPortalResponse(uint response, const QVariantMap &results)
+void ScreenshotCapture::onSpectacleScreenshotTaken(const QString &filePath)
 {
-    qDebug() << "ScreenshotCapture: Received Response signal, code:" << response;
+    qDebug() << "ScreenshotCapture: Spectacle ScreenshotTaken signal:" << filePath;
 
     m_responseReceived = true;
+    m_capturedFilePath = filePath;
+    Q_EMIT screenshotCaptured(filePath);
+}
 
-    // Response codes:
-    // 0 = success
-    // 1 = user cancelled
-    // 2 = other error
+void ScreenshotCapture::onSpectacleScreenshotFailed(const QString &errorMessage)
+{
+    qWarning() << "ScreenshotCapture: Spectacle ScreenshotFailed signal:" << errorMessage;
 
-    if (response != 0) {
-        qWarning() << "ScreenshotCapture: User cancelled or error occurred, code:" << response;
-        m_cancelled = true;
-        Q_EMIT screenshotCancelled();
-        return;
-    }
-
-    // Extract URI from results
-    if (!results.contains(QStringLiteral("uri"))) {
-        qWarning() << "ScreenshotCapture: Response missing 'uri' field";
-        Q_EMIT screenshotCancelled();
-        return;
-    }
-
-    QString uri = results[QStringLiteral("uri")].toString();
-    qDebug() << "ScreenshotCapture: Got screenshot URI:" << uri;
-
-    // Convert file:// URI to local path
-    QUrl url(uri);
-    if (url.isLocalFile()) {
-        m_capturedFilePath = url.toLocalFile();
-    } else {
-        m_capturedFilePath = uri;
-    }
-
-    Q_EMIT screenshotCaptured(m_capturedFilePath);
+    m_responseReceived = true;
+    m_cancelled = true;
+    Q_EMIT screenshotCancelled();
 }
 
 } // namespace YubiKey

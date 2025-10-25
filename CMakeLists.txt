@@ -87,6 +87,7 @@ find_package(KF6 REQUIRED COMPONENTS
     CoreAddons
     Wallet
     KCMUtils
+    WidgetsAddons
 )
 
 find_package(KWayland REQUIRED)

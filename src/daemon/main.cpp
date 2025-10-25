@@ -21,6 +21,9 @@ int main(int argc, char *argv[])
     app.setOrganizationName(QStringLiteral("KDE"));
     app.setOrganizationDomain(QStringLiteral("kde.org"));
 
+    // Daemon should continue running even when dialogs are closed
+    app.setQuitOnLastWindowClosed(false);
+
     // Set translation domain for i18n
     KLocalizedString::setApplicationDomain("krunner_yubikey");
 
@@ -36,12 +39,14 @@ int main(int argc, char *argv[])
     qRegisterMetaType<KRunner::YubiKey::DeviceInfo>("KRunner::YubiKey::DeviceInfo");
     qRegisterMetaType<KRunner::YubiKey::CredentialInfo>("KRunner::YubiKey::CredentialInfo");
     qRegisterMetaType<KRunner::YubiKey::GenerateCodeResult>("KRunner::YubiKey::GenerateCodeResult");
+    qRegisterMetaType<KRunner::YubiKey::AddCredentialResult>("KRunner::YubiKey::AddCredentialResult");
     qRegisterMetaType<QList<KRunner::YubiKey::DeviceInfo>>("QList<KRunner::YubiKey::DeviceInfo>");
     qRegisterMetaType<QList<KRunner::YubiKey::CredentialInfo>>("QList<KRunner::YubiKey::CredentialInfo>");
 
     qDBusRegisterMetaType<KRunner::YubiKey::DeviceInfo>();
     qDBusRegisterMetaType<KRunner::YubiKey::CredentialInfo>();
     qDBusRegisterMetaType<KRunner::YubiKey::GenerateCodeResult>();
+    qDBusRegisterMetaType<KRunner::YubiKey::AddCredentialResult>();
     qDBusRegisterMetaType<QList<KRunner::YubiKey::DeviceInfo>>();
     qDBusRegisterMetaType<QList<KRunner::YubiKey::CredentialInfo>>();
 

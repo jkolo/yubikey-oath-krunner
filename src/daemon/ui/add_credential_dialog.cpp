@@ -4,6 +4,11 @@
  */
 
 #include "add_credential_dialog.h"
+#include "processing_overlay.h"
+#include "../utils/screenshot_capture.h"
+#include "../utils/qr_code_parser.h"
+#include "../utils/otpauth_uri_parser.h"
+#include "../logging_categories.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -14,6 +19,10 @@
 #include <QCheckBox>
 #include <QPushButton>
 #include <QDialogButtonBox>
+#include <KMessageWidget>
+#include <QtConcurrent/QtConcurrent>
+#include <QFutureWatcher>
+#include <QIcon>
 #include <KLocalizedString>
 
 namespace KRunner {
@@ -21,19 +30,53 @@ namespace YubiKey {
 
 AddCredentialDialog::AddCredentialDialog(const OathCredentialData &initialData,
                                         const QStringList &availableDevices,
+                                        const QString &preselectedDeviceId,
                                         QWidget *parent)
     : QDialog(parent)
+    , m_screenshotCapture(nullptr)
     , m_secretRevealed(false)
 {
     setWindowTitle(i18n("Add OATH Credential to YubiKey"));
+
+    // Try to load icon from resources, fallback to theme icon
+    QIcon windowIcon(QStringLiteral(":/icons/yubikey.svg"));
+    if (windowIcon.isNull()) {
+        windowIcon = QIcon::fromTheme(QStringLiteral("security-medium"));
+    }
+    setWindowIcon(windowIcon);
+
     setMinimumWidth(500);
+
     setupUi(initialData, availableDevices);
+
+    // Preselect device if specified
+    if (!preselectedDeviceId.isEmpty() && m_deviceCombo->isEnabled()) {
+        int index = m_deviceCombo->findData(preselectedDeviceId);
+        if (index >= 0) {
+            m_deviceCombo->setCurrentIndex(index);
+        }
+    }
+
+    // Create processing overlay for visual feedback
+    m_processingOverlay = new ProcessingOverlay(this);
 }
 
 void AddCredentialDialog::setupUi(const OathCredentialData &initialData,
                                   const QStringList &devices)
 {
     auto *mainLayout = new QVBoxLayout(this);
+
+    // Message widget for errors/info (hidden by default)
+    m_messageWidget = new KMessageWidget(this);
+    m_messageWidget->setCloseButtonVisible(true);
+    m_messageWidget->setWordWrap(true);
+    m_messageWidget->hide();
+    mainLayout->addWidget(m_messageWidget);
+
+    // Scan QR button at the top
+    m_scanQrButton = new QPushButton(QIcon::fromTheme(QStringLiteral("scanner")), i18n("Scan QR Code from Screen"), this);
+    m_scanQrButton->setToolTip(i18n("Capture screenshot and scan QR code"));
+    mainLayout->addWidget(m_scanQrButton);
 
     // Form layout for credential fields
     auto *formLayout = new QFormLayout();
@@ -135,6 +178,8 @@ void AddCredentialDialog::setupUi(const OathCredentialData &initialData,
     mainLayout->addWidget(buttonBox);
 
     // Connections
+    connect(m_scanQrButton, &QPushButton::clicked,
+            this, &AddCredentialDialog::onScanQrClicked);
     connect(m_typeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &AddCredentialDialog::onTypeChanged);
     connect(m_revealSecretButton, &QPushButton::clicked,
@@ -251,6 +296,173 @@ QString AddCredentialDialog::getSelectedDeviceId() const
         return QString();
     }
     return m_deviceCombo->currentData().toString();
+}
+
+void AddCredentialDialog::onScanQrClicked()
+{
+    qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Scan QR button clicked";
+
+    // Show overlay with initial status (UI thread)
+    showProcessingOverlay(i18n("Scanning screen"));
+
+    // Create ScreenshotCapture in UI thread (QDBusInterface requires event loop)
+    if (m_screenshotCapture) {
+        delete m_screenshotCapture;
+    }
+    m_screenshotCapture = new ScreenshotCapture(this);
+
+    // Connect signals for async screenshot handling
+    connect(m_screenshotCapture, &ScreenshotCapture::screenshotCaptured,
+            this, &AddCredentialDialog::onScreenshotCaptured);
+    connect(m_screenshotCapture, &ScreenshotCapture::screenshotCancelled,
+            this, &AddCredentialDialog::onScreenshotCancelled);
+
+    // Start screenshot capture (async, UI thread)
+    auto result = m_screenshotCapture->captureInteractive(30000);
+
+    // Handle immediate errors (e.g., Spectacle not available)
+    if (result.isError()) {
+        qCWarning(YubiKeyDaemonLog) << "AddCredentialDialog: Screenshot capture failed immediately:" << result.error();
+        hideProcessingOverlay();
+        showMessage(result.error(), KMessageWidget::Error);
+        delete m_screenshotCapture;
+        m_screenshotCapture = nullptr;
+    }
+}
+
+void AddCredentialDialog::fillFieldsFromQrData(const OathCredentialData &data)
+{
+    qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Filling fields from QR data";
+
+    // Fill text fields
+    m_issuerField->setText(data.issuer);
+    m_accountField->setText(data.account);
+    m_secretField->setText(data.secret);
+
+    // Set type
+    m_typeCombo->setCurrentIndex(data.type == OathType::TOTP ? 0 : 1);
+
+    // Set algorithm
+    int algoIndex = data.algorithm == OathAlgorithm::SHA256 ? 1 :
+                   data.algorithm == OathAlgorithm::SHA512 ? 2 : 0;
+    m_algorithmCombo->setCurrentIndex(algoIndex);
+
+    // Set numeric fields
+    m_digitsSpinBox->setValue(data.digits);
+    m_periodSpinBox->setValue(data.period);
+    m_counterSpinBox->setValue(static_cast<int>(data.counter));
+    m_touchCheckBox->setChecked(data.requireTouch);
+
+    // Update field visibility based on type
+    updateFieldsForType();
+}
+
+void AddCredentialDialog::showProcessingOverlay(const QString &message)
+{
+    qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Showing processing overlay:" << message;
+    m_processingOverlay->show(message);
+}
+
+void AddCredentialDialog::onScreenshotCaptured(const QString &filePath)
+{
+    qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Screenshot captured:" << filePath;
+
+    // Update overlay status to QR parsing
+    updateOverlayStatus(i18n("Processing QR code"));
+
+    // Run QR parsing + URI parsing in background thread (CPU-heavy)
+    QFuture<Result<OathCredentialData>> future = QtConcurrent::run([filePath]() -> Result<OathCredentialData> {
+        qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Background QR parsing started";
+
+        // Parse QR code from image (static method - thread-safe)
+        auto qrResult = QrCodeParser::parse(filePath);
+
+        if (qrResult.isError()) {
+            qCWarning(YubiKeyDaemonLog) << "AddCredentialDialog: QR parsing failed:" << qrResult.error();
+            return Result<OathCredentialData>::error(i18n("No QR code found in the screenshot. Please try again."));
+        }
+
+        QString otpauthUri = qrResult.value();
+        qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: QR code parsed, URI length:" << otpauthUri.length();
+
+        // Parse otpauth URI (static method - thread-safe)
+        auto parseResult = OtpauthUriParser::parse(otpauthUri);
+
+        if (parseResult.isError()) {
+            qCWarning(YubiKeyDaemonLog) << "AddCredentialDialog: URI parsing failed:" << parseResult.error();
+            return Result<OathCredentialData>::error(parseResult.error());
+        }
+
+        qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Credential data parsed successfully";
+        return parseResult;
+    });
+
+    // Use QFutureWatcher to get notified when QR parsing is done (in UI thread)
+    auto *watcher = new QFutureWatcher<Result<OathCredentialData>>(this);
+    connect(watcher, &QFutureWatcher<Result<OathCredentialData>>::finished,
+            this, [this, watcher]() {
+        qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Background QR parsing finished";
+
+        auto result = watcher->result();
+
+        // Hide overlay (UI thread)
+        hideProcessingOverlay();
+
+        // Clean up screenshot capture
+        if (m_screenshotCapture) {
+            delete m_screenshotCapture;
+            m_screenshotCapture = nullptr;
+        }
+
+        if (result.isError()) {
+            qCWarning(YubiKeyDaemonLog) << "AddCredentialDialog: QR processing failed:" << result.error();
+            showMessage(result.error(), KMessageWidget::Error);
+        } else {
+            // Fill form fields with parsed data (UI thread)
+            fillFieldsFromQrData(result.value());
+            showMessage(i18n("QR code scanned successfully. Please review the information below."),
+                       KMessageWidget::Positive);
+        }
+
+        // Clean up watcher
+        watcher->deleteLater();
+    });
+
+    // Start watching the future
+    watcher->setFuture(future);
+}
+
+void AddCredentialDialog::onScreenshotCancelled()
+{
+    qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Screenshot cancelled by user";
+
+    // Hide overlay
+    hideProcessingOverlay();
+
+    // Clean up screenshot capture
+    if (m_screenshotCapture) {
+        delete m_screenshotCapture;
+        m_screenshotCapture = nullptr;
+    }
+}
+
+void AddCredentialDialog::hideProcessingOverlay()
+{
+    qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Hiding processing overlay";
+    m_processingOverlay->hide();
+}
+
+void AddCredentialDialog::updateOverlayStatus(const QString &message)
+{
+    qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Updating overlay status:" << message;
+    m_processingOverlay->updateStatus(message);
+}
+
+void AddCredentialDialog::showMessage(const QString &text, int messageType)
+{
+    m_messageWidget->setText(text);
+    m_messageWidget->setMessageType(static_cast<KMessageWidget::MessageType>(messageType));
+    m_messageWidget->animatedShow();
 }
 
 } // namespace YubiKey

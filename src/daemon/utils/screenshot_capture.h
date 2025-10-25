@@ -17,10 +17,10 @@ namespace KRunner {
 namespace YubiKey {
 
 /**
- * @brief Captures screenshots using XDG Desktop Portal
+ * @brief Captures screenshots using KDE Spectacle
  *
- * Uses org.freedesktop.portal.Desktop Screenshot interface.
- * This works across Wayland and X11 with proper sandboxing.
+ * Uses Spectacle D-Bus interface for automatic fullscreen screenshots.
+ * Works on Wayland and X11 without requiring portal permissions.
  */
 class ScreenshotCapture : public QObject
 {
@@ -31,22 +31,20 @@ public:
     ~ScreenshotCapture() override;
 
     /**
-     * @brief Captures a screenshot with interactive window selection
+     * @brief Captures a fullscreen screenshot automatically
      * @param timeout Timeout in milliseconds (default 60000 = 60 seconds)
      * @return Result with screenshot file path on success, error message on failure
      *
      * This method:
-     * 1. Calls XDG Portal Screenshot method with interactive=true
-     * 2. User selects window/area via portal dialog
-     * 3. Waits for Response signal with screenshot URI
-     * 4. Returns local file path (converts file:// URI)
+     * 1. Calls Spectacle FullScreen D-Bus method (automatic, no user interaction)
+     * 2. Waits for ScreenshotTaken signal with file path
+     * 3. Returns local file path
      *
-     * The method blocks until user selects window or cancels.
-     * Screenshot file is temporary and will be cleaned up by portal.
+     * The method blocks until screenshot is captured or timeout occurs.
+     * Screenshot file is saved by Spectacle.
      *
      * Possible errors:
-     * - Portal not available
-     * - User cancelled selection
+     * - Spectacle not available
      * - Screenshot failed
      * - Timeout waiting for response
      */
@@ -65,11 +63,20 @@ Q_SIGNALS:
     void screenshotCancelled();
 
 private Q_SLOTS:
-    void onPortalResponse(uint response, const QVariantMap &results);
+    void onSpectacleScreenshotTaken(const QString &filePath);
+    void onSpectacleScreenshotFailed(const QString &errorMessage);
 
 private:
-    QDBusInterface *m_portalInterface;
-    QString m_requestPath;
+    /**
+     * @brief Ensures Spectacle D-Bus connection is valid
+     * @return true if connection is ready, false otherwise
+     *
+     * Checks if D-Bus interface is valid. If not, attempts to recreate
+     * connection if Spectacle service is available.
+     */
+    bool ensureSpectacleConnection();
+
+    QDBusInterface *m_spectacleInterface;
     QString m_capturedFilePath;
     bool m_responseReceived;
     bool m_cancelled;

@@ -16,9 +16,12 @@ class QSpinBox;
 class QCheckBox;
 class QLabel;
 class QPushButton;
+class KMessageWidget;
 
 namespace KRunner {
 namespace YubiKey {
+
+class ProcessingOverlay;
 
 /**
  * @brief Dialog for adding/editing OATH credential before saving to YubiKey
@@ -44,10 +47,12 @@ public:
      * @brief Constructs credential dialog
      * @param initialData Initial credential data (from QR code parser)
      * @param availableDevices List of device IDs for selection
+     * @param preselectedDeviceId Optional device ID to preselect in combo
      * @param parent Parent widget
      */
     explicit AddCredentialDialog(const OathCredentialData &initialData,
                                 const QStringList &availableDevices,
+                                const QString &preselectedDeviceId = QString(),
                                 QWidget *parent = nullptr);
 
     ~AddCredentialDialog() override = default;
@@ -76,11 +81,19 @@ private Q_SLOTS:
     void onTypeChanged(int index);
     void onOkClicked();
     void onRevealSecretClicked();
+    void onScanQrClicked();
+    void onScreenshotCaptured(const QString &filePath);
+    void onScreenshotCancelled();
 
 private:
     void setupUi(const OathCredentialData &initialData, const QStringList &devices);
     void updateFieldsForType();
     bool validateAndBuildData();
+    void fillFieldsFromQrData(const OathCredentialData &data);
+    void showMessage(const QString &text, int messageType);
+    void showProcessingOverlay(const QString &message);
+    void hideProcessingOverlay();
+    void updateOverlayStatus(const QString &message);
 
     // UI elements
     QLineEdit *m_issuerField;
@@ -94,8 +107,16 @@ private:
     QCheckBox *m_touchCheckBox;
     QComboBox *m_deviceCombo;
     QPushButton *m_revealSecretButton;
+    QPushButton *m_scanQrButton;
     QLabel *m_errorLabel;
     QPushButton *m_okButton;
+    KMessageWidget *m_messageWidget;
+
+    // Processing overlay
+    ProcessingOverlay *m_processingOverlay;
+
+    // Screenshot capture (UI thread)
+    class ScreenshotCapture *m_screenshotCapture;
 
     bool m_secretRevealed;
 };

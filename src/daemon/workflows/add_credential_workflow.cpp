@@ -100,7 +100,7 @@ void AddCredentialWorkflow::onScreenshotCaptured(const QString &filePath)
     }
 
     // Step 5: Show credential dialog for review/editing
-    auto *dialog = new AddCredentialDialog(m_credentialData, deviceIds, nullptr);
+    auto *dialog = new AddCredentialDialog(m_credentialData, deviceIds, QString(), nullptr);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
 
     connect(dialog, &QDialog::accepted, this, &AddCredentialWorkflow::onDialogAccepted);
