@@ -8,8 +8,8 @@
 #include "text_input_provider.h"
 #include <memory>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Factory for creating appropriate text input provider
@@ -27,5 +27,5 @@ public:
     static std::unique_ptr<TextInputProvider> createProvider(QObject *parent = nullptr);
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

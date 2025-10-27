@@ -5,10 +5,10 @@
 
 #include "logging_categories.h"
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Config {
 
-Q_LOGGING_CATEGORY(YubiKeyConfigLog, "org.kde.plasma.krunner.yubikey.config", QtWarningMsg)
+Q_LOGGING_CATEGORY(YubiKeyConfigLog, "pl.jkolo.yubikey.oath.daemon.config", QtWarningMsg)
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Config
+} // namespace YubiKeyOath

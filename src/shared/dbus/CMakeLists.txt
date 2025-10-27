@@ -1,36 +1,14 @@
 # YubiKey D-Bus Client Library
 # Shared between KRunner plugin and Config module
-
-# Find qdbusxml2cpp tool
-find_package(Qt6 REQUIRED COMPONENTS DBusTools)
-get_target_property(QT_DBUSXML2CPP Qt6::qdbusxml2cpp IMPORTED_LOCATION)
-
-# Generate D-Bus interface from daemon's XML
-# Use custom command to add -i flag for including yubikey_dbus_types.h
-set(DBUS_XML ${CMAKE_CURRENT_SOURCE_DIR}/../../daemon/org.kde.plasma.krunner.yubikey.xml)
-set(DBUS_INTERFACE_H ${CMAKE_CURRENT_BINARY_DIR}/yubikey_dbus_interface.h)
-set(DBUS_INTERFACE_CPP ${CMAKE_CURRENT_BINARY_DIR}/yubikey_dbus_interface.cpp)
-
-add_custom_command(
-    OUTPUT ${DBUS_INTERFACE_H} ${DBUS_INTERFACE_CPP}
-    COMMAND ${QT_DBUSXML2CPP}
-            -p yubikey_dbus_interface
-            -i yubikey_dbus_types.h
-            ${DBUS_XML}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    DEPENDS ${DBUS_XML}
-    COMMENT "Generating D-Bus interface from XML"
-)
-
-set(DBUS_INTERFACE_SRCS ${DBUS_INTERFACE_H} ${DBUS_INTERFACE_CPP})
+# Uses hierarchical proxy architecture (Manager → Device → Credential)
 
 # Static library for D-Bus client (shared by krunner and config)
 add_library(yubikey_dbus_client STATIC
-    yubikey_dbus_client.cpp
-    yubikey_dbus_types.cpp
-    type_conversions.cpp
+    yubikey_credential_proxy.cpp
+    yubikey_device_proxy.cpp
+    yubikey_manager_proxy.cpp
+    ../types/yubikey_value_types.cpp
     ../formatting/credential_formatter.cpp
-    ${DBUS_INTERFACE_SRCS}
 )
 
 # Enable PIC for static library to allow linking with shared libraries

@@ -14,8 +14,9 @@
 #include <QApplication>
 #include <linux/input-event-codes.h>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+namespace DeferredExecution = Shared::DeferredExecution;
 
 PortalTextInput::PortalTextInput(QObject *parent)
     : TextInputProvider(parent)
@@ -77,7 +78,7 @@ bool PortalTextInput::initializePortal()
         return false;
     }
 
-    int fd = oeffis_get_fd(m_oeffis);
+    int const fd = oeffis_get_fd(m_oeffis);
     if (fd < 0) {
         qCWarning(TextInputLog) << "PortalTextInput: Failed to get oeffis fd";
         oeffis_unref(m_oeffis);
@@ -138,7 +139,7 @@ bool PortalTextInput::connectToEis()
         return false;
     }
 
-    int eis_fd = oeffis_get_eis_fd(m_oeffis);
+    int const eis_fd = oeffis_get_eis_fd(m_oeffis);
     if (eis_fd < 0) {
         qCWarning(TextInputLog) << "PortalTextInput: Failed to get EIS fd";
         return false;
@@ -157,7 +158,7 @@ bool PortalTextInput::connectToEis()
         return false;
     }
 
-    int ei_fd = ei_get_fd(m_ei);
+    int const ei_fd = ei_get_fd(m_ei);
     m_eiNotifier = new QSocketNotifier(ei_fd, QSocketNotifier::Read, this);
     connect(m_eiNotifier, &QSocketNotifier::activated, this, &PortalTextInput::handleEiEvents);
 
@@ -175,7 +176,7 @@ void PortalTextInput::handleEiEvents()
 
     struct ei_event *event;
     while ((event = ei_get_event(m_ei))) {
-        enum ei_event_type type = ei_event_get_type(event);
+        enum ei_event_type const type = ei_event_get_type(event);
 
         switch (type) {
         case EI_EVENT_CONNECT:
@@ -269,7 +270,7 @@ bool PortalTextInput::typeText(const QString &text)
             }
         );
 
-        int totalWaited = result.elapsedMs;
+        int const totalWaited = result.elapsedMs;
 
         // Check if permission was rejected
         if (m_permissionRejected || !m_oeffis) {
@@ -337,7 +338,7 @@ bool PortalTextInput::sendKeyEvents(const QString &text)
             continue;
         }
 
-        uint64_t timestamp = ei_now(m_ei);
+        uint64_t const timestamp = ei_now(m_ei);
 
         qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Sending char" << charIndex << "'" << ch << "' keycode:" << keycode << "shift:" << needShift;
 
@@ -374,13 +375,14 @@ bool PortalTextInput::sendKeyEvents(const QString &text)
 bool PortalTextInput::convertCharToKeycode(QChar ch, uint32_t &keycode, bool &needShift)
 {
     needShift = false;
-    char16_t unicode = ch.unicode();
+    char16_t const unicode = ch.unicode();
 
     // Simple ASCII mapping to evdev keycodes
     // Based on US keyboard layout
     if (unicode >= '0' && unicode <= '9') {
         keycode = KEY_1 + (unicode - '1');
-        if (unicode == '0') keycode = KEY_0;
+        if (unicode == '0') { keycode = KEY_0;
+}
         return true;
     }
 
@@ -454,5 +456,5 @@ QString PortalTextInput::providerName() const
     return QStringLiteral("Wayland (xdg-desktop-portal)");
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

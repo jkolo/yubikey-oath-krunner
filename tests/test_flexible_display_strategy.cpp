@@ -7,7 +7,7 @@
 #include "formatting/credential_formatter.h"
 #include "types/oath_credential.h"
 
-using namespace KRunner::YubiKey;
+using namespace YubiKeyOath::Shared;
 
 /**
  * @brief Unit tests for CredentialFormatter

@@ -15,8 +15,8 @@ extern "C" {
 #include <winscard.h>
 }
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Monitors PC/SC card readers for connect/disconnect events
@@ -117,5 +117,5 @@ private:
     static constexpr const char *PNP_NOTIFICATION = "\\\\?PnP?\\Notification";
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

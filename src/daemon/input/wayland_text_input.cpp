@@ -17,8 +17,8 @@
 #include <linux/input-event-codes.h>
 #include <xkbcommon/xkbcommon.h>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 WaylandTextInput::WaylandTextInput(QObject *parent)
     : TextInputProvider(parent)
@@ -136,7 +136,7 @@ bool WaylandTextInput::typeTextWithFakeInput(const QString &text)
 
     bool success = true;
     for (const QChar &ch : text) {
-        xkb_keysym_t keysym = xkb_utf32_to_keysym(ch.unicode());
+        xkb_keysym_t const keysym = xkb_utf32_to_keysym(ch.unicode());
 
         if (keysym == XKB_KEY_NoSymbol) {
             qCWarning(TextInputLog) << "WaylandTextInput: Cannot convert character to keysym:" << ch;
@@ -146,11 +146,11 @@ bool WaylandTextInput::typeTextWithFakeInput(const QString &text)
 
         // Find the keycode for this keysym
         xkb_keycode_t keycode = XKB_KEYCODE_INVALID;
-        xkb_keycode_t min_keycode = xkb_keymap_min_keycode(keymap);
-        xkb_keycode_t max_keycode = xkb_keymap_max_keycode(keymap);
+        xkb_keycode_t const min_keycode = xkb_keymap_min_keycode(keymap);
+        xkb_keycode_t const max_keycode = xkb_keymap_max_keycode(keymap);
 
         for (xkb_keycode_t kc = min_keycode; kc <= max_keycode; kc++) {
-            xkb_keysym_t ks = xkb_state_key_get_one_sym(state, kc);
+            xkb_keysym_t const ks = xkb_state_key_get_one_sym(state, kc);
             if (ks == keysym) {
                 keycode = kc;
                 break;
@@ -164,7 +164,7 @@ bool WaylandTextInput::typeTextWithFakeInput(const QString &text)
         }
 
         // Convert XKB keycode to Linux keycode (subtract 8)
-        quint32 linux_keycode = keycode - 8;
+        quint32 const linux_keycode = keycode - 8;
 
         // Press and release the key
         m_fakeInput->requestKeyboardKeyPress(linux_keycode);
@@ -211,5 +211,5 @@ QString WaylandTextInput::providerName() const
     return QStringLiteral("Wayland");
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

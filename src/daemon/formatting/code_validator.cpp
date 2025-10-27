@@ -5,24 +5,24 @@
 
 #include "code_validator.h"
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 int CodeValidator::calculateCodeValidity()
 {
     // TOTP codes are valid for 30 seconds
     // Calculate remaining seconds in current 30-second window
-    qint64 currentTime = QDateTime::currentSecsSinceEpoch();
+    qint64 const currentTime = QDateTime::currentSecsSinceEpoch();
     return TOTP_PERIOD - (currentTime % TOTP_PERIOD);
 }
 
 QDateTime CodeValidator::calculateExpirationTime(const QDateTime &currentTime)
 {
     // Calculate remaining seconds based on provided currentTime, not actual current time
-    qint64 timeInSeconds = currentTime.toSecsSinceEpoch();
-    int remainingSeconds = TOTP_PERIOD - (timeInSeconds % TOTP_PERIOD);
+    qint64 const timeInSeconds = currentTime.toSecsSinceEpoch();
+    int const remainingSeconds = TOTP_PERIOD - (timeInSeconds % TOTP_PERIOD);
     return currentTime.addSecs(remainingSeconds);
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

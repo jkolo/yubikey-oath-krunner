@@ -7,8 +7,8 @@
 
 #include <QDateTime>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Validates and calculates TOTP code timing
@@ -35,5 +35,5 @@ private:
     static constexpr int TOTP_PERIOD = 30; ///< TOTP period in seconds
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

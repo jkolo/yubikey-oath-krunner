@@ -6,8 +6,8 @@
 #include "text_input_provider.h"
 #include "../logging_categories.h"
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 TextInputProvider::TextInputProvider(QObject *parent)
     : QObject(parent)
@@ -16,5 +16,5 @@ TextInputProvider::TextInputProvider(QObject *parent)
 
 TextInputProvider::~TextInputProvider() = default;
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

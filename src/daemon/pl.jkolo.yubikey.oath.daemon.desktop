@@ -7,5 +7,5 @@ Exec=/usr/bin/yubikey-oath-daemon
 Terminal=false
 NoDisplay=true
 Categories=System;
-X-DBUS-ServiceName=org.kde.plasma.krunner.yubikey
+X-DBUS-ServiceName=pl.jkolo.yubikey.oath.daemon
 X-DBUS-StartupType=Unique

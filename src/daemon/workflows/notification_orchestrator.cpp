@@ -15,8 +15,9 @@
 #include <QTimer>
 #include <QDebug>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 NotificationOrchestrator::NotificationOrchestrator(DBusNotificationManager *notificationManager,
                                                    const ConfigurationProvider *config,
@@ -58,10 +59,10 @@ void NotificationOrchestrator::showCodeNotification(const QString &code,
     m_currentCode = code;
 
     // Format notification body: "CODE (copied) • expires in XXs"
-    QString body = i18n("%1 (copied) • expires in %2s", code, expirationSeconds);
+    QString const body = i18n("%1 (copied) • expires in %2s", code, expirationSeconds);
 
     // Prepare hints with progress bar (100% at start)
-    QVariantMap hints = NotificationUtils::createNotificationHints(1, 100);
+    QVariantMap const hints = NotificationUtils::createNotificationHints(1, 100);
 
     // Show notification without timeout - we'll close it manually
     m_codeNotificationId = m_notificationManager->showNotification(
@@ -101,10 +102,10 @@ void NotificationOrchestrator::showTouchNotification(const QString &credentialNa
     m_touchCredentialName = credentialName;
 
     // Format message - simple and concise
-    QString body = i18n("Timeout in %1s", timeoutSeconds);
+    QString const body = i18n("Timeout in %1s", timeoutSeconds);
 
     // Prepare hints with progress bar (100% at start)
-    QVariantMap hints = NotificationUtils::createNotificationHints(1, 100);
+    QVariantMap const hints = NotificationUtils::createNotificationHints(1, 100);
 
     // Add Cancel action
     QStringList actions;
@@ -154,10 +155,10 @@ void NotificationOrchestrator::showSimpleNotification(const QString &title, cons
         return;
     }
 
-    auto notification = new KNotification(QStringLiteral("yubikey-oath"),
+    auto *notification = new KNotification(QStringLiteral("yubikey-oath"),
                                          KNotification::CloseOnTimeout,
                                          nullptr);
-    notification->setComponentName(QStringLiteral("krunner_yubikey"));
+    notification->setComponentName(QStringLiteral("yubikey_oath"));
     notification->setTitle(title);
     notification->setText(message);
     notification->setIconName(QStringLiteral(":/icons/yubikey.svg"));
@@ -186,12 +187,12 @@ void NotificationOrchestrator::showModifierReleaseNotification(const QStringList
     m_currentModifiers = modifiers;
 
     // Format message
-    QString modifierList = modifiers.join(QStringLiteral(", "));
+    QString const modifierList = modifiers.join(QStringLiteral(", "));
     QString body = i18n("Pressed keys: %1\n", modifierList);
     body += i18n("Timeout in %1s", timeoutSeconds);
 
     // Prepare hints with progress bar (100% at start)
-    QVariantMap hints = NotificationUtils::createNotificationHints(1, 100);
+    QVariantMap const hints = NotificationUtils::createNotificationHints(1, 100);
 
     // Show notification without timeout - we'll update it manually
     m_modifierNotificationId = m_notificationManager->showNotification(
@@ -231,10 +232,10 @@ void NotificationOrchestrator::showModifierCancelNotification()
 
     qCDebug(NotificationOrchestratorLog) << "Showing modifier cancel notification";
 
-    auto notification = new KNotification(QStringLiteral("yubikey-oath"),
+    auto *notification = new KNotification(QStringLiteral("yubikey-oath"),
                                          KNotification::CloseOnTimeout,
                                          nullptr);
-    notification->setComponentName(QStringLiteral("krunner_yubikey"));
+    notification->setComponentName(QStringLiteral("yubikey_oath"));
     notification->setTitle(i18n("Code Input Cancelled"));
     notification->setText(i18n("Modifier keys were held down for too long"));
     notification->setIconName(QStringLiteral(":/icons/yubikey.svg"));
@@ -248,8 +249,8 @@ void NotificationOrchestrator::updateNotificationWithProgress(
     const QDateTime& expirationTime,
     int totalSeconds,
     const QString& title,
-    std::function<QString(int)> bodyFormatter,
-    std::function<void()> onExpired)
+    const std::function<QString(int)>& bodyFormatter,
+    const std::function<void()>& onExpired)
 {
     if (notificationId == 0 || !m_notificationManager) {
         updateTimer->stop();
@@ -277,10 +278,10 @@ void NotificationOrchestrator::updateNotificationWithProgress(
              << "progress:" << progress.progressPercent << "%";
 
     // Format body using provided formatter
-    QString body = bodyFormatter(progress.remainingSeconds);
+    QString const body = bodyFormatter(progress.remainingSeconds);
 
     // Update hints with new progress value
-    QVariantMap hints = NotificationUtils::createNotificationHints(1, progress.progressPercent);
+    QVariantMap const hints = NotificationUtils::createNotificationHints(1, progress.progressPercent);
 
     notificationId = m_notificationManager->updateNotification(
         notificationId,
@@ -308,7 +309,7 @@ void NotificationOrchestrator::updateCodeNotification()
 
 void NotificationOrchestrator::updateTouchNotification()
 {
-    int totalSeconds = m_config->touchTimeout();
+    int const totalSeconds = m_config->touchTimeout();
 
     // Use helper with custom body formatter and expiration handler
     updateNotificationWithProgress(
@@ -325,8 +326,8 @@ void NotificationOrchestrator::updateTouchNotification()
             qCDebug(NotificationOrchestratorLog) << "Touch timeout, showing timeout message";
             m_touchUpdateTimer->stop();
 
-            QString body = i18n("Operation cancelled");
-            QVariantMap hints = NotificationUtils::createNotificationHints(1, 0); // 0% - timeout reached
+            QString const body = i18n("Operation cancelled");
+            QVariantMap const hints = NotificationUtils::createNotificationHints(1, 0); // 0% - timeout reached
 
             m_notificationManager->updateNotification(
                 m_touchNotificationId,
@@ -353,7 +354,7 @@ void NotificationOrchestrator::updateModifierNotification()
         MODIFIER_TIMEOUT_SECONDS,
         i18n("Please release modifier keys"),
         [this](int remainingSeconds) {
-            QString modifierList = m_currentModifiers.join(QStringLiteral(", "));
+            QString const modifierList = m_currentModifiers.join(QStringLiteral(", "));
             QString body = i18n("Pressed keys: %1\n", modifierList);
             body += i18n("Timeout in %1s", remainingSeconds);
             return body;
@@ -402,5 +403,5 @@ void NotificationOrchestrator::onNotificationClosed(uint id, uint reason)
     }
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

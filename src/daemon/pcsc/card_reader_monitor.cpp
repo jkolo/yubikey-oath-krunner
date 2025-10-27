@@ -11,8 +11,8 @@
 #include <vector>
 #include <cstring>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 // PC/SC state flags
 #ifndef SCARD_STATE_UNAWARE
@@ -394,5 +394,5 @@ bool CardReaderMonitor::monitorAllReadersForCardChanges()
     return true;
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

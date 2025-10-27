@@ -17,8 +17,8 @@
 #include <X11/keysym.h>
 #include <cstdlib>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 namespace {
     // Modifiers to check (excludes Meta/Windows and Keypad)
@@ -43,8 +43,8 @@ namespace {
         char keys[32];
         XQueryKeymap(display, keys);
 
-        KeyCode kc = XKeysymToKeycode(display, keysym);
-        bool pressed = !!(keys[kc >> 3] & (1 << (kc & 7)));
+        KeyCode const kc = XKeysymToKeycode(display, keysym);
+        bool const pressed = !!(keys[kc >> 3] & (1 << (kc & 7)));
 
         XCloseDisplay(display);
         return pressed;
@@ -107,8 +107,8 @@ namespace {
 
 bool ModifierKeyChecker::hasModifiersPressed()
 {
-    Qt::KeyboardModifiers modifiers = getCurrentModifiers();
-    bool hasModifiers = (modifiers != Qt::NoModifier);
+    Qt::KeyboardModifiers const modifiers = getCurrentModifiers();
+    bool const hasModifiers = (modifiers != Qt::NoModifier);
 
     if (hasModifiers) {
         qCDebug(TextInputLog) << "ModifierKeyChecker: Detected pressed modifiers:"
@@ -155,7 +155,7 @@ bool ModifierKeyChecker::waitForModifierRelease(int timeoutMs, int pollIntervalM
 
 QStringList ModifierKeyChecker::getPressedModifiers()
 {
-    Qt::KeyboardModifiers modifiers = getCurrentModifiers();
+    Qt::KeyboardModifiers const modifiers = getCurrentModifiers();
     QStringList names;
 
     if (modifiers & Qt::ShiftModifier) {
@@ -174,5 +174,5 @@ QStringList ModifierKeyChecker::getPressedModifiers()
     return names;
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

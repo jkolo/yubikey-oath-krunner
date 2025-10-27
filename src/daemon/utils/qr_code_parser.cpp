@@ -10,8 +10,9 @@
 #include <KLocalizedString>
 #include <ZXing/ReadBarcode.h>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 Result<QString> QrCodeParser::parse(const QString &imagePath)
 {
@@ -77,5 +78,5 @@ Result<QString> QrCodeParser::parse(const QString &imagePath)
     return Result<QString>::success(decodedText);
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

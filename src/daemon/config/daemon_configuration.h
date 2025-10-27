@@ -11,15 +11,15 @@
 #include <KSharedConfig>
 #include <KConfigGroup>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Configuration reader for daemon
  *
  * Reads settings from krunnerrc file for daemon operations
  */
-class DaemonConfiguration : public ConfigurationProvider
+class DaemonConfiguration : public Shared::ConfigurationProvider
 {
     Q_OBJECT
 
@@ -52,5 +52,5 @@ private:
     }
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

@@ -7,10 +7,13 @@
 
 #include <QDateTime>
 
-namespace KRunner {
-namespace YubiKey {
-
+namespace YubiKeyOath {
+namespace Shared {
 class ConfigurationProvider;
+}
+
+namespace Daemon {
+using Shared::ConfigurationProvider;
 
 /**
  * @brief Helper utilities for notification timing calculations
@@ -58,5 +61,5 @@ public:
                                                  int totalSeconds);
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

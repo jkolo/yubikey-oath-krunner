@@ -9,8 +9,9 @@
 #include <QDebug>
 #include <KLocalizedString>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 Result<OathCredentialData> OtpauthUriParser::parse(const QString &uri)
 {
@@ -151,5 +152,5 @@ Result<OathCredentialData> OtpauthUriParser::parse(const QString &uri)
     return Result<OathCredentialData>::success(data);
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

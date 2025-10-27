@@ -8,8 +8,8 @@
 #include <KRunner/QueryMatch>
 #include <QString>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Runner {
 
 /**
  * @brief Manages action selection and validation for KRunner matches
@@ -73,5 +73,5 @@ public:
     QString getActionName(const QString &actionId) const;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Runner
+} // namespace YubiKeyOath

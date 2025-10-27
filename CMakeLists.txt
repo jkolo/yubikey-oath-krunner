@@ -4,6 +4,9 @@ project(krunner-yubikey VERSION 1.0.0)
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Export compile commands for clang-tidy and other tools
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Compiler warnings
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(
@@ -23,7 +26,7 @@ endif()
 
 # Clang-Tidy integration
 # Configuration is read from .clang-tidy file in project root
-option(ENABLE_CLANG_TIDY "Enable clang-tidy analysis" OFF)
+option(ENABLE_CLANG_TIDY "Enable clang-tidy analysis" ON)
 if(ENABLE_CLANG_TIDY)
     find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
     if(CLANG_TIDY_EXE)

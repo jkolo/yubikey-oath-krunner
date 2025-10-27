@@ -30,8 +30,8 @@
 #include <winscard.h>
 #endif
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Manages multiple YubiKey devices for OATH (TOTP/HOTP) operations
@@ -167,10 +167,16 @@ Q_SIGNALS:
     void deviceConnected(const QString &deviceId);
 
     /**
-     * @brief Emitted when a YubiKey device is disconnected
+     * @brief Emitted when a YubiKey device is disconnected (physically removed)
      * @param deviceId Device ID of the disconnected YubiKey
      */
     void deviceDisconnected(const QString &deviceId);
+
+    /**
+     * @brief Emitted when a YubiKey device is forgotten (removed from config)
+     * @param deviceId Device ID of the forgotten YubiKey
+     */
+    void deviceForgotten(const QString &deviceId);
 
     /**
      * @brief Emitted when asynchronous credential cache fetching completes for specific device
@@ -236,5 +242,5 @@ private:
     SCARDCONTEXT m_context = 0;  ///< PC/SC context (shared by all devices)
     bool m_initialized = false;  ///< Tracks initialization state
 };
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

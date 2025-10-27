@@ -1,8 +1,7 @@
 #include "yubikey_config.h"
 #include "logging_categories.h"
-#include "dbus/yubikey_dbus_client.h"
+#include "dbus/yubikey_manager_proxy.h"
 #include "yubikey_device_model.h"
-#include "utils/portal_permission_manager.h"
 
 #include <KConfigGroup>
 #include <KSharedConfig>
@@ -22,16 +21,16 @@
 extern void qInitResources_shared();
 extern void qInitResources_config();
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Config {
+using namespace YubiKeyOath::Shared;
 
 YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
     : KCModule(qobject_cast<QWidget *>(parent))
-    , m_dbusClient(std::make_unique<YubiKeyDBusClient>(this))
-    , m_permissionManager(std::make_unique<PortalPermissionManager>(this))
+    , m_manager(YubiKeyManagerProxy::instance(this))
 {
     // Set translation domain for i18n
-    KLocalizedString::setApplicationDomain("krunner_yubikey");
+    KLocalizedString::setApplicationDomain("yubikey_oath");
 
     // Initialize Qt resources (QML files, icons)
     qInitResources_shared();
@@ -42,13 +41,13 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
     layout->addWidget(m_ui, 0, 0);
 
     // Load config
-    auto config = KSharedConfig::openConfig(QStringLiteral("krunnerrc"));
-    m_config = config->group(QStringLiteral("Runners")).group(QStringLiteral("krunner_yubikey"));
+    auto config = KSharedConfig::openConfig(QStringLiteral("yubikey-oathrc"));
+    m_config = config->group(QStringLiteral("General"));
 
-    // Create device model using D-Bus client - NO Qt parent, managed solely by unique_ptr
+    // Create device model using manager proxy - NO Qt parent, managed solely by unique_ptr
     // This prevents double-deletion (unique_ptr + Qt parent-child)
     m_deviceModel = std::make_unique<YubiKeyDeviceModel>(
-        m_dbusClient.get(),
+        m_manager,
         nullptr  // No Qt parent - sole ownership by unique_ptr
     );
 
@@ -112,12 +111,6 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
             this, &YubiKeyConfig::markAsChanged);
     connect(m_ui->notificationExtraTimeSpinbox, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &YubiKeyConfig::markAsChanged);
-
-    // Connect portal permission checkboxes (these apply immediately, not on save)
-    connect(m_ui->screenshotPermissionCheckbox, &QCheckBox::toggled,
-            this, &YubiKeyConfig::onScreenshotPermissionChanged);
-    connect(m_ui->remoteDesktopPermissionCheckbox, &QCheckBox::toggled,
-            this, &YubiKeyConfig::onRemoteDesktopPermissionChanged);
 }
 
 YubiKeyConfig::~YubiKeyConfig()
@@ -157,9 +150,6 @@ void YubiKeyConfig::load()
 
     // Set initial enabled state for dependent checkbox
     m_ui->showDeviceNameOnlyWhenMultipleCheckbox->setEnabled(m_ui->showDeviceNameCheckbox->isChecked());
-
-    // Load portal permissions from D-Bus Permission Store
-    loadPortalPermissions();
 
     setNeedsSave(false);
 }
@@ -211,84 +201,13 @@ void YubiKeyConfig::validateOptions()
     // Add any validation logic here if needed
 }
 
-void YubiKeyConfig::loadPortalPermissions()
-{
-    // Load current portal permission states from D-Bus Permission Store
-    // Block signals during load to prevent triggering permission changes
-
-    bool screenshotGranted = m_permissionManager->hasScreenshotPermission();
-    bool remoteDesktopGranted = m_permissionManager->hasRemoteDesktopPermission();
-
-    qCDebug(YubiKeyConfigLog) << "Loading portal permissions - Screenshot:" << screenshotGranted
-                              << "RemoteDesktop:" << remoteDesktopGranted;
-
-    m_ui->screenshotPermissionCheckbox->blockSignals(true);
-    m_ui->remoteDesktopPermissionCheckbox->blockSignals(true);
-
-    m_ui->screenshotPermissionCheckbox->setChecked(screenshotGranted);
-    m_ui->remoteDesktopPermissionCheckbox->setChecked(remoteDesktopGranted);
-
-    m_ui->screenshotPermissionCheckbox->blockSignals(false);
-    m_ui->remoteDesktopPermissionCheckbox->blockSignals(false);
-}
-
-void YubiKeyConfig::onScreenshotPermissionChanged(bool enabled)
-{
-    qCDebug(YubiKeyConfigLog) << "Screenshot permission changed to:" << enabled;
-
-    auto result = m_permissionManager->setScreenshotPermission(enabled);
-
-    if (!result.isSuccess()) {
-        qCWarning(YubiKeyConfigLog) << "Failed to set screenshot permission:" << result.error();
-
-        // Show error message to user
-        QMessageBox::warning(
-            widget(),
-            i18n("Permission Error"),
-            i18n("Failed to %1 screenshot permission: %2",
-                 enabled ? i18n("grant") : i18n("revoke"),
-                 result.error())
-        );
-
-        // Revert checkbox to previous state
-        m_ui->screenshotPermissionCheckbox->blockSignals(true);
-        m_ui->screenshotPermissionCheckbox->setChecked(!enabled);
-        m_ui->screenshotPermissionCheckbox->blockSignals(false);
-    }
-}
-
-void YubiKeyConfig::onRemoteDesktopPermissionChanged(bool enabled)
-{
-    qCDebug(YubiKeyConfigLog) << "Remote desktop permission changed to:" << enabled;
-
-    auto result = m_permissionManager->setRemoteDesktopPermission(enabled);
-
-    if (!result.isSuccess()) {
-        qCWarning(YubiKeyConfigLog) << "Failed to set remote desktop permission:" << result.error();
-
-        // Show error message to user
-        QMessageBox::warning(
-            widget(),
-            i18n("Permission Error"),
-            i18n("Failed to %1 remote desktop permission: %2",
-                 enabled ? i18n("grant") : i18n("revoke"),
-                 result.error())
-        );
-
-        // Revert checkbox to previous state
-        m_ui->remoteDesktopPermissionCheckbox->blockSignals(true);
-        m_ui->remoteDesktopPermissionCheckbox->setChecked(!enabled);
-        m_ui->remoteDesktopPermissionCheckbox->blockSignals(false);
-    }
-}
-
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Config
+} // namespace YubiKeyOath
 
 #include <KPluginFactory>
 
 // Must use unqualified name for K_PLUGIN_CLASS - MOC doesn't support namespaced names
-using KRunner::YubiKey::YubiKeyConfig;
+using YubiKeyOath::Config::YubiKeyConfig;
 K_PLUGIN_CLASS(YubiKeyConfig)
 
 #include "yubikey_config.moc"

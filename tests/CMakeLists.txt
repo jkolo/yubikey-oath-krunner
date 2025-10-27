@@ -92,7 +92,7 @@ if(KF6_I18n_FOUND)
     add_yubikey_test(test_flexible_display_strategy
         SOURCES test_flexible_display_strategy.cpp
                 ../src/shared/formatting/credential_formatter.cpp
-                ../src/shared/dbus/yubikey_dbus_types.cpp
+                ../src/shared/types/yubikey_value_types.cpp
         LIBRARIES KF6::I18n Qt6::DBus
     )
 else()
@@ -106,7 +106,7 @@ if(KF6_I18n_FOUND)
     add_yubikey_test(test_credential_formatter
         SOURCES test_credential_formatter.cpp
                 ../src/shared/formatting/credential_formatter.cpp
-                ../src/shared/dbus/yubikey_dbus_types.cpp
+                ../src/shared/types/yubikey_value_types.cpp
         LIBRARIES Qt6::DBus KF6::I18n
     )
 else()
@@ -137,18 +137,35 @@ if(KF6_I18n_FOUND AND X11_FOUND)
     add_yubikey_test(test_modifier_key_checker
         SOURCES test_modifier_key_checker.cpp
                 ../src/daemon/input/modifier_key_checker.cpp
-                ../src/krunner/logging_categories.cpp
+                ../src/daemon/logging_categories.cpp
         LIBRARIES Qt6::Gui Qt6::Widgets KF6::I18n ${X11_LIBRARIES}
     )
 else()
     message(STATUS "I18n or X11 not found - skipping test_modifier_key_checker")
 endif()
 
+# Test: YubiKey Proxy Architecture (integration test - requires running daemon)
+# This test connects to a live daemon and tests all proxy classes
+add_yubikey_test(test_yubikey_proxy
+    SOURCES test_yubikey_proxy.cpp
+    LIBRARIES Qt6::DBus yubikey_dbus_client
+)
+
+# Test: YubiKey Proxy Unit Tests (unit test with mock D-Bus service)
+# This test uses a mock D-Bus service to test proxy classes in isolation
+add_yubikey_test(test_proxy_unit
+    SOURCES test_proxy_unit.cpp
+            ../src/shared/types/yubikey_value_types.cpp
+    LIBRARIES Qt6::DBus yubikey_dbus_client
+)
+
 # Summary
 message(STATUS "Unit tests configured:")
 message(STATUS "  - test_result (Result<T> template)")
 message(STATUS "  - test_code_validator (CodeValidator)")
 message(STATUS "  - test_credential_formatter (CredentialFormatter)")
+message(STATUS "  - test_yubikey_proxy (Proxy architecture integration - requires daemon)")
+message(STATUS "  - test_proxy_unit (Proxy architecture unit tests - mock D-Bus service)")
 if(KF6_Runner_FOUND)
     message(STATUS "  - test_match_builder (MatchBuilder)")
     message(STATUS "  - test_modifier_key_checker (ModifierKeyChecker)")

@@ -7,14 +7,21 @@
 
 #include <KRunner/QueryMatch>
 #include <KRunner/Action>
-#include "dbus/yubikey_dbus_types.h"
+#include "types/yubikey_value_types.h"
 
-namespace KRunner {
-namespace YubiKey {
-
-// Forward declarations
+namespace YubiKeyOath {
+namespace Shared {
 class ConfigurationProvider;
-class YubiKeyDBusClient;
+class YubiKeyManagerProxy;
+class YubiKeyCredentialProxy;
+}
+
+namespace Runner {
+using Shared::ConfigurationProvider;
+using Shared::YubiKeyManagerProxy;
+using Shared::YubiKeyCredentialProxy;
+using Shared::CredentialInfo;
+using Shared::DeviceInfo;
 
 /**
  * @brief Builds KRunner QueryMatch objects from credentials
@@ -83,19 +90,19 @@ public:
      * - Copy and Type actions attached
      * - Device ID stored in match data
      *
-     * @param credential Credential to create match from
+     * @param credentialProxy Credential proxy object with full credential data
      * @param query User's search query for relevance calculation
-     * @param dbusClient D-Bus client for code generation
+     * @param manager Manager proxy for accessing device information
      *
      * @return Configured QueryMatch ready to display in KRunner.
      *         Can be activated to copy code or execute type/copy actions.
      *
-     * @note The dbusClient pointer is stored in match data and must
-     *       remain valid for the lifetime of the match.
+     * @note The credential proxy pointer is used for code generation.
+     *       The proxy must remain valid for the lifetime of the match.
      */
-    KRunner::QueryMatch buildCredentialMatch(const CredentialInfo &credential,
+    KRunner::QueryMatch buildCredentialMatch(YubiKeyCredentialProxy *credentialProxy,
                                             const QString &query,
-                                            YubiKeyDBusClient *dbusClient);
+                                            YubiKeyManagerProxy *manager);
 
     /**
      * @brief Builds special match for authentication errors
@@ -131,5 +138,5 @@ private:
     const KRunner::Actions &m_actions;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Runner
+} // namespace YubiKeyOath

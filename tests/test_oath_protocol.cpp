@@ -6,7 +6,8 @@
 #include <QtTest>
 #include "daemon/oath/oath_protocol.h"
 
-using namespace KRunner::YubiKey;
+using namespace YubiKeyOath::Shared;
+using namespace YubiKeyOath::Daemon;
 
 /**
  * @brief Unit tests for OathProtocol

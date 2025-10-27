@@ -13,8 +13,9 @@
 class QDBusInterface;
 class QDBusConnection;
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using Shared::Result;
 
 /**
  * @brief Captures screenshots using KDE Spectacle
@@ -82,5 +83,5 @@ private:
     bool m_cancelled;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

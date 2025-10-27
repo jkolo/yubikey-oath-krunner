@@ -8,8 +8,8 @@
 #include <QObject>
 #include <QString>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
 
 /**
  * @brief Interface for accessing plugin configuration with reactive updates
@@ -85,5 +85,5 @@ Q_SIGNALS:
     void configurationChanged();
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Shared
+} // namespace YubiKeyOath

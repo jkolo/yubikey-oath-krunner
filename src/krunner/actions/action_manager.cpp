@@ -10,8 +10,8 @@
 #include <KLocalizedString>
 #include <QDebug>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Runner {
 
 QString ActionManager::determineAction(const KRunner::QueryMatch &match,
                                       const QString &primaryAction) const
@@ -81,5 +81,5 @@ QString ActionManager::getActionName(const QString &actionId) const
     return i18n("Unknown action");
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Runner
+} // namespace YubiKeyOath

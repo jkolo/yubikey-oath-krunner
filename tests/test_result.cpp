@@ -6,7 +6,7 @@
 #include <QtTest>
 #include "shared/common/result.h"
 
-using namespace KRunner::YubiKey;
+using namespace YubiKeyOath::Shared;
 
 /**
  * @brief Unit tests for Result<T> template

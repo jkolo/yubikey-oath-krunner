@@ -15,8 +15,8 @@ extern "C" {
 #include <liboeffis.h>
 }
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Modern Wayland text input using xdg-desktop-portal + libei
@@ -81,5 +81,5 @@ private:
     bool m_permissionRejected = false;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

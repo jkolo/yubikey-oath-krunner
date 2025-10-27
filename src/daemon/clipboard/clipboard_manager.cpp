@@ -11,8 +11,8 @@
 #include <QTimer>
 #include <QDebug>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 ClipboardManager::ClipboardManager(QObject *parent)
     : QObject(parent)
@@ -99,5 +99,5 @@ void ClipboardManager::onClearTimerTimeout()
     clearClipboard();
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

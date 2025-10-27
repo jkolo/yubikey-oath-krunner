@@ -7,8 +7,8 @@
 
 #include "text_input_provider.h"
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief X11-specific text input implementation
@@ -26,5 +26,5 @@ public:
     QString providerName() const override;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

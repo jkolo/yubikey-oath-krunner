@@ -6,8 +6,8 @@
 #include "async_waiter.h"
 #include <QCoreApplication>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 AsyncWaiter::WaitResult AsyncWaiter::waitFor(
     std::function<bool()> condition,
@@ -67,5 +67,5 @@ AsyncWaiter::WaitResult AsyncWaiter::waitFor(
     return result;
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

@@ -10,7 +10,6 @@
 #include "../notification/dbus_notification_manager.h"
 #include "../workflows/notification_orchestrator.h"
 #include "../workflows/notification_helper.h"
-#include "../workflows/add_credential_workflow.h"
 #include "../workflows/touch_handler.h"
 #include "../workflows/touch_workflow_coordinator.h"
 #include "../oath/yubikey_device_manager.h"
@@ -21,8 +20,9 @@
 
 #include <QDebug>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 YubiKeyActionCoordinator::YubiKeyActionCoordinator(YubiKeyDeviceManager *deviceManager,
                                          YubiKeyDatabase *database,
@@ -179,5 +179,5 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
     return result == ActionExecutor::ActionResult::Success;
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

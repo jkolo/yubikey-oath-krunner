@@ -12,8 +12,8 @@
 #include <QSqlDatabase>
 #include <optional>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Manages YubiKey device database using SQLite
@@ -158,5 +158,5 @@ private:
     bool ensureDirectoryExists() const;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

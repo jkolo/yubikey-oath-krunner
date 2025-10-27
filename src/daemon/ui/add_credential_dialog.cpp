@@ -25,8 +25,12 @@
 #include <QIcon>
 #include <KLocalizedString>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using Shared::OathCredentialData;
+using Shared::OathAlgorithm;
+using Shared::OathType;
+using Shared::Result;
 
 AddCredentialDialog::AddCredentialDialog(const OathCredentialData &initialData,
                                         const QStringList &availableDevices,
@@ -51,7 +55,7 @@ AddCredentialDialog::AddCredentialDialog(const OathCredentialData &initialData,
 
     // Preselect device if specified
     if (!preselectedDeviceId.isEmpty() && m_deviceCombo->isEnabled()) {
-        int index = m_deviceCombo->findData(preselectedDeviceId);
+        int const index = m_deviceCombo->findData(preselectedDeviceId);
         if (index >= 0) {
             m_deviceCombo->setCurrentIndex(index);
         }
@@ -116,7 +120,7 @@ void AddCredentialDialog::setupUi(const OathCredentialData &initialData,
     m_algorithmCombo->addItem(QStringLiteral("SHA1"), QVariant::fromValue(OathAlgorithm::SHA1));
     m_algorithmCombo->addItem(QStringLiteral("SHA256"), QVariant::fromValue(OathAlgorithm::SHA256));
     m_algorithmCombo->addItem(QStringLiteral("SHA512"), QVariant::fromValue(OathAlgorithm::SHA512));
-    int algoIndex = initialData.algorithm == OathAlgorithm::SHA256 ? 1 :
+    int const algoIndex = initialData.algorithm == OathAlgorithm::SHA256 ? 1 :
                    initialData.algorithm == OathAlgorithm::SHA512 ? 2 : 0;
     m_algorithmCombo->setCurrentIndex(algoIndex);
     formLayout->addRow(i18n("Algorithm:"), m_algorithmCombo);
@@ -199,7 +203,7 @@ void AddCredentialDialog::onTypeChanged(int index)
 
 void AddCredentialDialog::updateFieldsForType()
 {
-    bool isTotp = m_typeCombo->currentData().value<OathType>() == OathType::TOTP;
+    bool const isTotp = m_typeCombo->currentData().value<OathType>() == OathType::TOTP;
 
     // Show/hide fields based on type
     m_periodSpinBox->setVisible(isTotp);
@@ -234,7 +238,7 @@ bool AddCredentialDialog::validateAndBuildData()
     m_errorLabel->hide();
 
     // Validate issuer
-    QString issuer = m_issuerField->text().trimmed();
+    QString const issuer = m_issuerField->text().trimmed();
     if (issuer.isEmpty()) {
         m_errorLabel->setText(i18n("Issuer is required"));
         m_errorLabel->show();
@@ -243,7 +247,7 @@ bool AddCredentialDialog::validateAndBuildData()
     }
 
     // Validate account
-    QString account = m_accountField->text().trimmed();
+    QString const account = m_accountField->text().trimmed();
     if (account.isEmpty()) {
         m_errorLabel->setText(i18n("Account is required"));
         m_errorLabel->show();
@@ -252,7 +256,7 @@ bool AddCredentialDialog::validateAndBuildData()
     }
 
     // Validate secret
-    QString secret = m_secretField->text().trimmed();
+    QString const secret = m_secretField->text().trimmed();
     if (secret.isEmpty()) {
         m_errorLabel->setText(i18n("Secret is required"));
         m_errorLabel->show();
@@ -261,8 +265,8 @@ bool AddCredentialDialog::validateAndBuildData()
     }
 
     // Build and validate credential data
-    OathCredentialData data = getCredentialData();
-    QString validationError = data.validate();
+    OathCredentialData const data = getCredentialData();
+    QString const validationError = data.validate();
     if (!validationError.isEmpty()) {
         m_errorLabel->setText(validationError);
         m_errorLabel->show();
@@ -293,7 +297,7 @@ OathCredentialData AddCredentialDialog::getCredentialData() const
 QString AddCredentialDialog::getSelectedDeviceId() const
 {
     if (m_deviceCombo->count() == 0 || !m_deviceCombo->isEnabled()) {
-        return QString();
+        return {};
     }
     return m_deviceCombo->currentData().toString();
 }
@@ -306,9 +310,9 @@ void AddCredentialDialog::onScanQrClicked()
     showProcessingOverlay(i18n("Scanning screen"));
 
     // Create ScreenshotCapture in UI thread (QDBusInterface requires event loop)
-    if (m_screenshotCapture) {
+    
         delete m_screenshotCapture;
-    }
+    
     m_screenshotCapture = new ScreenshotCapture(this);
 
     // Connect signals for async screenshot handling
@@ -343,7 +347,7 @@ void AddCredentialDialog::fillFieldsFromQrData(const OathCredentialData &data)
     m_typeCombo->setCurrentIndex(data.type == OathType::TOTP ? 0 : 1);
 
     // Set algorithm
-    int algoIndex = data.algorithm == OathAlgorithm::SHA256 ? 1 :
+    int const algoIndex = data.algorithm == OathAlgorithm::SHA256 ? 1 :
                    data.algorithm == OathAlgorithm::SHA512 ? 2 : 0;
     m_algorithmCombo->setCurrentIndex(algoIndex);
 
@@ -371,7 +375,7 @@ void AddCredentialDialog::onScreenshotCaptured(const QString &filePath)
     updateOverlayStatus(i18n("Processing QR code"));
 
     // Run QR parsing + URI parsing in background thread (CPU-heavy)
-    QFuture<Result<OathCredentialData>> future = QtConcurrent::run([filePath]() -> Result<OathCredentialData> {
+    QFuture<Result<OathCredentialData>> const future = QtConcurrent::run([filePath]() -> Result<OathCredentialData> {
         qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Background QR parsing started";
 
         // Parse QR code from image (static method - thread-safe)
@@ -382,7 +386,7 @@ void AddCredentialDialog::onScreenshotCaptured(const QString &filePath)
             return Result<OathCredentialData>::error(i18n("No QR code found in the screenshot. Please try again."));
         }
 
-        QString otpauthUri = qrResult.value();
+        QString const otpauthUri = qrResult.value();
         qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: QR code parsed, URI length:" << otpauthUri.length();
 
         // Parse otpauth URI (static method - thread-safe)
@@ -465,5 +469,5 @@ void AddCredentialDialog::showMessage(const QString &text, int messageType)
     m_messageWidget->animatedShow();
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

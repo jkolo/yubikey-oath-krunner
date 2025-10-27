@@ -7,14 +7,14 @@
 
 #include <QLoggingCategory>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Qt Logging Categories for YubiKey OATH Daemon
  *
  * Control via environment:
- *   QT_LOGGING_RULES="org.kde.plasma.krunner.yubikey.*=true"
+ *   QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*=true"
  */
 
 // Daemon service
@@ -37,5 +37,5 @@ Q_DECLARE_LOGGING_CATEGORY(TouchWorkflowCoordinatorLog)
 Q_DECLARE_LOGGING_CATEGORY(TextInputLog)
 Q_DECLARE_LOGGING_CATEGORY(DBusNotificationLog)
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

@@ -14,8 +14,8 @@ class QPushButton;
 class QProgressBar;
 class QHBoxLayout;
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
 
 /**
  * @brief Simple password dialog for YubiKey authentication
@@ -108,5 +108,5 @@ private:
     void onNameEditingFinished();
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Shared
+} // namespace YubiKeyOath

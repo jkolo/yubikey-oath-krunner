@@ -10,8 +10,8 @@
 #include <QProcess>
 #include <QDebug>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 X11TextInput::X11TextInput(QObject *parent)
     : TextInputProvider(parent)
@@ -51,5 +51,5 @@ QString X11TextInput::providerName() const
     return QStringLiteral("X11");
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

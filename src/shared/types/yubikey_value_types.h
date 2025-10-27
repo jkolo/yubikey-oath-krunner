@@ -9,8 +9,8 @@
 #include <QMetaType>
 #include <QDBusArgument>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
 
 /**
  * @brief Information about a YubiKey device for D-Bus transfer
@@ -55,24 +55,24 @@ struct AddCredentialResult {
         : status(s), message(m) {}
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Shared
+} // namespace YubiKeyOath
 
 // Qt metatype registration
-Q_DECLARE_METATYPE(KRunner::YubiKey::DeviceInfo)
-Q_DECLARE_METATYPE(KRunner::YubiKey::CredentialInfo)
-Q_DECLARE_METATYPE(KRunner::YubiKey::GenerateCodeResult)
-Q_DECLARE_METATYPE(KRunner::YubiKey::AddCredentialResult)
+Q_DECLARE_METATYPE(YubiKeyOath::Shared::DeviceInfo)
+Q_DECLARE_METATYPE(YubiKeyOath::Shared::CredentialInfo)
+Q_DECLARE_METATYPE(YubiKeyOath::Shared::GenerateCodeResult)
+Q_DECLARE_METATYPE(YubiKeyOath::Shared::AddCredentialResult)
 
 // D-Bus marshaling operators
-QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::DeviceInfo &device);
-const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::DeviceInfo &device);
+QDBusArgument &operator<<(QDBusArgument &arg, const YubiKeyOath::Shared::DeviceInfo &device);
+const QDBusArgument &operator>>(const QDBusArgument &arg, YubiKeyOath::Shared::DeviceInfo &device);
 
-QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::CredentialInfo &cred);
-const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::CredentialInfo &cred);
+QDBusArgument &operator<<(QDBusArgument &arg, const YubiKeyOath::Shared::CredentialInfo &cred);
+const QDBusArgument &operator>>(const QDBusArgument &arg, YubiKeyOath::Shared::CredentialInfo &cred);
 
-QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::GenerateCodeResult &result);
-const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::GenerateCodeResult &result);
+QDBusArgument &operator<<(QDBusArgument &arg, const YubiKeyOath::Shared::GenerateCodeResult &result);
+const QDBusArgument &operator>>(const QDBusArgument &arg, YubiKeyOath::Shared::GenerateCodeResult &result);
 
-QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::AddCredentialResult &result);
-const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::AddCredentialResult &result);
+QDBusArgument &operator<<(QDBusArgument &arg, const YubiKeyOath::Shared::AddCredentialResult &result);
+const QDBusArgument &operator>>(const QDBusArgument &arg, YubiKeyOath::Shared::AddCredentialResult &result);

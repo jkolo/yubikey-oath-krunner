@@ -5,4 +5,4 @@
 
 #include "logging_categories.h"
 
-Q_LOGGING_CATEGORY(YubiKeyUILog, "org.kde.plasma.krunner.yubikey.ui")
+Q_LOGGING_CATEGORY(YubiKeyUILog, "pl.jkolo.yubikey.oath.daemon.ui")

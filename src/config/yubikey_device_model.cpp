@@ -4,28 +4,30 @@
  */
 
 #include "yubikey_device_model.h"
-#include "dbus/yubikey_dbus_client.h"
+#include "dbus/yubikey_manager_proxy.h"
+#include "dbus/yubikey_device_proxy.h"
 #include "ui/password_dialog_helper.h"
 #include "logging_categories.h"
 
 #include <KLocalizedString>
 #include <QDebug>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Config {
+using namespace YubiKeyOath::Shared;
 
-YubiKeyDeviceModel::YubiKeyDeviceModel(YubiKeyDBusClient *dbusClient, QObject *parent)
+YubiKeyDeviceModel::YubiKeyDeviceModel(YubiKeyManagerProxy *manager, QObject *parent)
     : QAbstractListModel(parent)
-    , m_dbusClient(dbusClient)
+    , m_manager(manager)
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Initialized with D-Bus client";
+    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Initialized with manager proxy";
 
-    // Connect to D-Bus client signals for real-time updates
-    connect(m_dbusClient, &YubiKeyDBusClient::deviceConnected,
+    // Connect to manager proxy signals for real-time updates
+    connect(m_manager, &YubiKeyManagerProxy::deviceConnected,
             this, &YubiKeyDeviceModel::onDeviceConnected);
-    connect(m_dbusClient, &YubiKeyDBusClient::deviceDisconnected,
+    connect(m_manager, &YubiKeyManagerProxy::deviceDisconnected,
             this, &YubiKeyDeviceModel::onDeviceDisconnected);
-    connect(m_dbusClient, &YubiKeyDBusClient::credentialsUpdated,
+    connect(m_manager, &YubiKeyManagerProxy::credentialsChanged,
             this, &YubiKeyDeviceModel::onCredentialsUpdated);
 
     // Initial refresh
@@ -81,12 +83,16 @@ QHash<int, QByteArray> YubiKeyDeviceModel::roleNames() const
 
 void YubiKeyDeviceModel::refreshDevices()
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Refreshing device list from daemon";
+    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Refreshing device list from manager proxy";
 
     beginResetModel();
 
-    // Get all devices from daemon via D-Bus
-    m_devices = m_dbusClient->listDevices();
+    // Get all devices from manager proxy and convert to DeviceInfo
+    m_devices.clear();
+    QList<YubiKeyDeviceProxy*> deviceProxies = m_manager->devices();
+    for (const auto *deviceProxy : deviceProxies) {
+        m_devices.append(deviceProxy->toDeviceInfo());
+    }
 
     endResetModel();
 
@@ -134,8 +140,16 @@ bool YubiKeyDeviceModel::testAndSavePassword(const QString &deviceId, const QStr
         return false;
     }
 
-    // Test and save password via D-Bus
-    bool success = m_dbusClient->savePassword(deviceId, password);
+    // Get device proxy
+    YubiKeyDeviceProxy *deviceProxy = m_manager->getDevice(deviceId);
+    if (!deviceProxy) {
+        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found:" << deviceId;
+        Q_EMIT passwordTestFailed(deviceId, i18n("Device not found"));
+        return false;
+    }
+
+    // Test and save password via device proxy
+    bool success = deviceProxy->savePassword(password);
 
     if (success) {
         qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Password saved successfully";
@@ -186,10 +200,10 @@ void YubiKeyDeviceModel::showPasswordDialog(const QString &deviceId,
     PasswordDialogHelper::showDialog(
         deviceId,
         deviceName,
-        m_dbusClient,
+        m_manager,
         this,
         [this]() {
-            // Success - refresh device list from daemon
+            // Success - refresh device list from manager
             refreshDevices();
         }
     );
@@ -205,8 +219,15 @@ void YubiKeyDeviceModel::forgetDevice(const QString &deviceId)
         return;
     }
 
-    // Forget device via D-Bus (daemon will remove from database and delete password)
-    m_dbusClient->forgetDevice(deviceId);
+    // Get device proxy
+    YubiKeyDeviceProxy *deviceProxy = m_manager->getDevice(deviceId);
+    if (!deviceProxy) {
+        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device proxy not found:" << deviceId;
+        return;
+    }
+
+    // Forget device via device proxy (daemon will remove from database and delete password)
+    deviceProxy->forget();
 
     // Remove device from model
     beginRemoveRows(QModelIndex(), row, row);
@@ -234,39 +255,45 @@ bool YubiKeyDeviceModel::setDeviceName(const QString &deviceId, const QString &n
         return false;
     }
 
-    // Update via D-Bus
-    bool success = m_dbusClient->setDeviceName(deviceId, trimmedName);
-
-    if (success) {
-        qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device name updated successfully via D-Bus";
-
-        // Update local model
-        DeviceInfo *device = findDevice(deviceId);
-        if (device) {
-            device->deviceName = trimmedName;
-
-            // Notify QML of change
-            int row = findDeviceIndex(deviceId);
-            if (row >= 0) {
-                QModelIndex idx = index(row);
-                Q_EMIT dataChanged(idx, idx, {DeviceNameRole});
-                qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Model updated and QML notified";
-            }
-        } else {
-            qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found in local model after successful D-Bus update";
-        }
-    } else {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Failed to update device name via D-Bus";
+    // Get device proxy
+    YubiKeyDeviceProxy *deviceProxy = m_manager->getDevice(deviceId);
+    if (!deviceProxy) {
+        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device proxy not found:" << deviceId;
+        return false;
     }
 
-    return success;
+    // Update via device proxy
+    deviceProxy->setName(trimmedName);
+
+    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device name updated successfully via device proxy";
+
+    // Update local model
+    DeviceInfo *device = findDevice(deviceId);
+    if (device) {
+        device->deviceName = trimmedName;
+
+        // Notify QML of change
+        int row = findDeviceIndex(deviceId);
+        if (row >= 0) {
+            QModelIndex idx = index(row);
+            Q_EMIT dataChanged(idx, idx, {DeviceNameRole});
+            qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Model updated and QML notified";
+        }
+    } else {
+        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found in local model after successful D-Bus update";
+    }
+
+    return true;
 }
 
-void YubiKeyDeviceModel::onDeviceConnected(const QString &deviceId)
+void YubiKeyDeviceModel::onDeviceConnected(YubiKeyDeviceProxy *device)
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device connected:" << deviceId;
+    if (device) {
+        qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device connected:"
+                                  << device->deviceId() << device->name();
+    }
 
-    // Refresh device list from daemon
+    // Refresh device list from manager
     refreshDevices();
 }
 
@@ -274,15 +301,15 @@ void YubiKeyDeviceModel::onDeviceDisconnected(const QString &deviceId)
 {
     qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device disconnected:" << deviceId;
 
-    // Refresh device list from daemon
+    // Refresh device list from manager
     refreshDevices();
 }
 
-void YubiKeyDeviceModel::onCredentialsUpdated(const QString &deviceId)
+void YubiKeyDeviceModel::onCredentialsUpdated()
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Credentials updated for device:" << deviceId;
+    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Credentials updated";
 
-    // Refresh device list from daemon
+    // Refresh device list from manager
     refreshDevices();
 }
 
@@ -306,5 +333,5 @@ int YubiKeyDeviceModel::findDeviceIndex(const QString &deviceId) const
     return -1;
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Config
+} // namespace YubiKeyOath

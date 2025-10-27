@@ -5,8 +5,8 @@
 
 #pragma once
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
 namespace ConfigKeys {
 
 /**
@@ -33,5 +33,5 @@ constexpr const char *TOUCH_TIMEOUT = "TouchTimeout";
 constexpr const char *PRIMARY_ACTION = "PrimaryAction";
 
 } // namespace ConfigKeys
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Shared
+} // namespace YubiKeyOath

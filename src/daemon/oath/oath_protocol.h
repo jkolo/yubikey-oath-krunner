@@ -11,8 +11,9 @@
 #include "types/oath_credential.h"
 #include "types/oath_credential_data.h"
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 /**
  * @brief Stateless utility class for OATH protocol operations
@@ -225,5 +226,5 @@ private:
     OathProtocol() = delete;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

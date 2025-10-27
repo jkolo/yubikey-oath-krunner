@@ -15,8 +15,9 @@
 #include <KLocalizedString>
 #include <QDebug>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 ActionExecutor::ActionExecutor(TextInputProvider *textInput,
                                ClipboardManager *clipboardManager,
@@ -199,5 +200,5 @@ ActionExecutor::ActionResult ActionExecutor::checkAndWaitForModifiers(const QStr
     return ActionResult::Failed;
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

@@ -6,7 +6,7 @@
 #include <QtTest>
 #include "daemon/formatting/code_validator.h"
 
-using namespace KRunner::YubiKey;
+using namespace YubiKeyOath::Daemon;
 
 /**
  * @brief Unit tests for CodeValidator

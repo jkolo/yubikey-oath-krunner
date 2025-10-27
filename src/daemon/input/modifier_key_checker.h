@@ -8,8 +8,8 @@
 #include <QString>
 #include <QStringList>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Utility class for checking keyboard modifier key states
@@ -101,5 +101,5 @@ private:
     ModifierKeyChecker& operator=(const ModifierKeyChecker&) = delete;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

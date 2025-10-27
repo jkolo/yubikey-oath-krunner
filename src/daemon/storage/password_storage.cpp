@@ -10,8 +10,8 @@
 #include <QDebug>
 #include <QDateTime>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 PasswordStorage::PasswordStorage(QObject *parent)
     : QObject(parent)
@@ -34,7 +34,7 @@ QString PasswordStorage::loadPasswordSync(const QString &deviceId)
 
     if (deviceId.isEmpty()) {
         qCWarning(PasswordStorageLog) << "Device ID is empty";
-        return QString();
+        return {};
     }
 
     using namespace KWallet;
@@ -44,10 +44,10 @@ QString PasswordStorage::loadPasswordSync(const QString &deviceId)
 
     if (!wallet || !wallet->isOpen()) {
         qCWarning(PasswordStorageLog) << "Could not open KWallet synchronously";
-        if (wallet) {
+        
             delete wallet;
-        }
-        return QString();
+        
+        return {};
     }
 
     // Create folder if it doesn't exist
@@ -59,7 +59,7 @@ QString PasswordStorage::loadPasswordSync(const QString &deviceId)
     if (!wallet->setFolder(walletFolder())) {
         qCWarning(PasswordStorageLog) << "Failed to set KWallet folder";
         delete wallet;
-        return QString();
+        return {};
     }
 
     // Read password for this device
@@ -156,8 +156,8 @@ bool PasswordStorage::removePassword(const QString &deviceId)
         return false;
     }
 
-    QString key = passwordKey(deviceId);
-    int result = m_wallet->removeEntry(key);
+    QString const key = passwordKey(deviceId);
+    int const result = m_wallet->removeEntry(key);
 
     if (result == 0) {
         qCDebug(PasswordStorageLog) << "Password removed successfully for:" << deviceId;
@@ -168,5 +168,5 @@ bool PasswordStorage::removePassword(const QString &deviceId)
     }
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

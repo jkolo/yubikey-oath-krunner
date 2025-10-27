@@ -20,8 +20,9 @@
 #else
 #include <winscard.h>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 #endif
 
 YubiKeyOathDevice::YubiKeyOathDevice(const QString &deviceId,
@@ -262,5 +263,5 @@ void YubiKeyOathDevice::cancelPendingOperation()
     m_session->cancelOperation();
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

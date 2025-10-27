@@ -9,8 +9,8 @@
 #include <QEventLoop>
 #include <QTimer>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Utility for async condition waiting with event loop processing
@@ -83,5 +83,5 @@ public:
     );
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

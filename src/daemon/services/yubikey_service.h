@@ -9,23 +9,24 @@
 #include <QString>
 #include <QList>
 #include <memory>
-#include "dbus/yubikey_dbus_types.h"
+#include "types/yubikey_value_types.h"
 #include "types/oath_credential.h"
+#include "types/oath_credential_data.h"
 
 // Forward declarations
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
     class YubiKeyDeviceManager;
     class YubiKeyDatabase;
     class PasswordStorage;
     class DaemonConfiguration;
     class YubiKeyActionCoordinator;
-    struct OathCredentialData;
 }
 }
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 /**
  * @brief Business logic service for YubiKey operations
@@ -165,10 +166,20 @@ Q_SIGNALS:
     void deviceConnected(const QString &deviceId);
 
     /**
-     * @brief Emitted when a device is disconnected
+     * @brief Emitted when a device is disconnected (physically removed)
      * @param deviceId Device ID
+     *
+     * Device object should remain on D-Bus with IsConnected=false
      */
     void deviceDisconnected(const QString &deviceId);
+
+    /**
+     * @brief Emitted when a device is forgotten (removed from config)
+     * @param deviceId Device ID
+     *
+     * Device object should be completely removed from D-Bus
+     */
+    void deviceForgotten(const QString &deviceId);
 
     /**
      * @brief Emitted when credentials are updated for a device
@@ -215,5 +226,5 @@ private:
     std::unique_ptr<YubiKeyActionCoordinator> m_actionCoordinator;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

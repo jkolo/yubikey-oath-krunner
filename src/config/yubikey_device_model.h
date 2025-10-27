@@ -5,17 +5,24 @@
 
 #pragma once
 
-#include "dbus/yubikey_dbus_types.h"
+#include "types/yubikey_value_types.h"
 #include <QAbstractListModel>
 #include <QDateTime>
 #include <QString>
 #include <QList>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
+class YubiKeyManagerProxy;
+class YubiKeyDeviceProxy;
+}
+
+namespace Config {
+using Shared::YubiKeyManagerProxy;
+using Shared::YubiKeyDeviceProxy;
+using Shared::DeviceInfo;
 
 // Forward declarations
-class YubiKeyDBusClient;
 class PasswordDialog;
 
 /**
@@ -46,10 +53,10 @@ public:
 
     /**
      * @brief Constructs device model
-     * @param dbusClient YubiKeyDBusClient instance for D-Bus communication with daemon
+     * @param manager YubiKeyManagerProxy instance for D-Bus communication with daemon
      * @param parent Parent QObject
      */
-    explicit YubiKeyDeviceModel(YubiKeyDBusClient *dbusClient, QObject *parent = nullptr);
+    explicit YubiKeyDeviceModel(YubiKeyManagerProxy *manager, QObject *parent = nullptr);
 
     // QAbstractListModel interface
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
@@ -131,9 +138,9 @@ Q_SIGNALS:
 private Q_SLOTS:
     /**
      * @brief Handles device connection event from daemon
-     * @param deviceId Device ID that was connected
+     * @param device Device proxy that was connected
      */
-    void onDeviceConnected(const QString &deviceId);
+    void onDeviceConnected(YubiKeyDeviceProxy *device);
 
     /**
      * @brief Handles device disconnection event from daemon
@@ -143,12 +150,11 @@ private Q_SLOTS:
 
     /**
      * @brief Handles credentials update from daemon
-     * @param deviceId Device ID with updated credentials
      */
-    void onCredentialsUpdated(const QString &deviceId);
+    void onCredentialsUpdated();
 
 private:
-    YubiKeyDBusClient *m_dbusClient;
+    YubiKeyManagerProxy *m_manager;
     QList<DeviceInfo> m_devices;
 
     /**
@@ -166,5 +172,5 @@ private:
     int findDeviceIndex(const QString &deviceId) const;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Config
+} // namespace YubiKeyOath

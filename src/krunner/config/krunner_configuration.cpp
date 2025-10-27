@@ -8,8 +8,9 @@
 #include <KConfigGroup>
 #include <KConfig>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Runner {
+using namespace YubiKeyOath::Shared;
 
 KRunnerConfiguration::KRunnerConfiguration(std::function<KConfigGroup()> configGroup, QObject *parent)
     : ConfigurationProvider(parent)
@@ -65,5 +66,5 @@ QString KRunnerConfiguration::primaryAction() const
     return readConfigEntry(ConfigKeys::PRIMARY_ACTION, QStringLiteral("copy"));
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Runner
+} // namespace YubiKeyOath

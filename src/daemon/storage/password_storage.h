@@ -14,8 +14,8 @@ namespace KWallet
 class Wallet;
 }
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Manages secure password storage using KWallet
@@ -64,5 +64,5 @@ private:
     bool ensureWalletOpen();
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

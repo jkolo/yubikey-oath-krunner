@@ -14,8 +14,9 @@
 #include <QDebug>
 #include <KLocalizedString>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 ScreenshotCapture::ScreenshotCapture(QObject *parent)
     : QObject(parent)
@@ -225,5 +226,5 @@ void ScreenshotCapture::onSpectacleScreenshotFailed(const QString &errorMessage)
     Q_EMIT screenshotCancelled();
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

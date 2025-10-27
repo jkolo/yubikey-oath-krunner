@@ -19,8 +19,9 @@
 #include <QFutureWatcher>
 #include <QDebug>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 TouchWorkflowCoordinator::TouchWorkflowCoordinator(YubiKeyDeviceManager *deviceManager,
                                                    YubiKeyDatabase *database,
@@ -56,7 +57,7 @@ void TouchWorkflowCoordinator::startTouchWorkflow(const QString &credentialName,
 
     m_pendingActionId = actionId;
     m_pendingDeviceId = deviceId;
-    int timeout = m_config->touchTimeout();
+    int const timeout = m_config->touchTimeout();
     qCDebug(TouchWorkflowCoordinatorLog) << "Touch timeout from config:" << timeout << "seconds";
 
     // Start touch operation
@@ -70,7 +71,7 @@ void TouchWorkflowCoordinator::startTouchWorkflow(const QString &credentialName,
 
     auto *watcher = new QFutureWatcher<QString>(this);
     connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher, credentialName]() {
-        QString code = watcher->result();
+        QString const code = watcher->result();
         if (!code.isEmpty()) {
             onCodeGenerated(credentialName, code);
         } else {
@@ -79,11 +80,11 @@ void TouchWorkflowCoordinator::startTouchWorkflow(const QString &credentialName,
         watcher->deleteLater();
     });
 
-    QFuture<QString> future = QtConcurrent::run([this, deviceId, credentialName]() -> QString {
-        auto device = m_deviceManager->getDeviceOrFirst(deviceId);
+    QFuture<QString> const future = QtConcurrent::run([this, deviceId, credentialName]() -> QString {
+        auto *device = m_deviceManager->getDeviceOrFirst(deviceId);
         if (!device) {
             qCWarning(TouchWorkflowCoordinatorLog) << "Device not found:" << deviceId;
-            return QString();
+            return {};
         }
 
         auto result = device->generateCode(credentialName);
@@ -91,7 +92,7 @@ void TouchWorkflowCoordinator::startTouchWorkflow(const QString &credentialName,
             return result.value();
         } else {
             qCWarning(TouchWorkflowCoordinatorLog) << "Code generation failed:" << result.error();
-            return QString();
+            return {};
         }
     });
     watcher->setFuture(future);
@@ -103,7 +104,7 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
              << "code length:" << code.length();
 
     // Verify this is for the credential we're waiting for
-    QString waitingFor = m_touchHandler->waitingCredential();
+    QString const waitingFor = m_touchHandler->waitingCredential();
     if (waitingFor != credentialName) {
         qCDebug(TouchWorkflowCoordinatorLog) << "Ignoring code for" << credentialName
                  << "- waiting for:" << waitingFor;
@@ -119,7 +120,7 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
     m_touchHandler->cancelTouchOperation();
 
     // Find credential and format display name according to configuration
-    QList<OathCredential> credentials = m_deviceManager->getCredentials();
+    QList<OathCredential> const credentials = m_deviceManager->getCredentials();
     OathCredential foundCredential;
     bool credentialFound = false;
 
@@ -140,7 +141,7 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
             deviceName = dbRecord->deviceName;
         }
 
-        int connectedDeviceCount = m_deviceManager->getConnectedDeviceIds().size();
+        int const connectedDeviceCount = m_deviceManager->getConnectedDeviceIds().size();
 
         formattedTitle = CredentialFormatter::formatDisplayName(
             foundCredential,
@@ -156,7 +157,7 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
     }
 
     // Execute the pending action using unified notification policy
-    QString actionId = m_pendingActionId.isEmpty() ? QStringLiteral("copy") : m_pendingActionId;
+    QString const actionId = m_pendingActionId.isEmpty() ? QStringLiteral("copy") : m_pendingActionId;
     qCDebug(TouchWorkflowCoordinatorLog) << "Executing action after touch:" << actionId;
 
     // Use YubiKeyActionCoordinator's unified executeActionWithNotification() method
@@ -177,7 +178,7 @@ void TouchWorkflowCoordinator::onCodeGenerationFailed(const QString &credentialN
              << "error:" << error;
 
     // Verify this is for the credential we're waiting for
-    QString waitingFor = m_touchHandler->waitingCredential();
+    QString const waitingFor = m_touchHandler->waitingCredential();
     if (waitingFor != credentialName) {
         qCDebug(TouchWorkflowCoordinatorLog) << "Ignoring failure for" << credentialName
                  << "- waiting for:" << waitingFor;
@@ -211,7 +212,7 @@ void TouchWorkflowCoordinator::onTouchCancelled()
 {
     qCDebug(TouchWorkflowCoordinatorLog) << "Touch operation cancelled by user";
 
-    QString credentialName = m_touchHandler->waitingCredential();
+    QString const credentialName = m_touchHandler->waitingCredential();
     cleanupTouchWorkflow();
 
     m_notificationOrchestrator->showSimpleNotification(
@@ -228,5 +229,5 @@ void TouchWorkflowCoordinator::cleanupTouchWorkflow()
     m_pendingDeviceId.clear();
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

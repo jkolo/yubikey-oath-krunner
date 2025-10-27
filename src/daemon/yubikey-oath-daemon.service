@@ -5,7 +5,7 @@ After=graphical-session.target
 
 [Service]
 Type=dbus
-BusName=org.kde.plasma.krunner.yubikey
+BusName=pl.jkolo.yubikey.oath.daemon
 ExecStart=/usr/bin/yubikey-oath-daemon
 Slice=session.slice
 TimeoutStopSec=5sec

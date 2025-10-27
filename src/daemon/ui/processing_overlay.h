@@ -13,8 +13,8 @@ class QLabel;
 class QTimer;
 class QGraphicsOpacityEffect;
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Semi-transparent overlay widget with animated processing status
@@ -83,5 +83,5 @@ private:
     int m_animationDots;        // Current dot count (0-3)
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

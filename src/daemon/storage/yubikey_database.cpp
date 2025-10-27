@@ -12,8 +12,8 @@
 #include <QDir>
 #include <QVariant>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 YubiKeyDatabase::YubiKeyDatabase(QObject *parent)
     : QObject(parent)
@@ -23,7 +23,7 @@ YubiKeyDatabase::YubiKeyDatabase(QObject *parent)
 
 YubiKeyDatabase::~YubiKeyDatabase()
 {
-    QString connectionName = m_db.connectionName();
+    const QString connectionName = m_db.connectionName();
     if (m_db.isOpen()) {
         qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Closing database connection";
         m_db.close();
@@ -49,10 +49,10 @@ QString YubiKeyDatabase::getDatabasePath() const
 
 bool YubiKeyDatabase::ensureDirectoryExists() const
 {
-    QString dataPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
-    QString dbDir = dataPath + QStringLiteral("/krunner-yubikey");
+    const QString dataPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+    const QString dbDir = dataPath + QStringLiteral("/krunner-yubikey");
 
-    QDir dir;
+    const QDir dir;
     if (!dir.exists(dbDir)) {
         qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Creating directory:" << dbDir;
         if (!dir.mkpath(dbDir)) {
@@ -74,7 +74,7 @@ bool YubiKeyDatabase::initialize()
     }
 
     // Get database path
-    QString dbPath = getDatabasePath();
+    QString const dbPath = getDatabasePath();
     qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Database path:" << dbPath;
 
     // Open SQLite database
@@ -105,7 +105,7 @@ bool YubiKeyDatabase::createTables()
 
     QSqlQuery query(m_db);
 
-    QString createTableSql = QStringLiteral(
+    QString const createTableSql = QStringLiteral(
         "CREATE TABLE IF NOT EXISTS devices ("
         "device_id TEXT PRIMARY KEY, "
         "device_name TEXT NOT NULL, "
@@ -239,12 +239,12 @@ std::optional<YubiKeyDatabase::DeviceRecord> YubiKeyDatabase::getDevice(const QS
     record.deviceName = query.value(1).toString();
     record.requiresPassword = query.value(2).toInt() != 0;
 
-    QString lastSeenStr = query.value(3).toString();
+    QString const lastSeenStr = query.value(3).toString();
     if (!lastSeenStr.isEmpty()) {
         record.lastSeen = QDateTime::fromString(lastSeenStr, Qt::ISODate);
     }
 
-    QString createdAtStr = query.value(4).toString();
+    QString const createdAtStr = query.value(4).toString();
     if (!createdAtStr.isEmpty()) {
         record.createdAt = QDateTime::fromString(createdAtStr, Qt::ISODate);
     }
@@ -274,12 +274,12 @@ QList<YubiKeyDatabase::DeviceRecord> YubiKeyDatabase::getAllDevices()
         record.deviceName = query.value(1).toString();
         record.requiresPassword = query.value(2).toInt() != 0;
 
-        QString lastSeenStr = query.value(3).toString();
+        QString const lastSeenStr = query.value(3).toString();
         if (!lastSeenStr.isEmpty()) {
             record.lastSeen = QDateTime::fromString(lastSeenStr, Qt::ISODate);
         }
 
-        QString createdAtStr = query.value(4).toString();
+        QString const createdAtStr = query.value(4).toString();
         if (!createdAtStr.isEmpty()) {
             record.createdAt = QDateTime::fromString(createdAtStr, Qt::ISODate);
         }
@@ -332,7 +332,7 @@ bool YubiKeyDatabase::requiresPassword(const QString &deviceId)
         return false;
     }
 
-    bool requiresPass = query.value(0).toInt() != 0;
+    bool const requiresPass = query.value(0).toInt() != 0;
     qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device requires password:" << requiresPass;
     return requiresPass;
 }
@@ -355,10 +355,10 @@ bool YubiKeyDatabase::hasDevice(const QString &deviceId)
         return false;
     }
 
-    bool exists = query.value(0).toInt() > 0;
+    bool const exists = query.value(0).toInt() > 0;
     qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device exists:" << exists;
     return exists;
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

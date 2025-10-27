@@ -1,10 +1,23 @@
 # YubiKey OATH D-Bus Daemon
 
-# Generate D-Bus adaptor from XML interface
+# Generate D-Bus adaptors from XML interfaces
+# New hierarchical D-Bus interfaces
 qt6_add_dbus_adaptor(DBUS_ADAPTOR_SRCS
-    org.kde.plasma.krunner.yubikey.xml
-    yubikey_dbus_service.h
-    KRunner::YubiKey::YubiKeyDBusService
+    dbus/pl.jkolo.yubikey.oath.Manager.xml
+    dbus/yubikey_manager_object.h
+    YubiKeyOath::Daemon::YubiKeyManagerObject
+)
+
+qt6_add_dbus_adaptor(DBUS_ADAPTOR_SRCS
+    dbus/pl.jkolo.yubikey.oath.Device.xml
+    dbus/yubikey_device_object.h
+    YubiKeyOath::Daemon::YubiKeyDeviceObject
+)
+
+qt6_add_dbus_adaptor(DBUS_ADAPTOR_SRCS
+    dbus/pl.jkolo.yubikey.oath.Credential.xml
+    dbus/yubikey_credential_object.h
+    YubiKeyOath::Daemon::YubiKeyCredentialObject
 )
 
 # Add Qt resources for icons
@@ -18,10 +31,15 @@ add_executable(yubikey-oath-daemon
     # Main daemon files
     main.cpp
     yubikey_dbus_service.cpp
-    ../shared/dbus/yubikey_dbus_types.cpp
+    ../shared/types/yubikey_value_types.cpp
     ../shared/config/configuration_provider.cpp
     ${DBUS_ADAPTOR_SRCS}
     ${DAEMON_RESOURCES}
+
+    # New D-Bus object hierarchy
+    dbus/yubikey_manager_object.cpp
+    dbus/yubikey_device_object.cpp
+    dbus/yubikey_credential_object.cpp
 
     # OATH components (PC/SC communication)
     oath/yubikey_device_manager.cpp
@@ -64,7 +82,6 @@ add_executable(yubikey-oath-daemon
     workflows/notification_orchestrator.cpp
     workflows/touch_handler.cpp
     workflows/touch_workflow_coordinator.cpp
-    workflows/add_credential_workflow.cpp
     workflows/notification_helper.cpp
     workflows/notification_utils.cpp
 
@@ -120,7 +137,7 @@ target_link_libraries(yubikey-oath-daemon
     KF6::GuiAddons   # Provides KSystemClipboard for Wayland
     KF6::WidgetsAddons  # Provides KMessageWidget for inline messages
     Plasma::KWaylandClient
-    yubikey_dbus_client  # D-Bus client library for workflows
+    yubikey_dbus_client  # For CredentialFormatter
     ${PCSCLITE_LIBRARIES}
     PkgConfig::ZXing
     PkgConfig::X11
@@ -148,13 +165,13 @@ install(TARGETS yubikey-oath-daemon
         DESTINATION ${KDE_INSTALL_BINDIR})
 
 # D-Bus service activation file
-install(FILES org.kde.plasma.krunner.yubikey.service
+install(FILES pl.jkolo.yubikey.oath.daemon.service
         DESTINATION ${KDE_INSTALL_DBUSSERVICEDIR})
 
 # systemd user service file
-install(FILES plasma-yubikey-oath-daemon.service
+install(FILES yubikey-oath-daemon.service
         DESTINATION ${KDE_INSTALL_SYSTEMDUSERUNITDIR})
 
 # Desktop file for app ID
-install(FILES org.kde.plasma.krunner.yubikey.desktop
+install(FILES pl.jkolo.yubikey.oath.daemon.desktop
         DESTINATION ${KDE_INSTALL_APPDIR})

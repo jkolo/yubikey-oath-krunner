@@ -9,14 +9,15 @@
 #include "../logging_categories.h"
 #include <QDebug>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 int NotificationHelper::calculateNotificationDuration(const ConfigurationProvider *config)
 {
-    int remainingValidity = CodeValidator::calculateCodeValidity();
-    int extraTime = config->notificationExtraTime();
-    int totalDuration = remainingValidity + extraTime;
+    int const remainingValidity = CodeValidator::calculateCodeValidity();
+    int const extraTime = config->notificationExtraTime();
+    int const totalDuration = remainingValidity + extraTime;
 
     qCDebug(NotificationOrchestratorLog) << "NotificationHelper: calculateNotificationDuration"
                                          << "remainingValidity:" << remainingValidity
@@ -32,8 +33,8 @@ NotificationHelper::TimerProgress NotificationHelper::calculateTimerProgress(
 {
     TimerProgress progress;
 
-    qint64 now = QDateTime::currentSecsSinceEpoch();
-    qint64 expiration = expirationTime.toSecsSinceEpoch();
+    qint64 const now = QDateTime::currentSecsSinceEpoch();
+    qint64 const expiration = expirationTime.toSecsSinceEpoch();
 
     progress.remainingSeconds = static_cast<int>(expiration - now);
     progress.totalSeconds = totalSeconds;
@@ -49,5 +50,5 @@ NotificationHelper::TimerProgress NotificationHelper::calculateTimerProgress(
     return progress;
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

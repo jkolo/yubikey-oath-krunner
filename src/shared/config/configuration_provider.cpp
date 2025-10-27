@@ -5,8 +5,8 @@
 
 #include "configuration_provider.h"
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
 
 // This file provides implementation location for ConfigurationProvider
 // to resolve vtable issues with Qt MOC.
@@ -21,5 +21,5 @@ namespace YubiKey {
 
 ConfigurationProvider::~ConfigurationProvider() = default;
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Shared
+} // namespace YubiKeyOath

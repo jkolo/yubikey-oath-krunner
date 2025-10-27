@@ -8,8 +8,13 @@
 #include <QObject>
 #include <QString>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
+class ConfigurationProvider;
+}
+
+namespace Daemon {
+using Shared::ConfigurationProvider;
 
 // Forward declarations
 class YubiKeyDeviceManager;
@@ -17,7 +22,6 @@ class YubiKeyDatabase;
 class YubiKeyActionCoordinator;
 class TouchHandler;
 class NotificationOrchestrator;
-class ConfigurationProvider;
 
 /**
  * @brief Coordinates the workflow for touch-required credentials
@@ -143,5 +147,5 @@ private:
     QString m_pendingDeviceId; // Device ID for pending touch operation
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

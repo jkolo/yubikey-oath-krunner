@@ -5,20 +5,21 @@
 
 #include "daemon_configuration.h"
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 DaemonConfiguration::DaemonConfiguration(QObject *parent)
     : ConfigurationProvider(parent)
-    , m_config(KSharedConfig::openConfig(QStringLiteral("krunnerrc")))
-    , m_configGroup(m_config->group(QStringLiteral("Runners")).group(QStringLiteral("krunner_yubikey")))
+    , m_config(KSharedConfig::openConfig(QStringLiteral("yubikey-oathrc")))
+    , m_configGroup(m_config->group(QStringLiteral("General")))
 {
 }
 
 void DaemonConfiguration::reload()
 {
     m_config->reparseConfiguration();
-    m_configGroup = m_config->group(QStringLiteral("Runners")).group(QStringLiteral("krunner_yubikey"));
+    m_configGroup = m_config->group(QStringLiteral("General"));
     Q_EMIT configurationChanged();
 }
 
@@ -69,5 +70,5 @@ QString DaemonConfiguration::primaryAction() const
     return readConfigEntry(ConfigKeys::PRIMARY_ACTION, QStringLiteral("copy"));
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

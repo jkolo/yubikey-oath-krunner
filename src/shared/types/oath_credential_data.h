@@ -10,8 +10,8 @@
 #include <QDebug>
 #include <KLocalizedString>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
 
 /**
  * @brief OATH algorithm types
@@ -128,10 +128,10 @@ inline OathAlgorithm algorithmFromString(const QString &str) {
     return OathAlgorithm::SHA1; // Default
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Shared
+} // namespace YubiKeyOath
 
 // Register with Qt meta-type system for use in signals/slots
-Q_DECLARE_METATYPE(KRunner::YubiKey::OathCredentialData)
-Q_DECLARE_METATYPE(KRunner::YubiKey::OathAlgorithm)
-Q_DECLARE_METATYPE(KRunner::YubiKey::OathType)
+Q_DECLARE_METATYPE(YubiKeyOath::Shared::OathCredentialData)
+Q_DECLARE_METATYPE(YubiKeyOath::Shared::OathAlgorithm)
+Q_DECLARE_METATYPE(YubiKeyOath::Shared::OathType)

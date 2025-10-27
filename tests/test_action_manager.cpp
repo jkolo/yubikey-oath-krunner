@@ -9,7 +9,7 @@
 #include <KRunner/Action>
 #include "krunner/actions/action_manager.h"
 
-using namespace KRunner::YubiKey;
+using namespace YubiKeyOath::Runner;
 
 /**
  * @brief Minimal KRunner for testing

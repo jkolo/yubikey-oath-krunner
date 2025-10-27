@@ -11,8 +11,9 @@
 #include <QRandomGenerator>
 #include <QDebug>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 OathSession::OathSession(SCARDHANDLE cardHandle,
                          DWORD protocol,
@@ -442,5 +443,5 @@ QByteArray OathSession::deriveKeyPbkdf2(const QByteArray &password,
     return derivedKey.left(keyLength);
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

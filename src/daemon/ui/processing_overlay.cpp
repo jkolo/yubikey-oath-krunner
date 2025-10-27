@@ -13,8 +13,8 @@
 #include <QPalette>
 #include <QColor>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 ProcessingOverlay::ProcessingOverlay(QWidget *parent)
     : QWidget(parent)
@@ -174,7 +174,7 @@ void ProcessingOverlay::onAnimationTick()
     m_animationDots = (m_animationDots + 1) % 4;
 
     // Update dots label only (main text stays unchanged)
-    QString dots = QStringLiteral(".").repeated(m_animationDots);
+    QString const dots = QStringLiteral(".").repeated(m_animationDots);
     m_dotsLabel->setText(dots);
 }
 
@@ -185,5 +185,5 @@ void ProcessingOverlay::updateGeometry()
     }
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

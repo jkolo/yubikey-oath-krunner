@@ -8,13 +8,17 @@
 #include <QObject>
 #include <QString>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
+class ConfigurationProvider;
+}
+
+namespace Daemon {
+using Shared::ConfigurationProvider;
 
 // Forward declarations
 class TextInputProvider;
 class ClipboardManager;
-class ConfigurationProvider;
 class NotificationOrchestrator;
 
 /**
@@ -157,5 +161,5 @@ private:
     NotificationOrchestrator *m_notificationOrchestrator;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

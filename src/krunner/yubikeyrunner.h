@@ -16,7 +16,13 @@
 #include <KRunner/QueryMatch>
 
 // Local includes - core components
-#include "dbus/yubikey_dbus_client.h"
+// Forward declarations for D-Bus proxy classes
+namespace YubiKeyOath {
+namespace Shared {
+class YubiKeyManagerProxy;
+class YubiKeyDeviceProxy;
+}
+}
 
 // Local includes - runner components
 #include "config/configuration_provider.h"
@@ -24,8 +30,8 @@
 #include "actions/action_manager.h"
 #include "matching/match_builder.h"
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Runner {
 
 // Forward declarations
 class PasswordDialog;
@@ -55,9 +61,9 @@ protected Q_SLOTS:
     void init() override;
 
 private Q_SLOTS:
-    void onDeviceConnected(const QString &deviceId);
+    void onDeviceConnected(Shared::YubiKeyDeviceProxy *device);
     void onDeviceDisconnected(const QString &deviceId);
-    void onCredentialsUpdated(const QString &deviceId);
+    void onCredentialsUpdated();
     void onDaemonUnavailable();
 
 private:
@@ -77,7 +83,7 @@ private:
 
 private:
     // Core components
-    std::unique_ptr<YubiKeyDBusClient> m_dbusClient;
+    Shared::YubiKeyManagerProxy *m_manager; // Singleton - not owned
 
     // Runner components - thin client for match building
     std::unique_ptr<ConfigurationProvider> m_config;
@@ -88,5 +94,5 @@ private:
     KRunner::Actions m_actions;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Runner
+} // namespace YubiKeyOath

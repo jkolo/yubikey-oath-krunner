@@ -19,8 +19,8 @@ class FakeInput;
 }
 }
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Wayland-specific text input implementation using KWayland FakeInput
@@ -51,5 +51,5 @@ private:
     bool m_waylandInitialized = false;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

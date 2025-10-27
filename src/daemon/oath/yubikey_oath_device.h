@@ -23,8 +23,8 @@
 #else
 #include <winscard.h>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 #endif
 
 /**
@@ -190,5 +190,5 @@ private:
     std::unique_ptr<OathSession> m_session;  ///< OATH protocol session handler
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

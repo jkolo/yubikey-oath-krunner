@@ -1,0 +1,87 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node>
+  <!--
+    pl.jkolo.yubikey.oath.Device:
+    @short_description: Device interface for individual YubiKey
+
+    This interface represents a single YubiKey device with its credentials.
+    Each device is available at path: /pl/jkolo/yubikey/oath/devices/<deviceId>
+  -->
+  <interface name="pl.jkolo.yubikey.oath.Device">
+
+    <!-- Methods -->
+    <method name="SavePassword">
+      <arg direction="in" type="s" name="password"/>
+      <arg direction="out" type="b" name="success"/>
+      <annotation name="org.freedesktop.DBus.Method.NoReply" value="false"/>
+    </method>
+
+    <method name="ChangePassword">
+      <arg direction="in" type="s" name="oldPassword"/>
+      <arg direction="in" type="s" name="newPassword"/>
+      <arg direction="out" type="b" name="success"/>
+      <annotation name="org.freedesktop.DBus.Method.NoReply" value="false"/>
+    </method>
+
+    <method name="Forget">
+      <annotation name="org.freedesktop.DBus.Method.NoReply" value="false"/>
+    </method>
+
+    <method name="AddCredential">
+      <arg direction="in" type="s" name="name"/>
+      <arg direction="in" type="s" name="secret"/>
+      <arg direction="in" type="s" name="type"/>
+      <arg direction="in" type="s" name="algorithm"/>
+      <arg direction="in" type="i" name="digits"/>
+      <arg direction="in" type="i" name="period"/>
+      <arg direction="in" type="i" name="counter"/>
+      <arg direction="in" type="b" name="requireTouch"/>
+      <arg direction="out" type="(ss)" name="result"/>
+      <!-- Structure: (status, pathOrMessage) -->
+      <!-- status: "Success" | "Interactive" | "Error" -->
+      <!-- pathOrMessage: object path on Success, message on Interactive/Error -->
+      <annotation name="org.qtproject.QtDBus.QtTypeName.Out0" value="YubiKeyOath::Shared::AddCredentialResult"/>
+    </method>
+
+    <!-- Properties -->
+    <property name="Name" type="s" access="readwrite">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+    </property>
+
+    <property name="DeviceId" type="s" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="const"/>
+    </property>
+
+    <property name="IsConnected" type="b" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+    </property>
+
+    <property name="RequiresPassword" type="b" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+    </property>
+
+    <property name="HasValidPassword" type="b" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+    </property>
+
+    <!-- Note: CredentialCount and Credentials properties removed following D-Bus best practices.
+         Clients should use parent Manager's GetManagedObjects() for credential discovery.
+         This interface only provides CredentialAdded/CredentialRemoved signals for real-time updates. -->
+
+    <!-- Signals -->
+    <signal name="CredentialAdded">
+      <arg type="o" name="credentialPath"/>
+    </signal>
+
+    <signal name="CredentialRemoved">
+      <arg type="o" name="credentialPath"/>
+    </signal>
+
+  </interface>
+
+  <!-- Note: Standard D-Bus interfaces (Properties, Introspectable, Peer)
+       are handled automatically by Qt's meta-object system and do not need XML definitions
+       for adaptor generation. They are implemented in the C++ class. -->
+
+</node>

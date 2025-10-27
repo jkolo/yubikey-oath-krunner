@@ -15,11 +15,15 @@
 class QTimer;
 class KNotification;
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
+class ConfigurationProvider;
+}
+
+namespace Daemon {
+using Shared::ConfigurationProvider;
 
 class DBusNotificationManager;
-class ConfigurationProvider;
 
 /**
  * @brief Orchestrates all notification display and updates
@@ -220,8 +224,8 @@ private:
         const QDateTime& expirationTime,
         int totalSeconds,
         const QString& title,
-        std::function<QString(int)> bodyFormatter,
-        std::function<void()> onExpired = nullptr
+        const std::function<QString(int)>& bodyFormatter,
+        const std::function<void()>& onExpired = nullptr
     );
 
     DBusNotificationManager *m_notificationManager;
@@ -249,5 +253,5 @@ private:
     QStringList m_currentModifiers;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

@@ -235,19 +235,19 @@ genhtml coverage.info --output-directory coverage_html
 Enable detailed logging:
 
 ```bash
-QT_LOGGING_RULES="org.kde.plasma.krunner.yubikey.*=true" \
+QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*=true" \
 QT_LOGGING_TO_CONSOLE=1 \
 QT_FORCE_STDERR_LOGGING=1 \
 krunner --replace 2>&1 | tee /tmp/krunner_debug.log
 ```
 
 Available logging categories:
-- `org.kde.plasma.krunner.yubikey.runner` - Main plugin
-- `org.kde.plasma.krunner.yubikey.oath` - OATH protocol
-- `org.kde.plasma.krunner.yubikey.notification` - Notifications
-- `org.kde.plasma.krunner.yubikey.touch` - Touch workflow
-- `org.kde.plasma.krunner.yubikey.input` - Input emulation
-- `org.kde.plasma.krunner.yubikey.pcsc` - PC/SC communication
+- `pl.jkolo.yubikey.oath.daemon.runner` - Main plugin
+- `pl.jkolo.yubikey.oath.daemon.oath` - OATH protocol
+- `pl.jkolo.yubikey.oath.daemon.notification` - Notifications
+- `pl.jkolo.yubikey.oath.daemon.touch` - Touch workflow
+- `pl.jkolo.yubikey.oath.daemon.input` - Input emulation
+- `pl.jkolo.yubikey.oath.daemon.pcsc` - PC/SC communication
 
 See [CLAUDE.md](CLAUDE.md) for complete logging categories list.
 

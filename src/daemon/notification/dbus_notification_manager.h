@@ -7,8 +7,8 @@
 #include <QDBusReply>
 #include <memory>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Manager for DBus notifications using org.freedesktop.Notifications
@@ -102,5 +102,5 @@ private:
     QString m_lastAppIcon;
     QStringList m_lastActions;
 };
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

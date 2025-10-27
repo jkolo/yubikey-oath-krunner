@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "yubikey_dbus_types.h"
+#include "yubikey_value_types.h"
 
 // DeviceInfo marshaling
-QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::DeviceInfo &device)
+QDBusArgument &operator<<(QDBusArgument &arg, const YubiKeyOath::Shared::DeviceInfo &device)
 {
     arg.beginStructure();
     arg << device.deviceId
@@ -18,7 +18,7 @@ QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::DeviceInfo
     return arg;
 }
 
-const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::DeviceInfo &device)
+const QDBusArgument &operator>>(const QDBusArgument &arg, YubiKeyOath::Shared::DeviceInfo &device)
 {
     arg.beginStructure();
     arg >> device.deviceId
@@ -31,7 +31,7 @@ const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::Devi
 }
 
 // CredentialInfo marshaling
-QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::CredentialInfo &cred)
+QDBusArgument &operator<<(QDBusArgument &arg, const YubiKeyOath::Shared::CredentialInfo &cred)
 {
     arg.beginStructure();
     arg << cred.name
@@ -44,7 +44,7 @@ QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::Credential
     return arg;
 }
 
-const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::CredentialInfo &cred)
+const QDBusArgument &operator>>(const QDBusArgument &arg, YubiKeyOath::Shared::CredentialInfo &cred)
 {
     arg.beginStructure();
     arg >> cred.name
@@ -58,7 +58,7 @@ const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::Cred
 }
 
 // GenerateCodeResult marshaling
-QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::GenerateCodeResult &result)
+QDBusArgument &operator<<(QDBusArgument &arg, const YubiKeyOath::Shared::GenerateCodeResult &result)
 {
     arg.beginStructure();
     arg << result.code << result.validUntil;
@@ -66,7 +66,7 @@ QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::GenerateCo
     return arg;
 }
 
-const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::GenerateCodeResult &result)
+const QDBusArgument &operator>>(const QDBusArgument &arg, YubiKeyOath::Shared::GenerateCodeResult &result)
 {
     arg.beginStructure();
     arg >> result.code >> result.validUntil;
@@ -75,7 +75,7 @@ const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::Gene
 }
 
 // AddCredentialResult marshaling
-QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::AddCredentialResult &result)
+QDBusArgument &operator<<(QDBusArgument &arg, const YubiKeyOath::Shared::AddCredentialResult &result)
 {
     arg.beginStructure();
     arg << result.status << result.message;
@@ -83,7 +83,7 @@ QDBusArgument &operator<<(QDBusArgument &arg, const KRunner::YubiKey::AddCredent
     return arg;
 }
 
-const QDBusArgument &operator>>(const QDBusArgument &arg, KRunner::YubiKey::AddCredentialResult &result)
+const QDBusArgument &operator>>(const QDBusArgument &arg, YubiKeyOath::Shared::AddCredentialResult &result)
 {
     arg.beginStructure();
     arg >> result.status >> result.message;

@@ -19,8 +19,8 @@
 #include <QKeyEvent>
 #include <KLocalizedString>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
 
 PasswordDialog::PasswordDialog(const QString &deviceId,
                                const QString &deviceName,
@@ -273,5 +273,5 @@ void PasswordDialog::onNameEditingFinished()
     m_editNameButton->setVisible(true);
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Shared
+} // namespace YubiKeyOath

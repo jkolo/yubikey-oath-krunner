@@ -22,8 +22,9 @@
 #include <QTimer>
 #include <KLocalizedString>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 YubiKeyService::YubiKeyService(QObject *parent)
     : QObject(parent)
@@ -51,6 +52,8 @@ YubiKeyService::YubiKeyService(QObject *parent)
             this, &YubiKeyService::onDeviceConnectedInternal);
     connect(m_deviceManager.get(), &YubiKeyDeviceManager::deviceDisconnected,
             this, &YubiKeyService::onDeviceDisconnectedInternal);
+    connect(m_deviceManager.get(), &YubiKeyDeviceManager::deviceForgotten,
+            this, &YubiKeyService::deviceForgotten);  // Forward signal directly
     connect(m_deviceManager.get(), &YubiKeyDeviceManager::credentialCacheFetchedForDevice,
             this, &YubiKeyService::onCredentialCacheFetched);
 
@@ -226,17 +229,22 @@ void YubiKeyService::forgetDevice(const QString &deviceId)
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyService: forgetDevice:" << deviceId;
 
-    // Clear device from memory BEFORE removing from database
+    // IMPORTANT: Order matters to prevent race condition!
+    // 1. Remove password from KWallet FIRST (before device is re-detected)
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Removing password from KWallet";
+    m_passwordStorage->removePassword(deviceId);
+
+    // 2. Remove from database
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Removing device from database";
+    m_database->removeDevice(deviceId);
+
+    // 3. Clear device from memory LAST
+    // This may trigger immediate re-detection if device is physically connected,
+    // but password and database entry are already gone
     qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Clearing device from memory";
     clearDeviceFromMemory(deviceId);
 
-    // Remove from database
-    m_database->removeDevice(deviceId);
-
-    // Remove password from KWallet
-    m_passwordStorage->removePassword(deviceId);
-
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Device forgotten";
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Device forgotten (password, database, memory cleared)";
 }
 
 bool YubiKeyService::setDeviceName(const QString &deviceId, const QString &newName)
@@ -557,5 +565,5 @@ QString YubiKeyService::generateDefaultDeviceName(const QString &deviceId) const
     return QStringLiteral("YubiKey ") + deviceId;
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

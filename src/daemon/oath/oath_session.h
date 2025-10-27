@@ -21,8 +21,8 @@
 #include <winscard.h>
 #endif
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Manages OATH session with YubiKey device
@@ -197,5 +197,5 @@ private:
     QString m_deviceId;        ///< Device ID from SELECT response
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

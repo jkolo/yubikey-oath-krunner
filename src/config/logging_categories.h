@@ -7,17 +7,17 @@
 
 #include <QLoggingCategory>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Config {
 
 /**
  * @brief Qt Logging Categories for YubiKey Configuration Module
  *
  * Control via environment:
- *   QT_LOGGING_RULES="org.kde.plasma.krunner.yubikey.config=true"
+ *   QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.config=true"
  */
 
 Q_DECLARE_LOGGING_CATEGORY(YubiKeyConfigLog)
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Config
+} // namespace YubiKeyOath

@@ -8,8 +8,9 @@
 #include <QString>
 #include "common/result.h"
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using Shared::Result;
 
 /**
  * @brief Parser for QR codes in image files
@@ -40,5 +41,5 @@ private:
     QrCodeParser() = delete; // Utility class - no instances
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

@@ -8,8 +8,8 @@
 #include <QObject>
 #include <QString>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Interface for text input providers
@@ -57,5 +57,5 @@ public:
     virtual bool wasPermissionRejected() const { return false; }
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

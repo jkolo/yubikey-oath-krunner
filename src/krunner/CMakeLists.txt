@@ -51,7 +51,7 @@ install(TARGETS krunner_yubikey DESTINATION ${KDE_INSTALL_QTPLUGINDIR}/kf6/krunn
 install(FILES plasma-runner-yubikey.desktop DESTINATION ${KDE_INSTALL_DATADIR}/krunner/dbusplugins/)
 
 # Install configuration schema (shared)
-install(FILES ../shared/config/krunner_yubikey.kcfg DESTINATION ${KDE_INSTALL_KCFGDIR})
+install(FILES ../shared/config/yubikey_oath.kcfg DESTINATION ${KDE_INSTALL_KCFGDIR})
 
 # Install notification configuration
 install(FILES krunner_yubikey.notifyrc DESTINATION ${KDE_INSTALL_KNOTIFYRCDIR})

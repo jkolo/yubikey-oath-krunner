@@ -6,8 +6,9 @@
 #include <QDBusConnectionInterface>
 #include <QDebug>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 static const QString NOTIFICATIONS_SERVICE = QStringLiteral("org.freedesktop.Notifications");
 static const QString NOTIFICATIONS_PATH = QStringLiteral("/org/freedesktop/Notifications");
@@ -34,7 +35,7 @@ DBusNotificationManager::DBusNotificationManager(QObject* parent)
     qCDebug(DBusNotificationLog) << "DBusNotificationManager: DBus interface created successfully";
 
     // Connect to DBus signals for action invocation and notification closing
-    int connected = DBusConnectionHelper::connectSignals(
+    int const connected = DBusConnectionHelper::connectSignals(
         NOTIFICATIONS_SERVICE,
         NOTIFICATIONS_PATH,
         NOTIFICATIONS_INTERFACE,
@@ -97,7 +98,7 @@ uint DBusNotificationManager::showNotification(
         return 0;
     }
 
-    uint notificationId = reply.value();
+    uint const notificationId = reply.value();
     qCDebug(DBusNotificationLog) << "DBusNotificationManager: Notification shown with ID:" << notificationId;
     return notificationId;
 }
@@ -144,7 +145,7 @@ bool DBusNotificationManager::isAvailable() const {
     }
 
     // Check if the service is registered
-    QDBusConnectionInterface* iface = QDBusConnection::sessionBus().interface();
+    QDBusConnectionInterface const* iface = QDBusConnection::sessionBus().interface();
     return iface && iface->isServiceRegistered(NOTIFICATIONS_SERVICE);
 }
 
@@ -157,5 +158,5 @@ void DBusNotificationManager::onNotificationClosed(uint id, uint reason) {
     qCDebug(DBusNotificationLog) << "DBusNotificationManager: Notification closed - ID:" << id << "reason:" << reason;
     Q_EMIT notificationClosed(id, reason);
 }
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

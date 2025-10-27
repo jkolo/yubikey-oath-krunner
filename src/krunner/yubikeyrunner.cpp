@@ -4,6 +4,9 @@
  */
 
 #include "yubikeyrunner.h"
+#include "dbus/yubikey_manager_proxy.h"
+#include "dbus/yubikey_credential_proxy.h"
+#include "dbus/yubikey_device_proxy.h"
 #include "ui/password_dialog_helper.h"
 #include "logging_categories.h"
 
@@ -11,18 +14,22 @@
 #include <KLocalizedString>
 #include <KPluginFactory>
 #include <QDebug>
+#include <QTimer>
+#include <QEventLoop>
+#include <QCoreApplication>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Runner {
+using namespace YubiKeyOath::Shared;
 
 YubiKeyRunner::YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData)
     : KRunner::AbstractRunner(parent, metaData)
-    , m_dbusClient(std::make_unique<YubiKeyDBusClient>(this))
+    , m_manager(YubiKeyManagerProxy::instance(this))
 {
-    qCDebug(YubiKeyRunnerLog) << "Constructor called - thin D-Bus client mode";
+    qCDebug(YubiKeyRunnerLog) << "Constructor called - using proxy architecture";
 
     // Set translation domain for i18n
-    KLocalizedString::setApplicationDomain("krunner_yubikey");
+    KLocalizedString::setApplicationDomain("yubikey_oath");
 
     setObjectName(QStringLiteral("yubikey-oath"));
 
@@ -44,14 +51,14 @@ YubiKeyRunner::YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData)
         m_actions
     );
 
-    // Connect D-Bus client signals
-    connect(m_dbusClient.get(), &YubiKeyDBusClient::deviceConnected,
+    // Connect Manager proxy signals
+    connect(m_manager, &YubiKeyManagerProxy::deviceConnected,
             this, &YubiKeyRunner::onDeviceConnected);
-    connect(m_dbusClient.get(), &YubiKeyDBusClient::deviceDisconnected,
+    connect(m_manager, &YubiKeyManagerProxy::deviceDisconnected,
             this, &YubiKeyRunner::onDeviceDisconnected);
-    connect(m_dbusClient.get(), &YubiKeyDBusClient::credentialsUpdated,
+    connect(m_manager, &YubiKeyManagerProxy::credentialsChanged,
             this, &YubiKeyRunner::onCredentialsUpdated);
-    connect(m_dbusClient.get(), &YubiKeyDBusClient::daemonUnavailable,
+    connect(m_manager, &YubiKeyManagerProxy::daemonUnavailable,
             this, &YubiKeyRunner::onDaemonUnavailable);
 
     qCDebug(YubiKeyRunnerLog) << "Constructor finished";
@@ -65,7 +72,7 @@ void YubiKeyRunner::init()
     reloadConfiguration();
 
     // Check if daemon is available
-    if (m_dbusClient->isDaemonAvailable()) {
+    if (m_manager->isDaemonAvailable()) {
         qCDebug(YubiKeyRunnerLog) << "YubiKey D-Bus daemon is available";
     } else {
         qCDebug(YubiKeyRunnerLog) << "YubiKey D-Bus daemon not available - will auto-start on first use";
@@ -107,7 +114,7 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
         return;
     }
 
-    if (!m_dbusClient->isDaemonAvailable()) {
+    if (!m_manager->isDaemonAvailable()) {
         qCDebug(YubiKeyRunnerLog) << "D-Bus daemon not available";
         return;
     }
@@ -130,24 +137,25 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
     }
 
     // Get all devices to check their password status
-    QList<DeviceInfo> devices = m_dbusClient->listDevices();
+    QList<YubiKeyDeviceProxy*> devices = m_manager->devices();
     qCDebug(YubiKeyRunnerLog) << "Found" << devices.size() << "known devices";
 
     // For each CONNECTED device that needs password, show password error match
-    for (const auto &device : devices) {
-        if (device.isConnected &&
-            device.requiresPassword &&
-            !device.hasValidPassword) {
+    for (const auto *device : devices) {
+        if (device->isConnected() &&
+            device->requiresPassword() &&
+            !device->hasValidPassword()) {
             qCDebug(YubiKeyRunnerLog) << "Device requires password:"
-                                      << device.deviceName << device.deviceId;
-            KRunner::QueryMatch match = m_matchBuilder->buildPasswordErrorMatch(device);
+                                      << device->name() << device->deviceId();
+            DeviceInfo deviceInfo = device->toDeviceInfo();
+            KRunner::QueryMatch match = m_matchBuilder->buildPasswordErrorMatch(deviceInfo);
             context.addMatch(match);
             // DON'T return - continue to show credentials from other devices!
         }
     }
 
-    // Get credentials from ALL devices (daemon aggregates them)
-    QList<CredentialInfo> credentials = m_dbusClient->getCredentials(QString());
+    // Get credentials from ALL devices (manager aggregates them)
+    QList<YubiKeyCredentialProxy*> credentials = m_manager->getAllCredentials();
     qCDebug(YubiKeyRunnerLog) << "Found" << credentials.size() << "total credentials";
 
     if (credentials.isEmpty()) {
@@ -157,15 +165,15 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
 
     // Build matches for matching credentials from all working devices
     int matchCount = 0;
-    for (const auto &credential : credentials) {
-        QString name = credential.name.toLower();
-        QString issuer = credential.issuer.toLower();
-        QString username = credential.username.toLower();
+    for (auto *credential : credentials) {
+        QString name = credential->name().toLower();
+        QString issuer = credential->issuer().toLower();
+        QString username = credential->username().toLower();
 
         if (name.contains(query) || issuer.contains(query) || username.contains(query)) {
-            qCDebug(YubiKeyRunnerLog) << "Creating match for credential:" << credential.name;
+            qCDebug(YubiKeyRunnerLog) << "Creating match for credential:" << credential->name();
             KRunner::QueryMatch match = m_matchBuilder->buildCredentialMatch(
-                credential, query, m_dbusClient.get());
+                credential, query, m_manager);
             context.addMatch(match);
             matchCount++;
         }
@@ -181,11 +189,27 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
 
     // Handle "Add OATH Credential" command
     if (match.id() == QStringLiteral("add-oath-credential")) {
-        qCDebug(YubiKeyRunnerLog) << "Starting Add OATH Credential workflow via daemon";
+        qCDebug(YubiKeyRunnerLog) << "Starting Add OATH Credential workflow via device proxy";
 
-        // Delegate to daemon with empty parameters to trigger interactive mode (dialog)
-        QString errorMessage = m_dbusClient->addCredential(
-            QString(),  // deviceId - empty triggers dialog
+        // Get first available device (or show error if none)
+        QList<YubiKeyDeviceProxy*> devices = m_manager->devices();
+        YubiKeyDeviceProxy *targetDevice = nullptr;
+
+        // Find first connected device
+        for (auto *device : devices) {
+            if (device->isConnected()) {
+                targetDevice = device;
+                break;
+            }
+        }
+
+        if (!targetDevice) {
+            qCWarning(YubiKeyRunnerLog) << "No connected YubiKey found for add credential";
+            return;
+        }
+
+        // Delegate to device with empty parameters to trigger interactive mode (dialog)
+        AddCredentialResult result = targetDevice->addCredential(
             QString(),  // name - empty triggers dialog
             QString(),  // secret - empty triggers dialog
             QString(),  // type - will default to TOTP
@@ -196,8 +220,8 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
             false       // requireTouch
         );
 
-        if (!errorMessage.isEmpty()) {
-            qCWarning(YubiKeyRunnerLog) << "Add credential workflow failed:" << errorMessage;
+        if (result.status != QStringLiteral("Success")) {
+            qCWarning(YubiKeyRunnerLog) << "Add credential workflow failed:" << result.status << result.message;
         }
 
         return;
@@ -235,8 +259,14 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
 
         qCDebug(YubiKeyRunnerLog) << "Requesting password for device:" << deviceId;
 
-        // Get device name from D-Bus
-        QString deviceName = m_dbusClient->getDeviceName(deviceId);
+        // Get device from manager
+        YubiKeyDeviceProxy *device = m_manager->getDevice(deviceId);
+        if (!device) {
+            qCWarning(YubiKeyRunnerLog) << "Device not found:" << deviceId;
+            return;
+        }
+
+        QString deviceName = device->name();
 
         // Show password dialog (non-modal, with retry on error)
         showPasswordDialog(deviceId, deviceName);
@@ -249,6 +279,33 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         return;
     }
 
+    // Find the credential proxy
+    YubiKeyCredentialProxy *credential = nullptr;
+
+    // If we have deviceId, get it from that device
+    if (!deviceId.isEmpty()) {
+        YubiKeyDeviceProxy *device = m_manager->getDevice(deviceId);
+        if (device) {
+            credential = device->getCredential(credentialName);
+        }
+    }
+
+    // Fallback: search all credentials
+    if (!credential) {
+        QList<YubiKeyCredentialProxy*> allCredentials = m_manager->getAllCredentials();
+        for (auto *cred : allCredentials) {
+            if (cred->name() == credentialName) {
+                credential = cred;
+                break;
+            }
+        }
+    }
+
+    if (!credential) {
+        qCWarning(YubiKeyRunnerLog) << "Credential not found:" << credentialName;
+        return;
+    }
+
     // Determine which action to execute using ActionManager
     QString primaryAction = m_config->primaryAction();
     QString actionId = m_actionManager->determineAction(match, primaryAction);
@@ -257,20 +314,63 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
              << "determined action:" << actionId
              << "action name:" << m_actionManager->getActionName(actionId);
 
-    // Execute action via daemon D-Bus methods
-    bool success = false;
+    // Execute action via credential proxy methods
     if (actionId == QStringLiteral("type")) {
-        qCDebug(YubiKeyRunnerLog) << "Delegating type action to daemon";
-        success = m_dbusClient->typeCode(deviceId, credentialName);
-    } else {  // copy
-        qCDebug(YubiKeyRunnerLog) << "Delegating copy action to daemon";
-        success = m_dbusClient->copyCodeToClipboard(deviceId, credentialName);
-    }
+        // Type action must execute AFTER KRunner closes completely
+        // Use async execution with QEventLoop to avoid blocking run() return
+        qCDebug(YubiKeyRunnerLog) << "Scheduling asynchronous type action for KRunner to close";
 
-    if (!success) {
-        qCWarning(YubiKeyRunnerLog) << "Action failed:" << actionId;
-    } else {
-        qCDebug(YubiKeyRunnerLog) << "Action completed successfully:" << actionId;
+        // Capture data needed for async execution (avoid dangling pointers)
+        QString capturedCredName = credentialName;
+        QString capturedDeviceId = deviceId;
+
+        // Schedule async execution: processEvents() allows KRunner to close, then 500ms delay for safety
+        QTimer::singleShot(0, this, [this, capturedCredName, capturedDeviceId]() {
+            qCDebug(YubiKeyRunnerLog) << "Starting async type action execution for:" << capturedCredName;
+
+            // First, let KRunner close (processEvents ensures UI updates)
+            QCoreApplication::processEvents();
+
+            // Then wait 500ms for window to fully hide using QEventLoop
+            QEventLoop loop;
+            QTimer::singleShot(500, &loop, &QEventLoop::quit);
+            loop.exec();
+
+            qCDebug(YubiKeyRunnerLog) << "Executing type action after KRunner close:" << capturedCredName;
+
+            // Re-find credential (proxy might have changed during delay)
+            YubiKeyCredentialProxy *cred = nullptr;
+            for (auto *c : m_manager->getAllCredentials()) {
+                if (c->name() == capturedCredName && c->deviceId() == capturedDeviceId) {
+                    cred = c;
+                    break;
+                }
+            }
+
+            if (!cred) {
+                qCWarning(YubiKeyRunnerLog) << "Credential not found after delay:" << capturedCredName;
+                return;
+            }
+
+            bool success = cred->typeCode(true);  // fallback to clipboard if typing fails
+            if (!success) {
+                qCWarning(YubiKeyRunnerLog) << "Type action failed:" << capturedCredName;
+            } else {
+                qCDebug(YubiKeyRunnerLog) << "Type action completed successfully:" << capturedCredName;
+            }
+        });
+
+        // Return immediately - action will execute asynchronously
+        return;
+    } else {  // copy - no delay needed (clipboard doesn't require closed window)
+        qCDebug(YubiKeyRunnerLog) << "Executing copy action immediately via credential proxy";
+        bool success = credential->copyToClipboard();
+
+        if (!success) {
+            qCWarning(YubiKeyRunnerLog) << "Copy action failed:" << actionId;
+        } else {
+            qCDebug(YubiKeyRunnerLog) << "Copy action completed successfully:" << actionId;
+        }
     }
 }
 
@@ -282,7 +382,7 @@ void YubiKeyRunner::showPasswordDialog(const QString &deviceId, const QString &d
     PasswordDialogHelper::showDialog(
         deviceId,
         deviceName,
-        m_dbusClient.get(),
+        m_manager,
         this,
         []() {
             // Password success callback - daemon already saved password
@@ -300,9 +400,11 @@ void YubiKeyRunner::reloadConfiguration()
     setupActions();
 }
 
-void YubiKeyRunner::onDeviceConnected(const QString &deviceId)
+void YubiKeyRunner::onDeviceConnected(YubiKeyDeviceProxy *device)
 {
-    qCDebug(YubiKeyRunnerLog) << "Device connected:" << deviceId;
+    if (device) {
+        qCDebug(YubiKeyRunnerLog) << "Device connected:" << device->deviceId() << device->name();
+    }
 }
 
 void YubiKeyRunner::onDeviceDisconnected(const QString &deviceId)
@@ -310,9 +412,9 @@ void YubiKeyRunner::onDeviceDisconnected(const QString &deviceId)
     qCDebug(YubiKeyRunnerLog) << "Device disconnected:" << deviceId;
 }
 
-void YubiKeyRunner::onCredentialsUpdated(const QString &deviceId)
+void YubiKeyRunner::onCredentialsUpdated()
 {
-    qCDebug(YubiKeyRunnerLog) << "Credentials updated for device:" << deviceId;
+    qCDebug(YubiKeyRunnerLog) << "Credentials updated";
 }
 
 void YubiKeyRunner::onDaemonUnavailable()
@@ -322,7 +424,7 @@ void YubiKeyRunner::onDaemonUnavailable()
 
 K_PLUGIN_CLASS_WITH_JSON(YubiKeyRunner, "yubikeyrunner.json")
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Runner
+} // namespace YubiKeyOath
 
 #include "yubikeyrunner.moc"

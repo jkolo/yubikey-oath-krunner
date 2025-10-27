@@ -30,8 +30,9 @@ extern "C" {
 #define SCARD_W_RESET_CARD ((LONG)0x80100068)
 #endif
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 YubiKeyDeviceManager::YubiKeyDeviceManager(QObject* parent)
     : QObject(parent)
@@ -528,12 +529,16 @@ void YubiKeyDeviceManager::removeDeviceFromMemory(const QString &deviceId)
 
     qCDebug(YubiKeyDeviceManagerLog) << "Device" << deviceId << "successfully removed from memory";
 
-    // NOTE: We do NOT emit deviceDisconnected or other signals here
-    // This method is called when device is forgotten from configuration,
-    // not when it is physically disconnected. Physical reconnection will
-    // be treated as a fresh device connection.
+    // Emit deviceForgotten signal (not deviceDisconnected)
+    // deviceForgotten means "remove from D-Bus completely"
+    // deviceDisconnected means "mark as IsConnected=false but keep on D-Bus"
+    Q_EMIT deviceForgotten(deviceId);
+    qCDebug(YubiKeyDeviceManagerLog) << "Emitted deviceForgotten signal for" << deviceId;
+
+    // Emit credentials changed since this device's credentials are now gone
+    Q_EMIT credentialsChanged();
 }
 
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

@@ -8,8 +8,8 @@
 #include <QVariantMap>
 #include <QString>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Utility functions for notification formatting
@@ -41,5 +41,5 @@ public:
     static QVariantMap createNotificationHints(int urgency = 1, int progressValue = 100);
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

@@ -7,14 +7,14 @@
 
 #include <QLoggingCategory>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Runner {
 
 /**
  * @brief Qt Logging Categories for KRunner YubiKey Plugin
  *
  * Control via environment:
- *   QT_LOGGING_RULES="org.kde.plasma.krunner.yubikey.*=true"
+ *   QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*=true"
  */
 
 // Main runner component
@@ -30,5 +30,5 @@ Q_DECLARE_LOGGING_CATEGORY(MatchBuilderLog)
 Q_DECLARE_LOGGING_CATEGORY(TextInputLog)
 Q_DECLARE_LOGGING_CATEGORY(DBusNotificationLog)
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Runner
+} // namespace YubiKeyOath

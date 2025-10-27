@@ -26,7 +26,7 @@ if(MSGFMT_EXECUTABLE)
         # Install .mo file to system locale directory
         install(FILES ${MO_FILE}
                 DESTINATION ${CMAKE_INSTALL_PREFIX}/share/locale/${LANG}/LC_MESSAGES
-                RENAME krunner_yubikey.mo)
+                RENAME yubikey_oath.mo)
 
         # Add to build target
         list(APPEND MO_FILES ${MO_FILE})

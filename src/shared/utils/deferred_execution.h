@@ -8,8 +8,8 @@
 #include <QTimer>
 #include <utility>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
 
 /**
  * @brief Utility for deferred code execution
@@ -116,5 +116,5 @@ inline void after(int delayMs, QObject* receiver, Func&& func)
 
 } // namespace DeferredExecution
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Shared
+} // namespace YubiKeyOath

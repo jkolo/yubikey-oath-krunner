@@ -9,8 +9,10 @@
 #include "types/oath_credential_data.h"
 #include "common/result.h"
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using Shared::Result;
+using Shared::OathCredentialData;
 
 /**
  * @brief Parser for otpauth:// URI format
@@ -48,5 +50,5 @@ private:
     OtpauthUriParser() = delete; // Utility class - no instances
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

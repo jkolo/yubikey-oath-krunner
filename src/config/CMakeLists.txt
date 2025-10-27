@@ -4,9 +4,6 @@ set(kcm_krunner_yubikey_SRCS
     yubikey_device_model.cpp
     logging_categories.cpp
 
-    # Shared utilities
-    ../shared/utils/portal_permission_manager.cpp
-
     # Shared UI components
     ../shared/ui/password_dialog.cpp
     ../shared/ui/password_dialog_helper.cpp

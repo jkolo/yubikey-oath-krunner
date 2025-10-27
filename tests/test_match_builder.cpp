@@ -10,7 +10,8 @@
 #include "mocks/mock_configuration_provider.h"
 #include "shared/types/oath_credential.h"
 
-using namespace KRunner::YubiKey;
+using namespace YubiKeyOath::Shared;
+using namespace YubiKeyOath::Runner;
 
 /**
  * @brief Minimal KRunner for testing

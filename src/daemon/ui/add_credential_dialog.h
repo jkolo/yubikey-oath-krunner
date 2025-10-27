@@ -18,8 +18,9 @@ class QLabel;
 class QPushButton;
 class KMessageWidget;
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using Shared::OathCredentialData;
 
 class ProcessingOverlay;
 
@@ -121,5 +122,5 @@ private:
     bool m_secretRevealed;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

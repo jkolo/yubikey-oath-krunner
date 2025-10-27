@@ -60,7 +60,7 @@ cmake --build . -j$(nproc) && sudo cmake --install .
 krunner --replace
 
 # With detailed logging (logs go to stderr)
-QT_LOGGING_RULES="org.kde.plasma.krunner.yubikey.*=true" \
+QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*=true" \
 QT_LOGGING_TO_CONSOLE=1 \
 QT_FORCE_STDERR_LOGGING=1 \
 krunner --replace 2>&1 | tee /tmp/krunner.log
@@ -72,18 +72,18 @@ krunner --replace 2>&1 | tee /tmp/krunner.log
 
 ```bash
 # Manual start with logging
-QT_LOGGING_RULES="org.kde.plasma.krunner.yubikey.*=true" \
+QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*=true" \
 /usr/bin/yubikey-oath-daemon --verbose 2>&1 | tee /tmp/daemon.log
 
 # Check if daemon is running
 busctl --user list | grep yubikey
 
 # Check daemon D-Bus service
-busctl --user status org.kde.plasma.krunner.yubikey
+busctl --user status pl.jkolo.yubikey.oath.daemon
 
 # Interact with daemon
-busctl --user call org.kde.plasma.krunner.yubikey /Device \
-  org.kde.plasma.krunner.yubikey.Device ListDevices
+busctl --user call pl.jkolo.yubikey.oath.daemon /Device \
+  pl.jkolo.yubikey.oath.daemon.Device ListDevices
 ```
 
 ## Architecture
@@ -100,7 +100,7 @@ src/
 │   ├── types/           # Shared data structures (oath_credential.h, oath_credential_data.h)
 │   ├── config/          # Shared configuration keys and providers
 │   ├── ui/              # Shared UI components (password_dialog)
-│   ├── utils/           # Shared utilities (portal_permission_manager, deferred_execution)
+│   ├── utils/           # Shared utilities (deferred_execution)
 │   ├── po/              # Project translations
 │   │   ├── CMakeLists.txt
 │   │   ├── krunner_yubikey.pot
@@ -169,13 +169,92 @@ Components (DeviceManager, Database, PasswordStorage, ActionCoordinator)
 **YubiKeyDBusService** (`src/daemon/yubikey_dbus_service.{h,cpp}`)
 - **THIN D-Bus marshaling layer** (~135 lines)
 - Standalone daemon binary: `yubikey-oath-daemon`
-- D-Bus interface: `org.kde.plasma.krunner.yubikey.Device`
-- Object path: `/Device`
+- Creates and manages YubiKeyManagerObject (hierarchical D-Bus architecture)
+- **Legacy interface** (backward compatibility):
+  - D-Bus interface: `pl.jkolo.yubikey.oath.daemon.Device`
+  - Object path: `/Device`
+  - Provides methods: `ListDevices`, `GetCredentials`, `GenerateCode`, `SavePassword`, `ForgetDevice`, `SetDeviceName`, `AddCredential`, `CopyCodeToClipboard`, `TypeCode`, `AddCredentialFromScreen`
+  - Emits signals: `DeviceConnected`, `DeviceDisconnected`, `CredentialsUpdated`
 - Single responsibility: Convert D-Bus types ↔ internal types and delegate to YubiKeyService
-- Provides methods: `ListDevices`, `GetCredentials`, `GenerateCode`, `SavePassword`, `ForgetDevice`, `SetDeviceName`, `AddCredential`, `CopyCodeToClipboard`, `TypeCode`, `AddCredentialFromScreen`
-- Emits signals: `DeviceConnected`, `DeviceDisconnected`, `CredentialsUpdated`
 - **NO business logic** - pure delegation to YubiKeyService
 - Uses TypeConversions utility for D-Bus type conversions
+
+**Hierarchical D-Bus Architecture** (NEW in v1.0)
+The daemon now exposes a 3-level hierarchical D-Bus object tree following best practices:
+
+```
+/pl/jkolo/yubikey/oath (Manager)
+  └─ /devices/<deviceId> (Device)
+      └─ /credentials/<credentialId> (Credential)
+```
+
+**YubiKeyManagerObject** (`src/daemon/dbus/yubikey_manager_object.{h,cpp}`)
+- **Manager object** at path `/pl/jkolo/yubikey/oath`
+- Interfaces:
+  - `pl.jkolo.yubikey.oath.Manager` (application interface)
+  - `org.freedesktop.DBus.ObjectManager` (discovery interface)
+- **Minimalist design following D-Bus best practices:**
+  - Only ONE application property: `Version` (string): "1.0"
+  - NO aggregated properties (DeviceCount, Devices, TotalCredentials, Credentials) - removed for simplicity
+  - Clients use `GetManagedObjects()` to discover hierarchy and calculate aggregates locally
+- Methods: `GetManagedObjects()` - returns complete device/credential hierarchy
+- Signals: `InterfacesAdded`, `InterfacesRemoved` (ObjectManager pattern)
+- Automatically creates/destroys Device objects on YubiKey connection/disconnection
+- **Architecture rationale:** Pure ObjectManager without redundant cached properties reduces code complexity and follows freedesktop.org standards
+
+**YubiKeyDeviceObject** (`src/daemon/dbus/yubikey_device_object.{h,cpp}`)
+- **Device objects** at path `/pl/jkolo/yubikey/oath/devices/<deviceId>`
+- Interface: `pl.jkolo.yubikey.oath.Device`
+- Methods:
+  - `SavePassword(password: string) → bool`
+  - `ChangePassword(oldPassword: string, newPassword: string) → bool`
+  - `Forget()` - Removes device from database and KWallet
+  - `AddCredential(name, secret, type, algorithm, digits, period, counter, requireTouch) → (status, pathOrMessage)`
+- Properties:
+  - `Name` (string, writable): Custom device name
+  - `DeviceId` (string): Hex device ID
+  - `IsConnected` (bool): Connection status
+  - `RequiresPassword` (bool): Password requirement
+  - `HasValidPassword` (bool): Valid password availability
+  - **Note:** CredentialCount and Credentials properties removed - use parent Manager's GetManagedObjects()
+- Signals: `CredentialAdded`, `CredentialRemoved`
+- Automatically creates/destroys Credential objects on credential updates
+- **Minimalist design:** Follows D-Bus best practices by not duplicating credential data in properties
+
+**YubiKeyCredentialObject** (`src/daemon/dbus/yubikey_credential_object.{h,cpp}`)
+- **Credential objects** at path `/pl/jkolo/yubikey/oath/devices/<deviceId>/credentials/<credentialId>`
+- Interface: `pl.jkolo.yubikey.oath.Credential`
+- Methods:
+  - `GenerateCode() → (code: string, validUntil: int64)`
+  - `CopyToClipboard() → bool`
+  - `TypeCode(fallbackToCopy: bool) → bool` - Types code with optional fallback to clipboard
+  - `Delete()` - Removes credential from YubiKey
+- Properties (all read-only):
+  - `Name` (string): Full credential name (issuer:username)
+  - `Issuer` (string): Service issuer
+  - `Username` (string): Account username
+  - `Type` (string): "TOTP" or "HOTP"
+  - `Algorithm` (string): "SHA1", "SHA256", or "SHA512"
+  - `Digits` (int): Number of digits (6-8)
+  - `Period` (int): TOTP period in seconds
+  - `RequiresTouch` (bool): Physical touch requirement
+  - `DeviceId` (string): Parent device ID
+
+**D-Bus XML Interface Definitions:**
+- `src/daemon/dbus/pl.jkolo.yubikey.oath.Manager.xml`
+- `src/daemon/dbus/pl.jkolo.yubikey.oath.Device.xml`
+- `src/daemon/dbus/pl.jkolo.yubikey.oath.Credential.xml`
+
+**Credential ID Encoding:**
+- Credential names are URL-encoded for D-Bus path compatibility
+- `%` replaced with `_`, converted to lowercase
+- Names starting with digit: prepended with 'c'
+- Very long names (>200 chars): hashed with SHA256
+
+**Backward Compatibility:**
+- Legacy `/Device` interface remains available
+- YubiKeyDBusClient continues to use legacy interface
+- Both interfaces work simultaneously
 
 **YubiKeyService** (`src/daemon/services/yubikey_service.{h,cpp}`)
 - **Business logic layer** (~430 lines)
@@ -187,20 +266,65 @@ Components (DeviceManager, Database, PasswordStorage, ActionCoordinator)
 - Emits signals forwarded to D-Bus layer
 - **Note:** Authentication failures are handled internally - empty credential list indicates auth failure, no separate signal emitted
 
-**YubiKeyDBusClient** (`src/shared/dbus/yubikey_dbus_client.{h,cpp}`)
-- KRunner plugin side - connects to daemon
-- Proxies D-Bus calls to daemon service
-- Handles daemon availability detection
-- Auto-fallback to direct PC/SC if daemon unavailable
-- Located in `shared/` as it's used by both krunner and config modules
+**Client-Side Proxy Architecture** (New in v1.0)
 
-**TypeConversions** (`src/shared/dbus/type_conversions.{h,cpp}`)
-- **Static utility class** for D-Bus type conversions
-- Converts between internal types (OathCredential) and D-Bus types (CredentialInfo)
-- Methods: `toCredentialInfo(const OathCredential&)`
-- Used by YubiKeyDBusService for marshaling
-- Located in `shared/dbus/` as part of D-Bus client library
-- Pure utility class (deleted constructor, all static methods)
+The client side now uses an object-oriented proxy architecture instead of a flat facade:
+
+**YubiKeyManagerProxy** (`src/shared/dbus/yubikey_manager_proxy.{h,cpp}`)
+- **Singleton manager proxy** for daemon communication
+- Represents `/pl/jkolo/yubikey/oath` (Manager D-Bus object)
+- Uses ObjectManager pattern: `GetManagedObjects()` for auto-discovery
+- Monitors daemon lifecycle with QDBusServiceWatcher
+- Owns YubiKeyDeviceProxy objects (Qt parent-child)
+- Methods:
+  - `static instance()` - singleton access
+  - `devices()` - all device proxies
+  - `getDevice(deviceId)` - specific device proxy
+  - `getAllCredentials()` - aggregated from all devices
+  - `isDaemonAvailable()` - daemon status
+- Signals:
+  - `deviceConnected(YubiKeyDeviceProxy*)`
+  - `deviceDisconnected(QString)`
+  - `credentialsChanged()`
+  - `daemonAvailable()` / `daemonUnavailable()`
+- Auto-creates/destroys device proxies on InterfacesAdded/Removed
+
+**YubiKeyDeviceProxy** (`src/shared/dbus/yubikey_device_proxy.{h,cpp}`)
+- Represents `/pl/jkolo/yubikey/oath/devices/<deviceId>` (Device D-Bus object)
+- Owns YubiKeyCredentialProxy objects (Qt parent-child)
+- Cached properties: deviceId, name, isConnected, requiresPassword, hasValidPassword
+- Methods:
+  - `credentials()` - all credential proxies
+  - `getCredential(name)` - specific credential proxy
+  - `savePassword()`, `changePassword()`, `forget()`, `addCredential()`, `setName()`
+  - `toDeviceInfo()` - converts to value type
+- Signals:
+  - `credentialAdded(YubiKeyCredentialProxy*)`
+  - `credentialRemoved(QString)`
+  - `nameChanged(QString)`, `connectionChanged(bool)`
+- Auto-creates/destroys credential proxies on CredentialAdded/Removed
+
+**YubiKeyCredentialProxy** (`src/shared/dbus/yubikey_credential_proxy.{h,cpp}`)
+- Represents `/pl/jkolo/yubikey/oath/devices/<deviceId>/credentials/<credentialId>` (Credential D-Bus object)
+- Cached properties: name, issuer, username, requiresTouch, type, algorithm, digits, period, deviceId
+- Methods:
+  - `generateCode()` - generates TOTP/HOTP code
+  - `copyToClipboard()` - copies code to clipboard
+  - `typeCode(fallbackToCopy)` - types code via input emulation
+  - `deleteCredential()` - deletes from YubiKey
+  - `toCredentialInfo()` - converts to value type
+- All properties are const (credentials are immutable)
+
+**YubiKeyDBusClient** - **REMOVED**
+- ~~Legacy flat D-Bus client previously used by AddCredentialWorkflow~~
+- **REMOVED in 2025-10-27 refactoring** - no longer used anywhere in codebase
+- All components now use proxy architecture (YubiKeyManagerProxy)
+
+**Value Types** (`src/shared/types/yubikey_value_types.{h,cpp}`)
+- Data transfer objects: DeviceInfo, CredentialInfo, GenerateCodeResult, AddCredentialResult
+- D-Bus marshaling operators for passing over D-Bus
+- Conversion methods: `proxy->toDeviceInfo()`, `proxy->toCredentialInfo()`
+- Located in `shared/types/` (not `shared/dbus/` - they're value objects, not D-Bus specific)
 
 **Daemon Architecture Pattern:**
 - Daemon runs as separate process for persistent YubiKey monitoring
@@ -211,7 +335,7 @@ Components (DeviceManager, Database, PasswordStorage, ActionCoordinator)
 **Daemon Lifecycle:**
 
 1. **Startup:**
-   - Daemon starts and registers D-Bus service `org.kde.plasma.krunner.yubikey`
+   - Daemon starts and registers D-Bus service `pl.jkolo.yubikey.oath.daemon`
    - YubiKeyDBusService creates YubiKeyService
    - YubiKeyService initializes: YubiKeyDeviceManager, YubiKeyDatabase, PasswordStorage, DaemonConfiguration, YubiKeyActionCoordinator
    - YubiKeyDeviceManager starts PC/SC card reader monitoring
@@ -227,9 +351,10 @@ Components (DeviceManager, Database, PasswordStorage, ActionCoordinator)
 
 3. **KRunner Integration:**
    - YubiKeyRunner plugin connects to daemon via D-Bus
-   - Uses YubiKeyDBusClient to proxy requests
-   - YubiKeyDBusService receives D-Bus calls → delegates to YubiKeyService
-   - Falls back to direct PC/SC if daemon unavailable
+   - Uses YubiKeyManagerProxy singleton for daemon communication
+   - Proxy architecture auto-discovers devices/credentials via ObjectManager
+   - Direct method calls on proxy objects (device->savePassword(), credential->generateCode())
+   - Manager proxy monitors daemon lifecycle and auto-refreshes on reconnect
 
 ### Core Components
 
@@ -237,8 +362,11 @@ Components (DeviceManager, Database, PasswordStorage, ActionCoordinator)
 - Main KRunner plugin entry point
 - Orchestrates all components
 - Handles search queries and result matching
-- Manages lifecycle of all subsystems
-- Can use either D-Bus client or direct PC/SC
+- Uses YubiKeyManagerProxy::instance() singleton for daemon communication
+- Components: KRunnerConfiguration, ActionManager, MatchBuilder
+- match() - searches credentials via manager->getAllCredentials()
+- run() - executes actions via credential proxy methods (typeCode(), copyToClipboard())
+- Connects to manager signals: deviceConnected, deviceDisconnected, credentialsChanged
 
 **YubiKeyDeviceManager** (`src/oath/yubikey_device_manager.{h,cpp}`)
 - Manages lifecycle of multiple YubiKey devices
@@ -322,10 +450,13 @@ OathProtocol (static utility functions)
 - Action metadata management (icons, text, shortcuts)
 
 **MatchBuilder** (`src/krunner/matching/match_builder.{h,cpp}`)
-- Creates KRunner::QueryMatch objects
+- Creates KRunner::QueryMatch objects from proxy objects
+- buildCredentialMatch(YubiKeyCredentialProxy*, query, YubiKeyManagerProxy*)
+- Generates code directly via credentialProxy->generateCode()
+- Gets device information from manager->devices()
 - Calculates relevance scores
-- Builds password error matches
-- Applies display strategies for credential formatting
+- Builds password error matches from DeviceInfo
+- Applies credential formatting with device names
 
 **TouchHandler** (`src/krunner/workflows/touch_handler.{h,cpp}`)
 - Manages touch requirement detection
@@ -388,11 +519,17 @@ OathProtocol (static utility functions)
 - Separate plugin: `kcm_krunner_yubikey.so`
 - **Must include Qt resources** via `qt6_add_resources()` in CMakeLists.txt
 - Correct module name: `kcm_krunner_yubikey` (not `kcm_yubikey`)
-- Device management UI
+- Uses YubiKeyManagerProxy::instance() singleton
+- Device management UI via YubiKeyDeviceModel
 
 **YubiKeyDeviceModel** (`src/config/yubikey_device_model.{h,cpp}`)
 - QAbstractListModel for device list
-- Connects to D-Bus daemon for device information
+- Uses YubiKeyManagerProxy for daemon communication
+- refreshDevices() - converts device proxies to DeviceInfo for QML
+- testAndSavePassword() - uses deviceProxy->savePassword()
+- forgetDevice() - uses deviceProxy->forget()
+- setDeviceName() - uses deviceProxy->setName()
+- Connects to manager signals: deviceConnected, deviceDisconnected, credentialsChanged
 - Real-time device status updates
 
 **YubiKeyConfig.qml** (`src/config/resources/ui/YubiKeyConfig.qml`)
@@ -452,24 +589,24 @@ The project uses Qt Logging Categories for selective, component-based logging co
 ### Available Logging Categories
 
 **Daemon Components** (`src/daemon/logging_categories.{h,cpp}`):
-- `YubiKeyDaemonLog` - Daemon service (`org.kde.plasma.krunner.yubikey.daemon`)
-- `YubiKeyDeviceManagerLog` - Device manager (`org.kde.plasma.krunner.yubikey.manager`)
-- `YubiKeyOathDeviceLog` - Per-device OATH operations (`org.kde.plasma.krunner.yubikey.oath.device`)
-- `CardReaderMonitorLog` - PC/SC monitoring (`org.kde.plasma.krunner.yubikey.pcsc`)
-- `PasswordStorageLog` - KWallet storage (`org.kde.plasma.krunner.yubikey.storage`)
-- `YubiKeyDatabaseLog` - Database operations (`org.kde.plasma.krunner.yubikey.database`)
+- `YubiKeyDaemonLog` - Daemon service (`pl.jkolo.yubikey.oath.daemon.daemon`)
+- `YubiKeyDeviceManagerLog` - Device manager (`pl.jkolo.yubikey.oath.daemon.manager`)
+- `YubiKeyOathDeviceLog` - Per-device OATH operations (`pl.jkolo.yubikey.oath.daemon.oath.device`)
+- `CardReaderMonitorLog` - PC/SC monitoring (`pl.jkolo.yubikey.oath.daemon.pcsc`)
+- `PasswordStorageLog` - KWallet storage (`pl.jkolo.yubikey.oath.daemon.storage`)
+- `YubiKeyDatabaseLog` - Database operations (`pl.jkolo.yubikey.oath.daemon.database`)
 
 **KRunner Components** (`src/krunner/logging_categories.{h,cpp}`):
-- `YubiKeyRunnerLog` - Main KRunner plugin (`org.kde.plasma.krunner.yubikey.runner`)
-- `NotificationOrchestratorLog` - Notification management (`org.kde.plasma.krunner.yubikey.notification`)
-- `TouchWorkflowCoordinatorLog` - Touch workflow (`org.kde.plasma.krunner.yubikey.touch`)
-- `ActionExecutorLog` - Action execution (`org.kde.plasma.krunner.yubikey.action`)
-- `MatchBuilderLog` - Match building (`org.kde.plasma.krunner.yubikey.match`)
-- `TextInputLog` - Input emulation (`org.kde.plasma.krunner.yubikey.input`)
-- `DBusNotificationLog` - D-Bus notifications (`org.kde.plasma.krunner.yubikey.dbus`)
+- `YubiKeyRunnerLog` - Main KRunner plugin (`pl.jkolo.yubikey.oath.daemon.runner`)
+- `NotificationOrchestratorLog` - Notification management (`pl.jkolo.yubikey.oath.daemon.notification`)
+- `TouchWorkflowCoordinatorLog` - Touch workflow (`pl.jkolo.yubikey.oath.daemon.touch`)
+- `ActionExecutorLog` - Action execution (`pl.jkolo.yubikey.oath.daemon.action`)
+- `MatchBuilderLog` - Match building (`pl.jkolo.yubikey.oath.daemon.match`)
+- `TextInputLog` - Input emulation (`pl.jkolo.yubikey.oath.daemon.input`)
+- `DBusNotificationLog` - D-Bus notifications (`pl.jkolo.yubikey.oath.daemon.dbus`)
 
 **Config Module** (`src/config/logging_categories.{h,cpp}`):
-- `YubiKeyConfigLog` - Settings module (`org.kde.plasma.krunner.yubikey.config`)
+- `YubiKeyConfigLog` - Settings module (`pl.jkolo.yubikey.oath.daemon.config`)
 
 ### Usage in Code
 
@@ -504,16 +641,16 @@ qCDebug(YubiKeyConfigLog) << "Debug information";
 
 ```bash
 # Enable all YubiKey logging
-QT_LOGGING_RULES="org.kde.plasma.krunner.yubikey.*=true" krunner --replace
+QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*=true" krunner --replace
 
 # Enable specific components
-QT_LOGGING_RULES="org.kde.plasma.krunner.yubikey.runner=true;org.kde.plasma.krunner.yubikey.oath=true" krunner --replace
+QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.runner=true;pl.jkolo.yubikey.oath.daemon.oath=true" krunner --replace
 
 # Enable with different log levels
-QT_LOGGING_RULES="org.kde.plasma.krunner.yubikey.*.debug=true" krunner --replace
+QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*.debug=true" krunner --replace
 
 # Disable specific component
-QT_LOGGING_RULES="org.kde.plasma.krunner.yubikey.*=true;org.kde.plasma.krunner.yubikey.dbus=false" krunner --replace
+QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*=true;pl.jkolo.yubikey.oath.daemon.dbus=false" krunner --replace
 ```
 
 ### Persistent Logging Configuration
@@ -521,8 +658,8 @@ QT_LOGGING_RULES="org.kde.plasma.krunner.yubikey.*=true;org.kde.plasma.krunner.y
 Create `~/.config/QtProject/qtlogging.ini`:
 ```ini
 [Rules]
-org.kde.plasma.krunner.yubikey.*=true
-org.kde.plasma.krunner.yubikey.oath.debug=true
+pl.jkolo.yubikey.oath.daemon.*=true
+pl.jkolo.yubikey.oath.daemon.oath.debug=true
 ```
 
 ## Testing
@@ -598,19 +735,19 @@ See [COVERAGE.md](COVERAGE.md) for detailed coverage analysis.
 
 ```bash
 # All components - KRunner
-QT_LOGGING_RULES="org.kde.plasma.krunner.yubikey.*=true" \
+QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*=true" \
 QT_LOGGING_TO_CONSOLE=1 \
 QT_FORCE_STDERR_LOGGING=1 \
 krunner --replace 2>&1 | tee /tmp/krunner_debug.log
 
 # All components - Daemon
-QT_LOGGING_RULES="org.kde.plasma.krunner.yubikey.*=true" \
+QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*=true" \
 QT_LOGGING_TO_CONSOLE=1 \
 QT_FORCE_STDERR_LOGGING=1 \
 /usr/bin/yubikey-oath-daemon --verbose 2>&1 | tee /tmp/daemon_debug.log
 
 # Specific components for targeted debugging
-QT_LOGGING_RULES="org.kde.plasma.krunner.yubikey.runner=true;org.kde.plasma.krunner.yubikey.oath=true;org.kde.plasma.krunner.yubikey.notification=true" \
+QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.runner=true;pl.jkolo.yubikey.oath.daemon.oath=true;pl.jkolo.yubikey.oath.daemon.notification=true" \
 QT_LOGGING_TO_CONSOLE=1 \
 QT_FORCE_STDERR_LOGGING=1 \
 krunner --replace 2>&1 | tee /tmp/krunner_debug.log
@@ -633,22 +770,70 @@ pcsc_scan  # Should detect YubiKey
 
 ### D-Bus Service Debugging
 
+**Legacy Interface (backward compatibility):**
+
 ```bash
 # Check if daemon D-Bus service is registered
 busctl --user list | grep yubikey
 
 # Get service status
-busctl --user status org.kde.plasma.krunner.yubikey
+busctl --user status pl.jkolo.yubikey.oath.daemon
 
-# Test daemon connectivity
-busctl --user call org.kde.plasma.krunner.yubikey /Device \
-  org.kde.plasma.krunner.yubikey.Device ListDevices
+# Test daemon connectivity (legacy interface)
+busctl --user call pl.jkolo.yubikey.oath.daemon /Device \
+  pl.jkolo.yubikey.oath.daemon.Device ListDevices
 
 # Monitor D-Bus signals from daemon
-dbus-monitor --session "sender='org.kde.plasma.krunner.yubikey'"
+dbus-monitor --session "sender='pl.jkolo.yubikey.oath.daemon'"
 
-# Introspect D-Bus interface
-busctl --user introspect org.kde.plasma.krunner.yubikey /Device
+# Introspect legacy interface
+busctl --user introspect pl.jkolo.yubikey.oath.daemon /Device
+```
+
+**Hierarchical D-Bus Architecture (v1.0):**
+
+```bash
+# View complete object tree (3-level hierarchy)
+busctl --user tree pl.jkolo.yubikey.oath.daemon
+
+# Introspect Manager object
+busctl --user introspect pl.jkolo.yubikey.oath.daemon /pl/jkolo/yubikey/oath
+
+# Get Manager property (only Version is available - other data via GetManagedObjects)
+busctl --user get-property pl.jkolo.yubikey.oath.daemon \
+  /pl/jkolo/yubikey/oath \
+  pl.jkolo.yubikey.oath.Manager Version
+
+# Get all managed objects (ObjectManager pattern)
+busctl --user call pl.jkolo.yubikey.oath.daemon \
+  /pl/jkolo/yubikey/oath \
+  pl.jkolo.yubikey.oath.Manager GetManagedObjects
+
+# Introspect specific Device object
+busctl --user introspect pl.jkolo.yubikey.oath.daemon \
+  /pl/jkolo/yubikey/oath/devices/28b5c0b54ccb10db
+
+# Get Device properties
+busctl --user get-property pl.jkolo.yubikey.oath.daemon \
+  /pl/jkolo/yubikey/oath/devices/28b5c0b54ccb10db \
+  pl.jkolo.yubikey.oath.Device Name
+
+# Introspect specific Credential object
+busctl --user introspect pl.jkolo.yubikey.oath.daemon \
+  /pl/jkolo/yubikey/oath/devices/28b5c0b54ccb10db/credentials/github_3ajkolo
+
+# Generate TOTP code via Credential object
+busctl --user call pl.jkolo.yubikey.oath.daemon \
+  /pl/jkolo/yubikey/oath/devices/28b5c0b54ccb10db/credentials/github_3ajkolo \
+  pl.jkolo.yubikey.oath.Credential GenerateCode
+
+# Type code with fallback to clipboard
+busctl --user call pl.jkolo.yubikey.oath.daemon \
+  /pl/jkolo/yubikey/oath/devices/28b5c0b54ccb10db/credentials/github_3ajkolo \
+  pl.jkolo.yubikey.oath.Credential TypeCode b true
+
+# Monitor ObjectManager signals (device/credential additions/removals)
+dbus-monitor --session "sender='pl.jkolo.yubikey.oath.daemon',interface='pl.jkolo.yubikey.oath.Manager'"
 ```
 
 ### Common D-Bus Issues

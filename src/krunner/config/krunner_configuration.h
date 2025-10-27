@@ -9,8 +9,9 @@
 #include "config/configuration_keys.h"
 #include <KConfigGroup>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Runner {
+using Shared::ConfigurationProvider;
 
 /**
  * @brief KRunner-specific implementation of ConfigurationProvider
@@ -52,5 +53,5 @@ private:
     }
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Runner
+} // namespace YubiKeyOath

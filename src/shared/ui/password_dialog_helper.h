@@ -9,10 +9,10 @@
 #include <QObject>
 #include <functional>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
 
-class YubiKeyDBusClient;
+class YubiKeyManagerProxy;
 
 namespace PasswordDialogHelper {
 
@@ -20,7 +20,7 @@ namespace PasswordDialogHelper {
  * @brief Shows password dialog for YubiKey authentication
  * @param deviceId Device ID requiring password
  * @param deviceName Friendly device name
- * @param dbusClient D-Bus client for communication with daemon
+ * @param manager Manager proxy for communication with daemon
  * @param parent Parent QObject for dialog
  * @param onPasswordSuccess Callback invoked when password successfully saved
  *
@@ -36,11 +36,11 @@ namespace PasswordDialogHelper {
 void showDialog(
     const QString &deviceId,
     const QString &deviceName,
-    YubiKeyDBusClient *dbusClient,
+    YubiKeyManagerProxy *manager,
     QObject *parent,
     std::function<void()> onPasswordSuccess
 );
 
 } // namespace PasswordDialogHelper
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Shared
+} // namespace YubiKeyOath

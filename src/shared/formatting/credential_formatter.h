@@ -6,11 +6,11 @@
 #pragma once
 
 #include "../types/oath_credential.h"
-#include "../dbus/yubikey_dbus_types.h"
+#include "../types/yubikey_value_types.h"
 #include <QString>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
 
 /**
  * @brief Formats credential display names with flexible display options
@@ -109,5 +109,5 @@ public:
                                    bool showDeviceOnlyWhenMultiple);
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Shared
+} // namespace YubiKeyOath

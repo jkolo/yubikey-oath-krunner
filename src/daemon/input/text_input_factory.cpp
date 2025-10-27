@@ -11,8 +11,8 @@
 
 #include <QDebug>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 namespace {
 /**
@@ -53,5 +53,5 @@ std::unique_ptr<TextInputProvider> TextInputFactory::createProvider(QObject *par
     return nullptr;
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

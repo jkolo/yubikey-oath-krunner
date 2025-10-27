@@ -8,8 +8,8 @@
 #include <QDBusConnection>
 #include <QObject>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
 
 /**
  * @brief Helper utilities for D-Bus connection management
@@ -118,5 +118,5 @@ inline int connectSignals(
 
 } // namespace DBusConnectionHelper
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Shared
+} // namespace YubiKeyOath

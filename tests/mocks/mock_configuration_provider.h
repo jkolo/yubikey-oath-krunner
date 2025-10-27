@@ -7,8 +7,8 @@
 
 #include "shared/config/configuration_provider.h"
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
 
 /**
  * @brief Mock implementation of ConfigurationProvider for unit tests
@@ -142,5 +142,5 @@ private:
     QString m_primaryAction;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Shared
+} // namespace YubiKeyOath

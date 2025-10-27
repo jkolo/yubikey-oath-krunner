@@ -7,7 +7,7 @@
 #include <QGuiApplication>
 #include "daemon/input/modifier_key_checker.h"
 
-using namespace KRunner::YubiKey;
+using namespace YubiKeyOath::Daemon;
 
 /**
  * @brief Unit tests for ModifierKeyChecker

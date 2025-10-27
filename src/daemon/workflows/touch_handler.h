@@ -9,8 +9,8 @@
 #include <QString>
 #include <QTimer>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Handles YubiKey touch operations and timeouts
@@ -64,5 +64,5 @@ private:
     QString m_waitingForTouch;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

@@ -9,8 +9,9 @@
 #include <QDateTime>
 #include <QDebug>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 // OATH Application Identifier
 const QByteArray OathProtocol::OATH_AID = QByteArray::fromHex("a0000005272101");
@@ -53,8 +54,8 @@ QByteArray OathProtocol::createCalculateCommand(const QString &name, const QByte
     command.append((char)0x01);                       // P2 = Request response
 
     // Data length: tag + length_byte + data for both NAME and CHALLENGE
-    QByteArray nameBytes = name.toUtf8();
-    int dataLen = 1 + 1 + nameBytes.length() + 1 + 1 + challenge.length();
+    QByteArray const nameBytes = name.toUtf8();
+    int const dataLen = 1 + 1 + nameBytes.length() + 1 + 1 + challenge.length();
     command.append(static_cast<char>(dataLen)); // Lc
 
     // NAME tag + length + data
@@ -100,7 +101,7 @@ QByteArray OathProtocol::createValidateCommand(const QByteArray &response, const
     command.append((char)0x00);                       // P2
 
     // Data = RESPONSE tag + length + response + CHALLENGE tag + length + challenge
-    int dataLen = 1 + 1 + response.length() + 1 + 1 + challenge.length();
+    int const dataLen = 1 + 1 + response.length() + 1 + 1 + challenge.length();
     command.append(static_cast<char>(dataLen)); // Lc
 
     // RESPONSE tag
@@ -155,7 +156,7 @@ QByteArray OathProtocol::createPutCommand(const OathCredentialData &data)
     QByteArray keyBytes = decodeBase32(data.secret);
     if (keyBytes.isEmpty()) {
         qWarning() << "Failed to decode Base32 secret";
-        return QByteArray(); // Return empty on error
+        return {}; // Return empty on error
     }
 
     // Pad to minimum 14 bytes
@@ -167,9 +168,9 @@ QByteArray OathProtocol::createPutCommand(const OathCredentialData &data)
     QByteArray keyTagData;
 
     // algo_byte = (type << 4) | algorithm
-    quint8 typeBits = static_cast<quint8>(data.type) & 0x0F;
-    quint8 algoBits = static_cast<quint8>(data.algorithm) & 0x0F;
-    quint8 algoByte = (typeBits << 4) | algoBits;
+    quint8 const typeBits = static_cast<quint8>(data.type) & 0x0F;
+    quint8 const algoBits = static_cast<quint8>(data.algorithm) & 0x0F;
+    quint8 const algoByte = (typeBits << 4) | algoBits;
     keyTagData.append(static_cast<char>(algoByte));
 
     // digits
@@ -225,7 +226,7 @@ bool OathProtocol::parseSelectResponse(const QByteArray &response,
     }
 
     // Check status word
-    quint16 sw = getStatusWord(response);
+    quint16 const sw = getStatusWord(response);
     if (!isSuccess(sw)) {
         return false;
     }
@@ -236,16 +237,18 @@ bool OathProtocol::parseSelectResponse(const QByteArray &response,
     // Look for TAG_NAME_SALT (0x71) and TAG_CHALLENGE (0x74)
     int pos = 0;
     while (pos < data.length() - 1) {
-        if (pos + 2 > data.length()) break;
+        if (pos + 2 > data.length()) { break;
+}
 
-        quint8 tag = data[pos];
-        quint8 len = data[pos + 1];
+        quint8 const tag = data[pos];
+        quint8 const len = data[pos + 1];
 
-        if (pos + 2 + len > data.length()) break;
+        if (pos + 2 + len > data.length()) { break;
+}
 
         if (tag == TAG_NAME_SALT) {
             // Extract device ID (hex string)
-            QByteArray deviceIdBytes = data.mid(pos + 2, len);
+            QByteArray const deviceIdBytes = data.mid(pos + 2, len);
             outDeviceId = QString::fromLatin1(deviceIdBytes.toHex());
         } else if (tag == TAG_CHALLENGE) {
             // Extract challenge
@@ -267,7 +270,7 @@ QList<OathCredential> OathProtocol::parseCredentialList(const QByteArray &respon
     }
 
     // Check status word
-    quint16 sw = getStatusWord(response);
+    quint16 const sw = getStatusWord(response);
     if (!isSuccess(sw)) {
         return credentials;
     }
@@ -277,21 +280,23 @@ QList<OathCredential> OathProtocol::parseCredentialList(const QByteArray &respon
 
     int i = 0;
     while (i < data.length()) {
-        if (i + 2 > data.length()) break;
+        if (i + 2 > data.length()) { break;
+}
 
-        quint8 tag = data[i++];
-        quint8 length = data[i++];
+        quint8 const tag = data[i++];
+        quint8 const length = data[i++];
 
-        if (i + length > data.length()) break;
+        if (i + length > data.length()) { break;
+}
 
         if (tag == TAG_NAME_LIST) { // TAG_NAME_LIST = 0x72
             QByteArray nameData = data.mid(i, length);
 
             // Parse name data: first byte is algorithm + type
             if (nameData.length() >= 2) {
-                quint8 nameAlgo = nameData[0];
-                QByteArray nameBytes = nameData.mid(1);
-                QString name = QString::fromUtf8(nameBytes);
+                quint8 const nameAlgo = nameData[0];
+                QByteArray const nameBytes = nameData.mid(1);
+                QString const name = QString::fromUtf8(nameBytes);
 
                 OathCredential cred;
                 cred.name = name;
@@ -321,19 +326,19 @@ QList<OathCredential> OathProtocol::parseCredentialList(const QByteArray &respon
 QString OathProtocol::parseCode(const QByteArray &response)
 {
     if (response.length() < 2) {
-        return QString();
+        return {};
     }
 
     // Check status word
-    quint16 sw = getStatusWord(response);
+    quint16 const sw = getStatusWord(response);
 
     // Special case: 0x6985 = touch required
     if (sw == 0x6985) {
-        return QString(); // Caller should detect this via status word
+        return {}; // Caller should detect this via status word
     }
 
     if (!isSuccess(sw)) {
-        return QString();
+        return {};
     }
 
     // Parse TLV data (excluding status word)
@@ -341,16 +346,18 @@ QString OathProtocol::parseCode(const QByteArray &response)
 
     int i = 0;
     while (i < data.length()) {
-        if (i + 2 > data.length()) break;
+        if (i + 2 > data.length()) { break;
+}
 
-        quint8 tag = data[i++];
-        quint8 length = data[i++];
+        quint8 const tag = data[i++];
+        quint8 const length = data[i++];
 
-        if (i + length > data.length()) break;
+        if (i + length > data.length()) { break;
+}
 
         if (tag == TAG_TOTP_RESPONSE && length >= 5) { // TAG_TOTP_RESPONSE = 0x76
             // First byte is number of digits
-            quint8 digits = data[i];
+            quint8 const digits = data[i];
 
             // Next 4 bytes are the code value (big-endian)
             quint32 codeValue = 0;
@@ -365,7 +372,7 @@ QString OathProtocol::parseCode(const QByteArray &response)
         i += length;
     }
 
-    return QString();
+    return {};
 }
 
 QList<OathCredential> OathProtocol::parseCalculateAllResponse(const QByteArray &response)
@@ -377,7 +384,7 @@ QList<OathCredential> OathProtocol::parseCalculateAllResponse(const QByteArray &
     }
 
     // Check status word
-    quint16 sw = getStatusWord(response);
+    quint16 const sw = getStatusWord(response);
     if (!isSuccess(sw)) {
         return credentials;
     }
@@ -388,17 +395,19 @@ QList<OathCredential> OathProtocol::parseCalculateAllResponse(const QByteArray &
     // CALCULATE ALL response format: NAME (0x71) followed by RESPONSE (0x76) or HOTP (0x77) or TOUCH (0x7c)
     int i = 0;
     while (i < data.length()) {
-        if (i + 2 > data.length()) break;
+        if (i + 2 > data.length()) { break;
+}
 
-        quint8 tag = data[i++];
-        quint8 length = data[i++];
+        quint8 const tag = data[i++];
+        quint8 const length = data[i++];
 
-        if (i + length > data.length()) break;
+        if (i + length > data.length()) { break;
+}
 
         if (tag == TAG_NAME) { // TAG_NAME = 0x71
             // Parse credential name (no algorithm byte in CALCULATE ALL response)
-            QByteArray nameBytes = data.mid(i, length);
-            QString name = QString::fromUtf8(nameBytes);
+            QByteArray const nameBytes = data.mid(i, length);
+            QString const name = QString::fromUtf8(nameBytes);
 
             OathCredential cred;
             cred.name = name;
@@ -420,10 +429,11 @@ QList<OathCredential> OathProtocol::parseCalculateAllResponse(const QByteArray &
 
             // Next should be RESPONSE tag (0x76), HOTP (0x77), or TOUCH (0x7c)
             if (i + 2 <= data.length()) {
-                quint8 respTag = data[i++];
-                quint8 respLength = data[i++];
+                quint8 const respTag = data[i++];
+                quint8 const respLength = data[i++];
 
-                if (i + respLength > data.length()) break;
+                if (i + respLength > data.length()) { break;
+}
 
                 if (respTag == TAG_TOUCH) {
                     // Touch required
@@ -437,21 +447,21 @@ QList<OathCredential> OathProtocol::parseCalculateAllResponse(const QByteArray &
                     }
                 } else if (respTag == TAG_TOTP_RESPONSE && respLength >= 5) {
                     // Parse code
-                    quint8 digits = data[i];
+                    quint8 const digits = data[i];
                     quint32 codeValue = 0;
                     for (int j = 0; j < 4; ++j) {
                         codeValue = (codeValue << 8) | static_cast<quint8>(data[i + 1 + j]);
                     }
 
-                    QString code = formatCode(data.mid(i, respLength), digits);
+                    QString const code = formatCode(data.mid(i, respLength), digits);
 
                     if (!credentials.isEmpty()) {
                         credentials.last().code = code;
 
                         // Calculate validity (30-second TOTP period)
-                        qint64 currentTime = QDateTime::currentSecsSinceEpoch();
-                        qint64 timeInPeriod = currentTime % 30;
-                        qint64 validityRemaining = 30 - timeInPeriod;
+                        qint64 const currentTime = QDateTime::currentSecsSinceEpoch();
+                        qint64 const timeInPeriod = currentTime % 30;
+                        qint64 const validityRemaining = 30 - timeInPeriod;
                         credentials.last().validUntil = currentTime + validityRemaining;
                     }
                 }
@@ -475,12 +485,14 @@ QByteArray OathProtocol::findTlvTag(const QByteArray &data, quint8 tag)
 {
     int pos = 0;
     while (pos < data.length() - 1) {
-        if (pos + 2 > data.length()) break;
+        if (pos + 2 > data.length()) { break;
+}
 
-        quint8 currentTag = data[pos];
-        quint8 len = data[pos + 1];
+        quint8 const currentTag = data[pos];
+        quint8 const len = data[pos + 1];
 
-        if (pos + 2 + len > data.length()) break;
+        if (pos + 2 + len > data.length()) { break;
+}
 
         if (currentTag == tag) {
             return data.mid(pos + 2, len);
@@ -489,13 +501,13 @@ QByteArray OathProtocol::findTlvTag(const QByteArray &data, quint8 tag)
         pos += 2 + len;
     }
 
-    return QByteArray();
+    return {};
 }
 
 QByteArray OathProtocol::calculateTotpCounter(int period)
 {
-    qint64 currentTime = QDateTime::currentSecsSinceEpoch();
-    qint64 counter = currentTime / period;
+    qint64 const currentTime = QDateTime::currentSecsSinceEpoch();
+    qint64 const counter = currentTime / period;
 
     // Build 8-byte big-endian counter
     QByteArray result;
@@ -517,8 +529,8 @@ quint16 OathProtocol::getStatusWord(const QByteArray &response)
         return 0;
     }
 
-    quint8 sw1 = static_cast<quint8>(response[response.length() - 2]);
-    quint8 sw2 = static_cast<quint8>(response[response.length() - 1]);
+    auto const sw1 = static_cast<quint8>(response[response.length() - 2]);
+    auto const sw2 = static_cast<quint8>(response[response.length() - 1]);
 
     return (sw1 << 8) | sw2;
 }
@@ -536,7 +548,7 @@ bool OathProtocol::isSuccess(quint16 sw)
 QString OathProtocol::formatCode(const QByteArray &rawCode, int digits)
 {
     if (rawCode.length() < 5) {
-        return QString();
+        return {};
     }
 
     // First byte is number of digits (should match parameter)
@@ -565,7 +577,7 @@ QString OathProtocol::formatCode(const QByteArray &rawCode, int digits)
 QByteArray OathProtocol::decodeBase32(const QString &base32)
 {
     // Remove padding and convert to uppercase
-    QString cleaned = base32.toUpper().remove(QLatin1Char('='));
+    QString const cleaned = base32.toUpper().remove(QLatin1Char('='));
 
     // Base32 alphabet: A-Z (0-25), 2-7 (26-31)
     static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -580,10 +592,10 @@ QByteArray OathProtocol::decodeBase32(const QString &base32)
         if (!pos) {
             // Invalid character
             qWarning() << "Invalid Base32 character:" << ch;
-            return QByteArray();
+            return {};
         }
 
-        int value = pos - alphabet;
+        int const value = pos - alphabet;
 
         // Accumulate bits
         buffer = (buffer << 5) | value;
@@ -599,5 +611,5 @@ QByteArray OathProtocol::decodeBase32(const QString &base32)
     return result;
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

@@ -11,8 +11,8 @@
 #include <memory>
 #include "action_executor.h"  // Required for ActionExecutor::ActionResult
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 // Forward declarations
 class ClipboardManager;
@@ -20,7 +20,6 @@ class TextInputProvider;
 class DBusNotificationManager;
 class NotificationOrchestrator;
 class DaemonConfiguration;
-class AddCredentialWorkflow;
 class YubiKeyDeviceManager;
 class YubiKeyDatabase;
 class TouchHandler;
@@ -122,10 +121,7 @@ private:
     std::unique_ptr<ActionExecutor> m_actionExecutor;
     std::unique_ptr<TouchHandler> m_touchHandler;
     std::unique_ptr<TouchWorkflowCoordinator> m_touchWorkflowCoordinator;
-
-    // Workflow instances (one-shot, created on demand)
-    std::unique_ptr<AddCredentialWorkflow> m_addCredentialWorkflow;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

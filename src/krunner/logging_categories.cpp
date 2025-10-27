@@ -5,21 +5,21 @@
 
 #include "logging_categories.h"
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Runner {
 
 // Main runner component
-Q_LOGGING_CATEGORY(YubiKeyRunnerLog, "org.kde.plasma.krunner.yubikey.runner", QtWarningMsg)
+Q_LOGGING_CATEGORY(YubiKeyRunnerLog, "pl.jkolo.yubikey.oath.daemon.runner", QtWarningMsg)
 
 // Orchestration layer
-Q_LOGGING_CATEGORY(NotificationOrchestratorLog, "org.kde.plasma.krunner.yubikey.notification", QtWarningMsg)
-Q_LOGGING_CATEGORY(TouchWorkflowCoordinatorLog, "org.kde.plasma.krunner.yubikey.touch", QtWarningMsg)
-Q_LOGGING_CATEGORY(ActionExecutorLog, "org.kde.plasma.krunner.yubikey.action", QtWarningMsg)
-Q_LOGGING_CATEGORY(MatchBuilderLog, "org.kde.plasma.krunner.yubikey.match", QtWarningMsg)
+Q_LOGGING_CATEGORY(NotificationOrchestratorLog, "pl.jkolo.yubikey.oath.daemon.notification", QtWarningMsg)
+Q_LOGGING_CATEGORY(TouchWorkflowCoordinatorLog, "pl.jkolo.yubikey.oath.daemon.touch", QtWarningMsg)
+Q_LOGGING_CATEGORY(ActionExecutorLog, "pl.jkolo.yubikey.oath.daemon.action", QtWarningMsg)
+Q_LOGGING_CATEGORY(MatchBuilderLog, "pl.jkolo.yubikey.oath.daemon.match", QtWarningMsg)
 
 // Infrastructure layer
-Q_LOGGING_CATEGORY(TextInputLog, "org.kde.plasma.krunner.yubikey.input", QtWarningMsg)
-Q_LOGGING_CATEGORY(DBusNotificationLog, "org.kde.plasma.krunner.yubikey.dbus", QtWarningMsg)
+Q_LOGGING_CATEGORY(TextInputLog, "pl.jkolo.yubikey.oath.daemon.input", QtWarningMsg)
+Q_LOGGING_CATEGORY(DBusNotificationLog, "pl.jkolo.yubikey.oath.daemon.dbus", QtWarningMsg)
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Runner
+} // namespace YubiKeyOath

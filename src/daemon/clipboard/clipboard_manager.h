@@ -13,8 +13,8 @@
 class KSystemClipboard;
 class QTimer;
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 /**
  * @brief Manages clipboard operations
@@ -53,5 +53,5 @@ private:
     QString m_lastCopiedText;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

@@ -8,8 +8,8 @@
 #include <QString>
 #include <utility>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
 
 /**
  * @brief Result type for unified error handling
@@ -211,5 +211,5 @@ private:
     QString m_error;
 };
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Shared
+} // namespace YubiKeyOath

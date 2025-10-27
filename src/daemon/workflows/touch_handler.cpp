@@ -7,8 +7,8 @@
 #include "../logging_categories.h"
 #include <QDebug>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 TouchHandler::TouchHandler(QObject *parent)
     : QObject(parent)
@@ -54,10 +54,10 @@ void TouchHandler::onTimeout()
 {
     qCDebug(YubiKeyDaemonLog) << "TouchHandler: Touch timeout for:" << m_waitingForTouch;
 
-    QString credentialName = m_waitingForTouch;
+    QString const credentialName = m_waitingForTouch;
     cancelTouchOperation();
     Q_EMIT touchTimedOut(credentialName);
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

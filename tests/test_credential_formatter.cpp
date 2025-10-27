@@ -6,9 +6,9 @@
 #include <QtTest>
 #include "formatting/credential_formatter.h"
 #include "types/oath_credential.h"
-#include "dbus/yubikey_dbus_types.h"
+#include "types/yubikey_value_types.h"
 
-using namespace KRunner::YubiKey;
+using namespace YubiKeyOath::Shared;
 
 /**
  * @brief Unit tests for CredentialFormatter

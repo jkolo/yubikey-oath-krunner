@@ -5,28 +5,52 @@
 
 #include "yubikey_dbus_service.h"
 #include "services/yubikey_service.h"
-#include "actions/yubikey_action_coordinator.h"
-#include "dbus/type_conversions.h"
+#include "dbus/yubikey_manager_object.h"
 #include "logging_categories.h"
 
 #include <QDebug>
+#include <QDBusConnection>
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 YubiKeyDBusService::YubiKeyDBusService(QObject *parent)
     : QObject(parent)
     , m_service(std::make_unique<YubiKeyService>(this))
+    , m_manager(nullptr)
 {
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyDBusService: Initializing thin D-Bus marshaling layer";
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyDBusService: Initializing D-Bus service with hierarchical architecture";
 
-    // Direct signal-to-signal connections from service to D-Bus (no forwarding slots needed)
-    connect(m_service.get(), &YubiKeyService::deviceConnected,
-            this, &YubiKeyDBusService::DeviceConnected);
-    connect(m_service.get(), &YubiKeyService::deviceDisconnected,
-            this, &YubiKeyDBusService::DeviceDisconnected);
-    connect(m_service.get(), &YubiKeyService::credentialsUpdated,
-            this, &YubiKeyDBusService::CredentialsUpdated);
+    // Create and register Manager object at /pl/jkolo/yubikey/oath
+    const QDBusConnection connection = QDBusConnection::sessionBus();
+    m_manager = new YubiKeyManagerObject(m_service.get(), connection, this);
+
+    if (!m_manager->registerObject()) {
+        qCCritical(YubiKeyDaemonLog) << "YubiKeyDBusService: Failed to register Manager object - daemon cannot function";
+        // Note: Daemon startup will fail if Manager registration fails
+        // This is intentional - the daemon is useless without the Manager object
+    } else {
+        qCInfo(YubiKeyDaemonLog) << "YubiKeyDBusService: Manager object registered successfully";
+    }
+
+    // NOTE: Device lifecycle signals are connected in YubiKeyManagerObject constructor
+    // - deviceConnected -> addDevice
+    // - deviceDisconnected -> onDeviceDisconnected (updates IsConnected=false)
+    // - deviceForgotten -> removeDevice (removes from D-Bus completely)
+
+    // Add ALL known devices to Manager (both connected and disconnected from database)
+    // (devices detected during YubiKeyService initialization, before signals were connected)
+    // Device objects will be created with correct IsConnected status
+    const QList<DeviceInfo> devices = m_service->listDevices();
+    for (const auto &devInfo : devices) {
+        if (!devInfo.deviceId.isEmpty()) {
+            qCDebug(YubiKeyDaemonLog) << "YubiKeyDBusService: Adding device to Manager:"
+                                      << devInfo.deviceId << "isConnected:" << devInfo.isConnected;
+            // Pass connection status to ensure correct IsConnected property
+            m_manager->addDeviceWithStatus(devInfo.deviceId, devInfo.isConnected);
+        }
+    }
 
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDBusService: Initialization complete";
 }
@@ -36,76 +60,5 @@ YubiKeyDBusService::~YubiKeyDBusService()
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDBusService: Destructor";
 }
 
-QList<DeviceInfo> YubiKeyDBusService::ListDevices()
-{
-    // Pure D-Bus marshaling - delegate to service
-    return m_service->listDevices();
-}
-
-QList<CredentialInfo> YubiKeyDBusService::GetCredentials(const QString &deviceId)
-{
-    // Delegate to service and convert to D-Bus types
-    QList<OathCredential> credentials = m_service->getCredentials(deviceId);
-
-    QList<CredentialInfo> credList;
-    for (const auto &cred : credentials) {
-        credList.append(TypeConversions::toCredentialInfo(cred));
-    }
-
-    return credList;
-}
-
-GenerateCodeResult YubiKeyDBusService::GenerateCode(const QString &deviceId,
-                                                     const QString &credentialName)
-{
-    // Pure delegation - already returns D-Bus type
-    return m_service->generateCode(deviceId, credentialName);
-}
-
-bool YubiKeyDBusService::SavePassword(const QString &deviceId, const QString &password)
-{
-    // Pure delegation
-    return m_service->savePassword(deviceId, password);
-}
-
-void YubiKeyDBusService::ForgetDevice(const QString &deviceId)
-{
-    // Pure delegation
-    m_service->forgetDevice(deviceId);
-}
-
-bool YubiKeyDBusService::SetDeviceName(const QString &deviceId, const QString &newName)
-{
-    // Pure delegation
-    return m_service->setDeviceName(deviceId, newName);
-}
-
-AddCredentialResult YubiKeyDBusService::AddCredential(const QString &deviceId,
-                                                      const QString &name,
-                                                      const QString &secret,
-                                                      const QString &type,
-                                                      const QString &algorithm,
-                                                      int digits,
-                                                      int period,
-                                                      int counter,
-                                                      bool requireTouch)
-{
-    // Pure delegation to service layer
-    return m_service->addCredential(deviceId, name, secret, type, algorithm,
-                                   digits, period, counter, requireTouch);
-}
-
-bool YubiKeyDBusService::CopyCodeToClipboard(const QString &deviceId, const QString &credentialName)
-{
-    // Pure delegation to service layer
-    return m_service->copyCodeToClipboard(deviceId, credentialName);
-}
-
-bool YubiKeyDBusService::TypeCode(const QString &deviceId, const QString &credentialName)
-{
-    // Pure delegation to service layer
-    return m_service->typeCode(deviceId, credentialName);
-}
-
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

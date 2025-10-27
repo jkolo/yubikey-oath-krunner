@@ -5,8 +5,8 @@
 
 #include "notification_utils.h"
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Daemon {
 
 QVariantMap NotificationUtils::createNotificationHints(int urgency, int progressValue)
 {
@@ -16,5 +16,5 @@ QVariantMap NotificationUtils::createNotificationHints(int urgency, int progress
     return hints;
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Daemon
+} // namespace YubiKeyOath

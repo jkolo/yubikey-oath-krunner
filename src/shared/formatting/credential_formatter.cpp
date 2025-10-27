@@ -5,8 +5,8 @@
 
 #include "credential_formatter.h"
 
-namespace KRunner {
-namespace YubiKey {
+namespace YubiKeyOath {
+namespace Shared {
 
 QString CredentialFormatter::formatDisplayName(const OathCredential &credential,
                                                 bool showUsername,
@@ -111,5 +111,5 @@ QString CredentialFormatter::formatWithCode(const OathCredential &credential,
     return result;
 }
 
-} // namespace YubiKey
-} // namespace KRunner
+} // namespace Shared
+} // namespace YubiKeyOath
