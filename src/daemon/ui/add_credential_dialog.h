@@ -47,12 +47,12 @@ public:
     /**
      * @brief Constructs credential dialog
      * @param initialData Initial credential data (from QR code parser)
-     * @param availableDevices List of device IDs for selection
+     * @param availableDevices Map of device ID → device name for selection
      * @param preselectedDeviceId Optional device ID to preselect in combo
      * @param parent Parent widget
      */
     explicit AddCredentialDialog(const OathCredentialData &initialData,
-                                const QStringList &availableDevices,
+                                const QMap<QString, QString> &availableDevices,
                                 const QString &preselectedDeviceId = QString(),
                                 QWidget *parent = nullptr);
 
@@ -87,7 +87,7 @@ private Q_SLOTS:
     void onScreenshotCancelled();
 
 private:
-    void setupUi(const OathCredentialData &initialData, const QStringList &devices);
+    void setupUi(const OathCredentialData &initialData, const QMap<QString, QString> &devices);
     void updateFieldsForType();
     bool validateAndBuildData();
     void fillFieldsFromQrData(const OathCredentialData &data);

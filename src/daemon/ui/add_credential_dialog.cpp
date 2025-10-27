@@ -33,7 +33,7 @@ using Shared::OathType;
 using Shared::Result;
 
 AddCredentialDialog::AddCredentialDialog(const OathCredentialData &initialData,
-                                        const QStringList &availableDevices,
+                                        const QMap<QString, QString> &availableDevices,
                                         const QString &preselectedDeviceId,
                                         QWidget *parent)
     : QDialog(parent)
@@ -66,7 +66,7 @@ AddCredentialDialog::AddCredentialDialog(const OathCredentialData &initialData,
 }
 
 void AddCredentialDialog::setupUi(const OathCredentialData &initialData,
-                                  const QStringList &devices)
+                                  const QMap<QString, QString> &devices)
 {
     auto *mainLayout = new QVBoxLayout(this);
 
@@ -155,8 +155,14 @@ void AddCredentialDialog::setupUi(const OathCredentialData &initialData,
         m_deviceCombo->addItem(i18n("No devices available"));
         m_deviceCombo->setEnabled(false);
     } else {
-        for (const QString &deviceId : devices) {
-            m_deviceCombo->addItem(deviceId, deviceId);
+        qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Received devices map:" << devices;
+        for (auto it = devices.constBegin(); it != devices.constEnd(); ++it) {
+            const QString &deviceId = it.key();
+            const QString &deviceName = it.value();
+            qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Adding item - text:"
+                                      << deviceName << "data:" << deviceId;
+            // Show device name, store device ID as data
+            m_deviceCombo->addItem(deviceName, deviceId);
         }
     }
     formLayout->addRow(i18n("Target Device:"), m_deviceCombo);

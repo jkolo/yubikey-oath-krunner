@@ -489,8 +489,22 @@ void YubiKeyService::showAddCredentialDialogAsync(const QString &deviceId,
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Showing add credential dialog asynchronously";
 
-    // Get available devices
-    QStringList availableDevices = m_deviceManager->getConnectedDeviceIds();
+    // Get available devices with their names
+    QStringList deviceIds = m_deviceManager->getConnectedDeviceIds();
+    QMap<QString, QString> availableDevices;
+    for (const QString &id : deviceIds) {
+        // Get device name from database
+        auto deviceRecord = m_database->getDevice(id);
+        QString displayName = deviceRecord.has_value() ? deviceRecord->deviceName : id;
+
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Device" << id
+                                  << "has name:" << displayName
+                                  << "(from DB:" << (deviceRecord.has_value() ? "yes" : "no") << ")";
+
+        availableDevices.insert(id, displayName);
+    }
+
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Available devices map:" << availableDevices;
 
     // Create dialog on heap (will be deleted automatically when closed)
     auto *dialog = new AddCredentialDialog(initialData, availableDevices, deviceId);
@@ -562,7 +576,13 @@ void YubiKeyService::clearDeviceFromMemory(const QString &deviceId)
 
 QString YubiKeyService::generateDefaultDeviceName(const QString &deviceId) const
 {
-    return QStringLiteral("YubiKey ") + deviceId;
+    // Use last 8 characters of device ID for shorter, more readable default name
+    // Example: "28b5c0b54ccb10db" becomes "YubiKey (...4ccb10db)"
+    if (deviceId.length() > 8) {
+        const QString shortId = deviceId.right(8);
+        return QStringLiteral("YubiKey (...") + shortId + QStringLiteral(")");
+    }
+    return QStringLiteral("YubiKey (") + deviceId + QStringLiteral(")");
 }
 
 } // namespace Daemon
