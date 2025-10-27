@@ -45,6 +45,10 @@ public:
     }
 
     // ConfigurationProvider interface implementation
+    void reload() override {
+        // Mock does nothing on reload (configuration is set via setters)
+    }
+
     bool showNotifications() const override {
         return m_showNotifications;
     }

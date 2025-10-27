@@ -28,6 +28,11 @@ public:
     virtual ~ConfigurationProvider();
 
     /**
+     * @brief Reloads configuration from storage
+     */
+    virtual void reload() = 0;
+
+    /**
      * @brief Gets notification display preference
      * @return true if notifications should be shown
      */

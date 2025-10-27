@@ -33,11 +33,8 @@ YubiKeyRunner::YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData)
 
     setObjectName(QStringLiteral("yubikey-oath"));
 
-    // Create configuration provider
-    m_config = std::make_unique<KRunnerConfiguration>(
-        [this]() { return this->config(); },
-        this  // parent for QObject
-    );
+    // Create configuration provider (uses yubikey-oathrc like daemon and config module)
+    m_config = std::make_unique<KRunnerConfiguration>(this);
 
     // Create runner components
     m_actionManager = std::make_unique<ActionManager>();
@@ -60,6 +57,11 @@ YubiKeyRunner::YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData)
             this, &YubiKeyRunner::onCredentialsUpdated);
     connect(m_manager, &YubiKeyManagerProxy::daemonUnavailable,
             this, &YubiKeyRunner::onDaemonUnavailable);
+
+    // Connect configuration change signal - setupActions only, no reload
+    // (reload is called automatically by QFileSystemWatcher in config)
+    connect(m_config.get(), &ConfigurationProvider::configurationChanged,
+            this, &YubiKeyRunner::setupActions);
 
     qCDebug(YubiKeyRunnerLog) << "Constructor finished";
 }
@@ -395,8 +397,11 @@ void YubiKeyRunner::reloadConfiguration()
 {
     qCDebug(YubiKeyRunnerLog) << "reloadConfiguration() called";
 
-    // Configuration is automatically reloaded via callback
-    // Just rebuild actions with potentially new primary action
+    // Note: Don't call m_config->reload() here to avoid infinite recursion
+    // QFileSystemWatcher automatically calls reload() which emits configurationChanged()
+    // which is connected to setupActions()
+
+    // This method is kept for manual reload from init()
     setupActions();
 }
 

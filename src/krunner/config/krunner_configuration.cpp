@@ -7,15 +7,41 @@
 #include <QDebug>
 #include <KConfigGroup>
 #include <KConfig>
+#include <KSharedConfig>
+#include <QStandardPaths>
+#include <QFile>
 
 namespace YubiKeyOath {
 namespace Runner {
 using namespace YubiKeyOath::Shared;
 
-KRunnerConfiguration::KRunnerConfiguration(std::function<KConfigGroup()> configGroup, QObject *parent)
+KRunnerConfiguration::KRunnerConfiguration(QObject *parent)
     : ConfigurationProvider(parent)
-    , m_configGroup(std::move(configGroup))
+    , m_config(KSharedConfig::openConfig(QStringLiteral("yubikey-oathrc")))
+    , m_configGroup(m_config->group(QStringLiteral("General")))
+    , m_fileWatcher(new QFileSystemWatcher(this))
 {
+    // Get config file path
+    QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
+                        + QStringLiteral("/yubikey-oathrc");
+
+    qDebug() << "KRunnerConfiguration: Watching config file:" << configPath;
+
+    // Watch config file for changes
+    if (QFile::exists(configPath)) {
+        m_fileWatcher->addPath(configPath);
+    }
+
+    // Connect file change signal
+    connect(m_fileWatcher, &QFileSystemWatcher::fileChanged,
+            this, &KRunnerConfiguration::onConfigFileChanged);
+}
+
+void KRunnerConfiguration::reload()
+{
+    m_config->reparseConfiguration();
+    m_configGroup = m_config->group(QStringLiteral("General"));
+    Q_EMIT configurationChanged();
 }
 
 bool KRunnerConfiguration::showNotifications() const
@@ -64,6 +90,19 @@ int KRunnerConfiguration::notificationExtraTime() const
 QString KRunnerConfiguration::primaryAction() const
 {
     return readConfigEntry(ConfigKeys::PRIMARY_ACTION, QStringLiteral("copy"));
+}
+
+void KRunnerConfiguration::onConfigFileChanged(const QString &path)
+{
+    qDebug() << "KRunnerConfiguration: Config file changed:" << path;
+
+    // Reload configuration from file
+    reload();
+
+    // Re-add file to watch list (QFileSystemWatcher removes it after change on some systems)
+    if (!m_fileWatcher->files().contains(path)) {
+        m_fileWatcher->addPath(path);
+    }
 }
 
 } // namespace Runner

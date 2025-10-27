@@ -10,6 +10,7 @@
 #include <QString>
 #include <KSharedConfig>
 #include <KConfigGroup>
+#include <QFileSystemWatcher>
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -29,7 +30,7 @@ public:
     /**
      * @brief Reloads configuration from file
      */
-    void reload();
+    void reload() override;
 
     bool showNotifications() const override;
     bool showUsername() const override;
@@ -40,9 +41,13 @@ public:
     int notificationExtraTime() const override;
     QString primaryAction() const override;
 
+private Q_SLOTS:
+    void onConfigFileChanged(const QString &path);
+
 private:
     KSharedConfig::Ptr m_config;
     KConfigGroup m_configGroup;
+    QFileSystemWatcher *m_fileWatcher;
 
     // Configuration keys now defined in shared/config/configuration_keys.h
 

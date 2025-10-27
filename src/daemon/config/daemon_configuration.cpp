@@ -4,6 +4,9 @@
  */
 
 #include "daemon_configuration.h"
+#include <QStandardPaths>
+#include <QFile>
+#include <QDebug>
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -13,7 +16,22 @@ DaemonConfiguration::DaemonConfiguration(QObject *parent)
     : ConfigurationProvider(parent)
     , m_config(KSharedConfig::openConfig(QStringLiteral("yubikey-oathrc")))
     , m_configGroup(m_config->group(QStringLiteral("General")))
+    , m_fileWatcher(new QFileSystemWatcher(this))
 {
+    // Get config file path
+    QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
+                        + QStringLiteral("/yubikey-oathrc");
+
+    qDebug() << "DaemonConfiguration: Watching config file:" << configPath;
+
+    // Watch config file for changes
+    if (QFile::exists(configPath)) {
+        m_fileWatcher->addPath(configPath);
+    }
+
+    // Connect file change signal
+    connect(m_fileWatcher, &QFileSystemWatcher::fileChanged,
+            this, &DaemonConfiguration::onConfigFileChanged);
 }
 
 void DaemonConfiguration::reload()
@@ -35,16 +53,12 @@ bool DaemonConfiguration::showUsername() const
 
 bool DaemonConfiguration::showCode() const
 {
-    // NOTE: Default is 'true' in daemon (different from KRunnerConfiguration which defaults to 'false')
-    // This is intentional - daemon shows code by default for notifications
-    return readConfigEntry(ConfigKeys::SHOW_CODE, true);
+    return readConfigEntry(ConfigKeys::SHOW_CODE, false);
 }
 
 bool DaemonConfiguration::showDeviceName() const
 {
-    // NOTE: Default is 'true' in daemon (different from KRunnerConfiguration which defaults to 'false')
-    // This is intentional - daemon shows device name by default in notifications
-    return readConfigEntry(ConfigKeys::SHOW_DEVICE_NAME, true);
+    return readConfigEntry(ConfigKeys::SHOW_DEVICE_NAME, false);
 }
 
 bool DaemonConfiguration::showDeviceNameOnlyWhenMultiple() const
@@ -54,20 +68,30 @@ bool DaemonConfiguration::showDeviceNameOnlyWhenMultiple() const
 
 int DaemonConfiguration::touchTimeout() const
 {
-    // NOTE: Default is 15 seconds in daemon (different from KRunnerConfiguration which defaults to 10)
-    // This is intentional - daemon uses longer timeout for background operations
-    return readConfigEntry(ConfigKeys::TOUCH_TIMEOUT, 15);
+    return readConfigEntry(ConfigKeys::TOUCH_TIMEOUT, 10);
 }
 
 int DaemonConfiguration::notificationExtraTime() const
 {
-    // Default is 15 seconds - matches Config UI default
     return readConfigEntry(ConfigKeys::NOTIFICATION_EXTRA_TIME, 15);
 }
 
 QString DaemonConfiguration::primaryAction() const
 {
     return readConfigEntry(ConfigKeys::PRIMARY_ACTION, QStringLiteral("copy"));
+}
+
+void DaemonConfiguration::onConfigFileChanged(const QString &path)
+{
+    qDebug() << "DaemonConfiguration: Config file changed:" << path;
+
+    // Reload configuration from file
+    reload();
+
+    // Re-add file to watch list (QFileSystemWatcher removes it after change on some systems)
+    if (!m_fileWatcher->files().contains(path)) {
+        m_fileWatcher->addPath(path);
+    }
 }
 
 } // namespace Daemon
