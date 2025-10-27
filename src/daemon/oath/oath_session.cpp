@@ -72,6 +72,8 @@ QByteArray OathSession::sendApdu(const QByteArray &command)
             result == SCARD_E_NO_SMARTCARD ||
             result == SCARD_W_RESET_CARD) {
             qCDebug(YubiKeyOathDeviceLog) << "Device" << m_deviceId << "was removed or disconnected";
+            // Mark session as inactive when card is removed/reset
+            m_sessionActive = false;
         }
 
         Q_EMIT errorOccurred(tr("Failed to send APDU: 0x%1").arg(result, 0, 16));
@@ -144,6 +146,7 @@ Result<void> OathSession::selectOathApplication(QByteArray &outChallenge)
 
     if (response.isEmpty()) {
         qCDebug(YubiKeyOathDeviceLog) << "Empty response from SELECT";
+        m_sessionActive = false;  // Mark session as inactive on error
         return Result<void>::error(tr("Failed to select OATH application"));
     }
 
@@ -151,6 +154,7 @@ Result<void> OathSession::selectOathApplication(QByteArray &outChallenge)
     QString deviceId;
     if (!OathProtocol::parseSelectResponse(response, deviceId, outChallenge)) {
         qCDebug(YubiKeyOathDeviceLog) << "Failed to parse SELECT response";
+        m_sessionActive = false;  // Mark session as inactive on error
         return Result<void>::error(tr("Failed to parse SELECT response"));
     }
 
@@ -162,12 +166,27 @@ Result<void> OathSession::selectOathApplication(QByteArray &outChallenge)
     qCDebug(YubiKeyOathDeviceLog) << "SELECT successful, device ID:" << m_deviceId
              << "challenge:" << outChallenge.toHex();
 
+    // Mark session as active after successful SELECT
+    m_sessionActive = true;
+
     return Result<void>::success();
 }
 
 Result<QString> OathSession::calculateCode(const QString &name)
 {
     qCDebug(YubiKeyOathDeviceLog) << "calculateCode() for" << name << "on device" << m_deviceId;
+
+    // Ensure OATH session is active before sending CALCULATE
+    if (!m_sessionActive) {
+        qCDebug(YubiKeyOathDeviceLog) << "Session not active, executing SELECT first";
+        QByteArray challenge;
+        auto selectResult = selectOathApplication(challenge);
+        if (selectResult.isError()) {
+            qCDebug(YubiKeyOathDeviceLog) << "SELECT failed:" << selectResult.error();
+            return Result<QString>::error(tr("Failed to establish OATH session: %1").arg(selectResult.error()));
+        }
+        qCDebug(YubiKeyOathDeviceLog) << "Session established successfully";
+    }
 
     // Create challenge from current time
     QByteArray challenge = OathProtocol::createTotpChallenge();
@@ -204,6 +223,18 @@ Result<QString> OathSession::calculateCode(const QString &name)
 Result<QList<OathCredential>> OathSession::calculateAll()
 {
     qCDebug(YubiKeyOathDeviceLog) << "calculateAll() for device" << m_deviceId;
+
+    // Ensure OATH session is active before sending CALCULATE ALL
+    if (!m_sessionActive) {
+        qCDebug(YubiKeyOathDeviceLog) << "Session not active, executing SELECT first";
+        QByteArray selectChallenge;
+        auto selectResult = selectOathApplication(selectChallenge);
+        if (selectResult.isError()) {
+            qCDebug(YubiKeyOathDeviceLog) << "SELECT failed:" << selectResult.error();
+            return Result<QList<OathCredential>>::error(tr("Failed to establish OATH session: %1").arg(selectResult.error()));
+        }
+        qCDebug(YubiKeyOathDeviceLog) << "Session established successfully";
+    }
 
     // Create challenge from current time
     QByteArray challenge = OathProtocol::createTotpChallenge();
@@ -401,6 +432,10 @@ void OathSession::cancelOperation()
     // Send SELECT command to reset device state
     QByteArray command = OathProtocol::createSelectCommand();
     sendApdu(command);
+
+    // Mark session as inactive after reset (caller should re-establish session)
+    m_sessionActive = false;
+    qCDebug(YubiKeyOathDeviceLog) << "Session marked as inactive after cancel operation";
 }
 
 // =============================================================================

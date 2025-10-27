@@ -195,6 +195,7 @@ private:
     SCARDHANDLE m_cardHandle;  ///< PC/SC card handle (non-owning)
     DWORD m_protocol;          ///< PC/SC protocol (T=0 or T=1)
     QString m_deviceId;        ///< Device ID from SELECT response
+    bool m_sessionActive = false;  ///< Session state tracking - true if OATH applet is selected
 };
 
 } // namespace Daemon
