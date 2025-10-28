@@ -194,9 +194,13 @@ void YubiKeyCredentialObject::Delete()
     qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Delete credential:"
                               << m_credential.name << "from device:" << m_deviceId;
 
-    // TODO: Implement DeleteCredential in YubiKeyService
-    // For now, just log warning
-    qCWarning(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Delete not yet implemented";
+    // Delegate to YubiKeyService for deletion
+    bool success = m_service->deleteCredential(m_deviceId, m_credential.name);
+
+    if (!success) {
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Failed to delete credential:"
+                                    << m_credential.name;
+    }
 }
 
 QVariantMap YubiKeyCredentialObject::getManagedObjectData() const

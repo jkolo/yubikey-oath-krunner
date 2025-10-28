@@ -138,6 +138,21 @@ public:
     Result<void> putCredential(const OathCredentialData &data);
 
     /**
+     * @brief Deletes credential from YubiKey
+     * @param name Full credential name (issuer:username)
+     * @return Result with success or error message
+     *
+     * Uses DELETE command (0x02) to remove credential.
+     * Requires authentication if validation is configured on YubiKey.
+     *
+     * Possible errors:
+     * - No such object (0x6984) - credential not found
+     * - Authentication required (0x6982)
+     * - Wrong data format (0x6a80)
+     */
+    Result<void> deleteCredential(const QString &name);
+
+    /**
      * @brief Cancels pending operation by sending SELECT
      *
      * Useful for interrupting long-running touch-required operations.

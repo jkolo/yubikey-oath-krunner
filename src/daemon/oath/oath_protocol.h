@@ -35,6 +35,7 @@ public:
 
     // Instruction codes
     static constexpr quint8 INS_PUT = 0x01;
+    static constexpr quint8 INS_DELETE = 0x02;
     static constexpr quint8 INS_SELECT = 0xa4;
     static constexpr quint8 INS_LIST = 0xa1;
     static constexpr quint8 INS_CALCULATE = 0xa2;
@@ -47,6 +48,7 @@ public:
     static constexpr quint16 SW_OK = 0x9000;
     static constexpr quint16 SW_MORE_DATA = 0x6100;
     static constexpr quint16 SW_SECURITY_STATUS_NOT_SATISFIED = 0x6982;
+    static constexpr quint16 SW_NO_SUCH_OBJECT = 0x6984;
     static constexpr quint16 SW_WRONG_DATA = 0x6A80;
     static constexpr quint16 SW_INSUFFICIENT_SPACE = 0x6A84;
 
@@ -125,6 +127,16 @@ public:
      *   TAG_IMF (0x7a): 4-byte counter (HOTP only)
      */
     static QByteArray createPutCommand(const OathCredentialData &data);
+
+    /**
+     * @brief Creates DELETE command for removing credential
+     * @param name Full credential name (issuer:username)
+     * @return APDU command bytes
+     *
+     * Format (TLV):
+     *   TAG_NAME (0x71): credential name (UTF-8)
+     */
+    static QByteArray createDeleteCommand(const QString &name);
 
     // Response parsing
     /**

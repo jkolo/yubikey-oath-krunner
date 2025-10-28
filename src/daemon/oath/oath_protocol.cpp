@@ -213,6 +213,41 @@ QByteArray OathProtocol::createPutCommand(const OathCredentialData &data)
     return command;
 }
 
+QByteArray OathProtocol::createDeleteCommand(const QString &name)
+{
+    // Format: CLA INS P1 P2 Lc Data
+    // CLA=0x00, INS=0x02 (DELETE), P1=0x00, P2=0x00
+    // Data: TAG_NAME (0x71) + length + name (UTF-8)
+
+    QByteArray command;
+    command.reserve(256);
+
+    // APDU header
+    command.append(static_cast<char>(CLA));         // CLA = 0x00
+    command.append(static_cast<char>(INS_DELETE));  // INS = 0x02
+    command.append((char)0x00);                     // P1 = 0x00
+    command.append((char)0x00);                     // P2 = 0x00
+
+    // Build TLV data
+    QByteArray tlvData;
+    QByteArray const nameBytes = name.toUtf8();
+
+    // TAG_NAME (0x71) + length + name
+    tlvData.append(static_cast<char>(TAG_NAME));
+    tlvData.append(static_cast<char>(nameBytes.length()));
+    tlvData.append(nameBytes);
+
+    // Append Lc (data length)
+    command.append(static_cast<char>(tlvData.length()));
+
+    // Append data
+    command.append(tlvData);
+
+    // No Le per YubiKey OATH spec
+
+    return command;
+}
+
 // =============================================================================
 // Response Parsing
 // =============================================================================

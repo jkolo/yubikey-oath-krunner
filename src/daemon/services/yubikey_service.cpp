@@ -403,6 +403,38 @@ AddCredentialResult YubiKeyService::addCredential(const QString &deviceId,
     return AddCredentialResult(QStringLiteral("Success"), i18n("Credential added successfully"));
 }
 
+bool YubiKeyService::deleteCredential(const QString &deviceId, const QString &credentialName)
+{
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: deleteCredential" << credentialName << "device:" << deviceId;
+
+    if (credentialName.isEmpty()) {
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Empty credential name";
+        return false;
+    }
+
+    // Get device instance
+    auto *device = m_deviceManager->getDevice(deviceId);
+    if (!device) {
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Device" << deviceId << "not found";
+        return false;
+    }
+
+    // Call deleteCredential on device
+    Result<void> result = device->deleteCredential(credentialName);
+
+    if (result.isSuccess()) {
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Credential deleted successfully";
+
+        // Emit signal to notify clients that credentials changed
+        Q_EMIT credentialsUpdated(deviceId);
+
+        return true;
+    } else {
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Failed to delete credential:" << result.error();
+        return false;
+    }
+}
+
 bool YubiKeyService::copyCodeToClipboard(const QString &deviceId, const QString &credentialName)
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyService: copyCodeToClipboard" << credentialName << "device:" << deviceId;

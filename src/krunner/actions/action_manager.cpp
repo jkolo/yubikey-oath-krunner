@@ -68,7 +68,8 @@ QString ActionManager::determineAction(const KRunner::QueryMatch &match,
 bool ActionManager::isValidAction(const QString &actionId) const
 {
     return actionId == QStringLiteral("copy") ||
-           actionId == QStringLiteral("type");
+           actionId == QStringLiteral("type") ||
+           actionId == QStringLiteral("delete");
 }
 
 QString ActionManager::getActionName(const QString &actionId) const
@@ -77,6 +78,8 @@ QString ActionManager::getActionName(const QString &actionId) const
         return i18n("Copy to clipboard");
     } else if (actionId == QStringLiteral("type")) {
         return i18n("Type code");
+    } else if (actionId == QStringLiteral("delete")) {
+        return i18n("Delete credential");
     }
     return i18n("Unknown action");
 }

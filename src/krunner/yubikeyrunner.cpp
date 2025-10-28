@@ -17,6 +17,7 @@
 #include <QTimer>
 #include <QEventLoop>
 #include <QCoreApplication>
+#include <QMessageBox>
 
 namespace YubiKeyOath {
 namespace Runner {
@@ -103,6 +104,11 @@ void YubiKeyRunner::setupActions()
                                           QStringLiteral("edit-copy"),
                                           i18n("Copy to clipboard")));
     }
+
+    // Always add Delete action as third button (always visible)
+    m_actions.append(KRunner::Action(QStringLiteral("delete"),
+                                      QStringLiteral("edit-delete"),
+                                      i18n("Delete credential")));
 
     qCDebug(YubiKeyRunnerLog) << "setupActions() - created" << m_actions.size() << "action(s)";
 }
@@ -317,7 +323,28 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
              << "action name:" << m_actionManager->getActionName(actionId);
 
     // Execute action via credential proxy methods
-    if (actionId == QStringLiteral("type")) {
+    if (actionId == QStringLiteral("delete")) {
+        // Show confirmation dialog before deleting
+        qCDebug(YubiKeyRunnerLog) << "Showing delete confirmation dialog for:" << credentialName;
+
+        QMessageBox::StandardButton reply = QMessageBox::question(
+            nullptr,
+            i18n("Delete Credential?"),
+            i18n("Are you sure you want to delete '%1' from your YubiKey?\n\nThis action cannot be undone.", credentialName),
+            QMessageBox::Yes | QMessageBox::No,
+            QMessageBox::No  // Default button is "No" for safety
+        );
+
+        if (reply == QMessageBox::Yes) {
+            qCDebug(YubiKeyRunnerLog) << "User confirmed deletion for:" << credentialName;
+            credential->deleteCredential();
+            qCDebug(YubiKeyRunnerLog) << "Delete action completed successfully:" << credentialName;
+        } else {
+            qCDebug(YubiKeyRunnerLog) << "User cancelled deletion for:" << credentialName;
+        }
+
+        return;
+    } else if (actionId == QStringLiteral("type")) {
         // Type action must execute AFTER KRunner closes completely
         // Use async execution with QEventLoop to avoid blocking run() return
         qCDebug(YubiKeyRunnerLog) << "Scheduling asynchronous type action for KRunner to close";

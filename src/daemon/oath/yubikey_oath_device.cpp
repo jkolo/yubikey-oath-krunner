@@ -176,6 +176,36 @@ Result<void> YubiKeyOathDevice::addCredential(const OathCredentialData &data)
     return result;
 }
 
+Result<void> YubiKeyOathDevice::deleteCredential(const QString &name)
+{
+    qCDebug(YubiKeyOathDeviceLog) << "deleteCredential() for device" << m_deviceId
+                                   << "credential:" << name;
+
+    // Serialize card access to prevent race conditions between threads
+    QMutexLocker locker(&m_cardMutex);
+
+    // If device requires password and we have one, authenticate first
+    if (!m_password.isEmpty()) {
+        qCDebug(YubiKeyOathDeviceLog) << "Authenticating before deleting credential";
+        auto authResult = m_session->authenticate(m_password, m_deviceId);
+        if (authResult.isError()) {
+            qCWarning(YubiKeyOathDeviceLog) << "Authentication failed:" << authResult.error();
+            return authResult;
+        }
+    }
+
+    // Delete credential via session
+    auto result = m_session->deleteCredential(name);
+
+    if (result.isSuccess()) {
+        qCDebug(YubiKeyOathDeviceLog) << "Credential deleted successfully, triggering cache update";
+        // Trigger credential cache refresh to remove deleted credential
+        updateCredentialCacheAsync(m_password);
+    }
+
+    return result;
+}
+
 void YubiKeyOathDevice::setPassword(const QString& password)
 {
     qCDebug(YubiKeyOathDeviceLog) << "setPassword() for device" << m_deviceId;

@@ -425,6 +425,64 @@ Result<void> OathSession::putCredential(const OathCredentialData &data)
                                 .arg(sw, 4, 16, QLatin1Char('0')));
 }
 
+Result<void> OathSession::deleteCredential(const QString &name)
+{
+    qCDebug(YubiKeyOathDeviceLog) << "deleteCredential() for device" << m_deviceId
+                                   << "credential:" << name;
+
+    if (name.isEmpty()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Empty credential name";
+        return Result<void>::error(tr("Credential name cannot be empty"));
+    }
+
+    // Create DELETE command
+    QByteArray command = OathProtocol::createDeleteCommand(name);
+    if (command.isEmpty()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Failed to create DELETE command";
+        return Result<void>::error(tr("Failed to encode credential name"));
+    }
+
+    qCDebug(YubiKeyOathDeviceLog) << "Sending DELETE command, length:" << command.length();
+
+    // Send command
+    QByteArray response = sendApdu(command);
+
+    if (response.isEmpty()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Empty response from DELETE command";
+        return Result<void>::error(tr("No response from YubiKey"));
+    }
+
+    // Check status word
+    quint16 sw = OathProtocol::getStatusWord(response);
+    qCDebug(YubiKeyOathDeviceLog) << "DELETE status word:" << QString::number(sw, 16);
+
+    if (sw == OathProtocol::SW_SUCCESS) {
+        qCDebug(YubiKeyOathDeviceLog) << "Credential deleted successfully";
+        return Result<void>::success();
+    }
+
+    // Handle specific error cases
+    if (sw == OathProtocol::SW_NO_SUCH_OBJECT) {
+        qCWarning(YubiKeyOathDeviceLog) << "Credential not found";
+        return Result<void>::error(tr("Credential not found on YubiKey"));
+    }
+
+    if (sw == OathProtocol::SW_SECURITY_STATUS_NOT_SATISFIED) {
+        qCWarning(YubiKeyOathDeviceLog) << "Authentication required";
+        return Result<void>::error(tr("Authentication required - YubiKey is password protected"));
+    }
+
+    if (sw == OathProtocol::SW_WRONG_DATA) {
+        qCWarning(YubiKeyOathDeviceLog) << "Wrong data format";
+        return Result<void>::error(tr("Invalid credential name format"));
+    }
+
+    // Unknown error
+    qCWarning(YubiKeyOathDeviceLog) << "DELETE failed with status word:" << QString::number(sw, 16);
+    return Result<void>::error(tr("Failed to delete credential (error code: 0x%1)")
+                                .arg(sw, 4, 16, QLatin1Char('0')));
+}
+
 void OathSession::cancelOperation()
 {
     qCDebug(YubiKeyOathDeviceLog) << "cancelOperation() for device" << m_deviceId;

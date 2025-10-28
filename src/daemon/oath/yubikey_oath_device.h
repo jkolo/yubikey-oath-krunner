@@ -117,6 +117,16 @@ public:
     Result<void> addCredential(const OathCredentialData &data);
 
     /**
+     * @brief Deletes OATH credential from device
+     * @param name Full credential name (issuer:username)
+     * @return Result indicating success or containing error message
+     *
+     * Requires authentication if device is password protected.
+     * Use setPassword() before calling if authentication needed.
+     */
+    Result<void> deleteCredential(const QString &name);
+
+    /**
      * @brief Sets password for this device
      * @param password Password to set
      */

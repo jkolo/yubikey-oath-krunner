@@ -658,6 +658,21 @@ msgstr "Wpisz kod"
 msgid "Copy to clipboard"
 msgstr "Kopiuj do schowka"
 
+#: src/krunner/yubikeyrunner.cpp:110 src/krunner/actions/action_manager.cpp:82
+#, kde-format
+msgid "Delete credential"
+msgstr "Usuń dane"
+
+#: src/krunner/yubikeyrunner.cpp:332
+#, kde-format
+msgid "Delete Credential?"
+msgstr "Usunąć dane?"
+
+#: src/krunner/yubikeyrunner.cpp:333
+#, kde-format
+msgid "Are you sure you want to delete '%1' from your YubiKey?\n\nThis action cannot be undone."
+msgstr "Czy na pewno chcesz usunąć '%1' z YubiKey?\n\nTej operacji nie można cofnąć."
+
 #: src/krunner/yubikeyrunner.cpp:125
 #, kde-format
 msgid "Capture QR code and add credential"

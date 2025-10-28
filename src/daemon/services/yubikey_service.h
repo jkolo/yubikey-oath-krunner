@@ -137,6 +137,18 @@ public:
                                      bool requireTouch);
 
     /**
+     * @brief Deletes credential from YubiKey
+     * @param deviceId Device ID (empty = use first available device)
+     * @param credentialName Full credential name (issuer:username)
+     * @return true on success, false on failure
+     *
+     * Removes credential from device.
+     * Requires authentication if YubiKey is password protected.
+     * Emits credentialsUpdated signal on success.
+     */
+    bool deleteCredential(const QString &deviceId, const QString &credentialName);
+
+    /**
      * @brief Copies TOTP code to clipboard
      * @param deviceId Device ID (empty = use first available device)
      * @param credentialName Full credential name (issuer:username)
