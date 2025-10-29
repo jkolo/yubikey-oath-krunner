@@ -134,6 +134,12 @@ private:
     int m_period;
     QString m_deviceId;
 
+    // Code cache (mutable - updated on generateCode() calls)
+    // PERFORMANCE: Caching eliminates N separate D-Bus calls when building matches
+    // Cache is valid until validUntil timestamp (typically 30s for TOTP)
+    mutable QString m_cachedCode;
+    mutable qint64 m_cachedValidUntil;
+
     static constexpr const char *SERVICE_NAME = "pl.jkolo.yubikey.oath.daemon";
     static constexpr const char *INTERFACE_NAME = "pl.jkolo.yubikey.oath.Credential";
 };

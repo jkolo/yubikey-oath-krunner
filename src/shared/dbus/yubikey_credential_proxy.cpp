@@ -10,6 +10,7 @@
 #include <QDBusMetaType>
 #include <QLatin1String>
 #include <QLoggingCategory>
+#include <QDateTime>
 
 Q_LOGGING_CATEGORY(YubiKeyCredentialProxyLog, "pl.jkolo.yubikey.oath.daemon.credential.proxy")
 
@@ -35,6 +36,8 @@ YubiKeyCredentialProxy::YubiKeyCredentialProxy(const QString &objectPath,
     , m_requiresTouch(false)
     , m_digits(6)
     , m_period(30)
+    , m_cachedCode()
+    , m_cachedValidUntil(0)
 {
     // Register D-Bus types
     registerDBusTypes();
@@ -78,17 +81,39 @@ GenerateCodeResult YubiKeyCredentialProxy::generateCode()
         return GenerateCodeResult{QString(), 0};
     }
 
+    // PERFORMANCE: Check cache before calling D-Bus
+    // This eliminates N separate D-Bus calls when building KRunner matches
+    qint64 currentTime = QDateTime::currentSecsSinceEpoch();
+
+    if (!m_cachedCode.isEmpty() && m_cachedValidUntil > currentTime) {
+        qCDebug(YubiKeyCredentialProxyLog) << "Returning cached code for" << m_name
+                                           << "Valid for" << (m_cachedValidUntil - currentTime) << "more seconds";
+        return GenerateCodeResult{m_cachedCode, m_cachedValidUntil};
+    }
+
+    // Cache miss or expired - call D-Bus
+    qCDebug(YubiKeyCredentialProxyLog) << "Cache miss/expired for" << m_name << "- calling D-Bus";
     QDBusReply<GenerateCodeResult> reply = m_interface->call(QStringLiteral("GenerateCode"));
 
     if (!reply.isValid()) {
         qCWarning(YubiKeyCredentialProxyLog) << "GenerateCode failed for" << m_name
                                               << "Error:" << reply.error().message();
+        // Don't clear cache on error - return old cached code if available
+        if (!m_cachedCode.isEmpty()) {
+            qCWarning(YubiKeyCredentialProxyLog) << "Returning stale cached code due to D-Bus error";
+            return GenerateCodeResult{m_cachedCode, m_cachedValidUntil};
+        }
         return GenerateCodeResult{QString(), 0};
     }
 
     auto result = reply.value();
     qCDebug(YubiKeyCredentialProxyLog) << "Generated code for" << m_name
                                        << "Valid until:" << result.validUntil;
+
+    // Update cache
+    m_cachedCode = result.code;
+    m_cachedValidUntil = result.validUntil;
+
     return result;
 }
 

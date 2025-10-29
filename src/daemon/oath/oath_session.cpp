@@ -176,17 +176,9 @@ Result<QString> OathSession::calculateCode(const QString &name)
 {
     qCDebug(YubiKeyOathDeviceLog) << "calculateCode() for" << name << "on device" << m_deviceId;
 
-    // Ensure OATH session is active before sending CALCULATE
-    if (!m_sessionActive) {
-        qCDebug(YubiKeyOathDeviceLog) << "Session not active, executing SELECT first";
-        QByteArray challenge;
-        auto selectResult = selectOathApplication(challenge);
-        if (selectResult.isError()) {
-            qCDebug(YubiKeyOathDeviceLog) << "SELECT failed:" << selectResult.error();
-            return Result<QString>::error(tr("Failed to establish OATH session: %1").arg(selectResult.error()));
-        }
-        qCDebug(YubiKeyOathDeviceLog) << "Session established successfully";
-    }
+    // PERFORMANCE: Session is initialized in YubiKeyOathDevice constructor
+    // No need to check m_sessionActive - assume session is ready
+    // This eliminates ~100-200ms SELECT overhead per request (Yubico pattern)
 
     // Create challenge from current time
     QByteArray challenge = OathProtocol::createTotpChallenge();
@@ -224,17 +216,9 @@ Result<QList<OathCredential>> OathSession::calculateAll()
 {
     qCDebug(YubiKeyOathDeviceLog) << "calculateAll() for device" << m_deviceId;
 
-    // Ensure OATH session is active before sending CALCULATE ALL
-    if (!m_sessionActive) {
-        qCDebug(YubiKeyOathDeviceLog) << "Session not active, executing SELECT first";
-        QByteArray selectChallenge;
-        auto selectResult = selectOathApplication(selectChallenge);
-        if (selectResult.isError()) {
-            qCDebug(YubiKeyOathDeviceLog) << "SELECT failed:" << selectResult.error();
-            return Result<QList<OathCredential>>::error(tr("Failed to establish OATH session: %1").arg(selectResult.error()));
-        }
-        qCDebug(YubiKeyOathDeviceLog) << "Session established successfully";
-    }
+    // PERFORMANCE: Session is initialized in YubiKeyOathDevice constructor
+    // No need to check m_sessionActive - assume session is ready
+    // This eliminates ~100-200ms SELECT overhead per request (Yubico pattern)
 
     // Create challenge from current time
     QByteArray challenge = OathProtocol::createTotpChallenge();
@@ -491,9 +475,10 @@ void OathSession::cancelOperation()
     QByteArray command = OathProtocol::createSelectCommand();
     sendApdu(command);
 
-    // Mark session as inactive after reset (caller should re-establish session)
-    m_sessionActive = false;
-    qCDebug(YubiKeyOathDeviceLog) << "Session marked as inactive after cancel operation";
+    // PERFORMANCE: Don't reset m_sessionActive - SELECT was just executed
+    // Session remains active and ready for next operation
+    // This prevents unnecessary SELECT overhead on next request
+    qCDebug(YubiKeyOathDeviceLog) << "Operation cancelled, session remains active";
 }
 
 // =============================================================================

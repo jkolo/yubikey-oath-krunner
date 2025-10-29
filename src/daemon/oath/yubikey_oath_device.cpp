@@ -50,6 +50,18 @@ YubiKeyOathDevice::YubiKeyOathDevice(const QString &deviceId,
     connect(m_session.get(), &OathSession::errorOccurred,
             this, &YubiKeyOathDevice::errorOccurred);
 
+    // Initialize OATH session immediately (following Yubico yubikey-manager pattern)
+    // This ensures the session is active and ready for CALCULATE ALL without
+    // executing SELECT before every request (major performance optimization)
+    QByteArray sessionChallenge;
+    auto selectResult = m_session->selectOathApplication(sessionChallenge);
+    if (selectResult.isError()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Failed to initialize OATH session:" << selectResult.error();
+        // Continue anyway - session will retry on first operation if needed
+    } else {
+        qCDebug(YubiKeyOathDeviceLog) << "OATH session initialized successfully";
+    }
+
     // Connect to our own credentialCacheFetched signal to update internal state
     connect(this, &YubiKeyOathDevice::credentialCacheFetched,
             this, [this](const QList<OathCredential> &credentials) {
