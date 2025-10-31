@@ -5,7 +5,6 @@
 
 #include "text_input_factory.h"
 #include "portal_text_input.h"
-#include "wayland_text_input.h"
 #include "x11_text_input.h"
 #include "../logging_categories.h"
 
@@ -36,12 +35,10 @@ std::unique_ptr<TextInputProvider> tryCreateProvider(QObject* parent, const char
 
 std::unique_ptr<TextInputProvider> TextInputFactory::createProvider(QObject *parent)
 {
-    // Try providers in priority order: Portal → Wayland → X11
-    if (auto provider = tryCreateProvider<PortalTextInput>(parent, "Portal (xdg-desktop-portal + libei)")) {
-        return provider;
-    }
-
-    if (auto provider = tryCreateProvider<WaylandTextInput>(parent, "Wayland (legacy KWayland FakeInput)")) {
+    // Try providers in priority order: Portal → X11
+    // Portal works on Wayland (all compositors via xdg-desktop-portal)
+    // X11 works on X11 sessions
+    if (auto provider = tryCreateProvider<PortalTextInput>(parent, "Portal (libportal-qt6 + D-Bus)")) {
         return provider;
     }
 

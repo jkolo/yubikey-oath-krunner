@@ -7,25 +7,32 @@
 
 #include "text_input_provider.h"
 #include <QObject>
-#include <QSocketNotifier>
+#include <QString>
+#include <QVariant>
 #include <memory>
 
-extern "C" {
-#include <libei.h>
-#include <liboeffis.h>
-}
+// Forward declarations for libportal types
+typedef struct _XdpPortal XdpPortal;
+typedef struct _XdpSession XdpSession;
 
 namespace YubiKeyOath {
 namespace Daemon {
 
 /**
- * @brief Modern Wayland text input using xdg-desktop-portal + libei
+ * @brief Modern Wayland text input using xdg-desktop-portal
  *
- * This implementation uses the RemoteDesktop portal with libei for keyboard
- * emulation. It's the recommended approach for Wayland and works across
- * all compositors (KDE Plasma, GNOME, Sway, Hyprland, etc.)
+ * This implementation uses the RemoteDesktop portal via libportal for both session
+ * management and keyboard emulation.
  *
- * Replaces the deprecated KWayland FakeInput protocol.
+ * Works across all Wayland compositors (KDE Plasma, GNOME, Sway, Hyprland, etc.)
+ * that implement org.freedesktop.portal.RemoteDesktop interface.
+ *
+ * Architecture:
+ * 1. libportal handles portal session lifecycle and permission dialogs
+ * 2. libportal xdp_session_keyboard_key() API for keyboard events
+ * 3. No external dependencies beyond Qt and libportal
+ *
+ * Replaces previous libei + liboeffis implementation with cleaner, simpler API.
  */
 class PortalTextInput : public TextInputProvider
 {
@@ -51,34 +58,26 @@ public:
      */
     bool wasPermissionRejected() const override { return m_permissionRejected; }
 
-private Q_SLOTS:
-    void handleOeffisEvents();
-    void handleEiEvents();
-
 private:
     bool initializePortal();
-    bool connectToEis();
+    bool createSession();
     void cleanup();
 
     bool sendKeyEvents(const QString &text);
+    bool sendKeycode(uint32_t keycode, bool pressed);
     bool convertCharToKeycode(QChar ch, uint32_t &keycode, bool &needShift);
 
-    // oeffis (portal wrapper) state
-    struct oeffis *m_oeffis = nullptr;
-    QSocketNotifier *m_oeffisNotifier = nullptr;
-    bool m_portalConnected = false;
-
-    // libei (input emulation) state
-    struct ei *m_ei = nullptr;
-    struct ei_seat *m_seat = nullptr;
-    struct ei_device *m_device = nullptr;
-    QSocketNotifier *m_eiNotifier = nullptr;
-    bool m_deviceReady = false;
-    uint32_t m_sequence = 0;
+    // libportal session management
+    XdpPortal *m_portal = nullptr;
+    XdpSession *m_session = nullptr;
+    bool m_sessionReady = false;
 
     // Permission state tracking
     bool m_waitingForPermission = false;
     bool m_permissionRejected = false;
+
+    // Keystroke timing (ms delay between key press/release)
+    static constexpr int KEY_DELAY_MS = 5;
 };
 
 } // namespace Daemon

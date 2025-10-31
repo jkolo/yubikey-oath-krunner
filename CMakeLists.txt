@@ -98,8 +98,7 @@ find_package(KWayland REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(PCSCLITE REQUIRED libpcsclite)
 pkg_check_modules(XKBCOMMON REQUIRED xkbcommon)
-pkg_check_modules(LIBEI REQUIRED libei-1.0)
-pkg_check_modules(LIBOEFFIS REQUIRED liboeffis-1.0)
+pkg_check_modules(LIBPORTAL_QT6 REQUIRED IMPORTED_TARGET libportal-qt6)
 
 # Use system ZXing-C++ library for QR code scanning
 find_package(ZXing REQUIRED)

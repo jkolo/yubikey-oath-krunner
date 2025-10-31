@@ -5,399 +5,326 @@
 
 #include "portal_text_input.h"
 #include "../logging_categories.h"
-#include "../utils/async_waiter.h"
-#include "utils/deferred_execution.h"
 
 #include <QDebug>
 #include <QDateTime>
+#include <QGuiApplication>
+#include <QThread>
 #include <QEventLoop>
-#include <QApplication>
+#include <QTimer>
+
+#include <libportal/portal.h>
 #include <linux/input-event-codes.h>
 
 namespace YubiKeyOath {
 namespace Daemon {
-namespace DeferredExecution = Shared::DeferredExecution;
+
+// =============================================================================
+// Constructor / Destructor
+// =============================================================================
 
 PortalTextInput::PortalTextInput(QObject *parent)
     : TextInputProvider(parent)
 {
-    qCDebug(TextInputLog) << "PortalTextInput: Initializing xdg-desktop-portal + libei";
-    initializePortal();
+    qCDebug(TextInputLog) << "PortalTextInput: Constructor";
 }
 
 PortalTextInput::~PortalTextInput()
 {
+    qCDebug(TextInputLog) << "PortalTextInput: Destructor";
     cleanup();
 }
 
-void PortalTextInput::cleanup()
-{
-    qCDebug(TextInputLog) << "PortalTextInput: Cleaning up";
-
-    if (m_eiNotifier) {
-        m_eiNotifier->setEnabled(false);
-        delete m_eiNotifier;
-        m_eiNotifier = nullptr;
-    }
-
-    if (m_device) {
-        ei_device_unref(m_device);
-        m_device = nullptr;
-    }
-
-    if (m_seat) {
-        ei_seat_unref(m_seat);
-        m_seat = nullptr;
-    }
-
-    if (m_ei) {
-        ei_unref(m_ei);
-        m_ei = nullptr;
-    }
-
-    if (m_oeffisNotifier) {
-        m_oeffisNotifier->setEnabled(false);
-        delete m_oeffisNotifier;
-        m_oeffisNotifier = nullptr;
-    }
-
-    if (m_oeffis) {
-        oeffis_unref(m_oeffis);
-        m_oeffis = nullptr;
-    }
-
-    m_portalConnected = false;
-    m_deviceReady = false;
-}
-
-bool PortalTextInput::initializePortal()
-{
-    m_oeffis = oeffis_new(nullptr);
-    if (!m_oeffis) {
-        qCWarning(TextInputLog) << "PortalTextInput: Failed to create oeffis context";
-        return false;
-    }
-
-    int const fd = oeffis_get_fd(m_oeffis);
-    if (fd < 0) {
-        qCWarning(TextInputLog) << "PortalTextInput: Failed to get oeffis fd";
-        oeffis_unref(m_oeffis);
-        m_oeffis = nullptr;
-        return false;
-    }
-
-    m_oeffisNotifier = new QSocketNotifier(fd, QSocketNotifier::Read, this);
-    connect(m_oeffisNotifier, &QSocketNotifier::activated, this, &PortalTextInput::handleOeffisEvents);
-
-    qCDebug(TextInputLog) << "PortalTextInput: oeffis context created, fd:" << fd;
-    return true;
-}
-
-void PortalTextInput::handleOeffisEvents()
-{
-    if (!m_oeffis) {
-        return;
-    }
-
-    oeffis_dispatch(m_oeffis);
-
-    enum oeffis_event_type event;
-    while ((event = oeffis_get_event(m_oeffis)) != OEFFIS_EVENT_NONE) {
-        switch (event) {
-        case OEFFIS_EVENT_CONNECTED_TO_EIS:
-            qCDebug(TextInputLog) << "PortalTextInput: Connected to EIS, attempting to connect libei";
-            m_portalConnected = true;
-            connectToEis();
-            break;
-
-        case OEFFIS_EVENT_CLOSED:
-            qCDebug(TextInputLog) << "PortalTextInput: Portal session closed";
-            m_portalConnected = false;
-            // Defer cleanup to avoid deleting notifier while in its callback
-            DeferredExecution::defer(this, [this]() { cleanup(); });
-            break;
-
-        case OEFFIS_EVENT_DISCONNECTED:
-            qCWarning(TextInputLog) << "PortalTextInput: Disconnected from portal:"
-                       << oeffis_get_error_message(m_oeffis);
-            m_portalConnected = false;
-            m_permissionRejected = true;  // User explicitly rejected permission
-            // Defer cleanup to avoid deleting notifier while in its callback
-            DeferredExecution::defer(this, [this]() { cleanup(); });
-            break;
-
-        default:
-            break;
-        }
-    }
-}
-
-bool PortalTextInput::connectToEis()
-{
-    if (!m_oeffis || !m_portalConnected) {
-        qCWarning(TextInputLog) << "PortalTextInput: Cannot connect to EIS - portal not ready";
-        return false;
-    }
-
-    int const eis_fd = oeffis_get_eis_fd(m_oeffis);
-    if (eis_fd < 0) {
-        qCWarning(TextInputLog) << "PortalTextInput: Failed to get EIS fd";
-        return false;
-    }
-
-    m_ei = ei_new_sender(nullptr);
-    if (!m_ei) {
-        qCWarning(TextInputLog) << "PortalTextInput: Failed to create ei sender context";
-        return false;
-    }
-
-    if (ei_setup_backend_fd(m_ei, eis_fd) != 0) {
-        qCWarning(TextInputLog) << "PortalTextInput: Failed to setup ei backend";
-        ei_unref(m_ei);
-        m_ei = nullptr;
-        return false;
-    }
-
-    int const ei_fd = ei_get_fd(m_ei);
-    m_eiNotifier = new QSocketNotifier(ei_fd, QSocketNotifier::Read, this);
-    connect(m_eiNotifier, &QSocketNotifier::activated, this, &PortalTextInput::handleEiEvents);
-
-    qCDebug(TextInputLog) << "PortalTextInput: libei connected, fd:" << ei_fd;
-    return true;
-}
-
-void PortalTextInput::handleEiEvents()
-{
-    if (!m_ei) {
-        return;
-    }
-
-    ei_dispatch(m_ei);
-
-    struct ei_event *event;
-    while ((event = ei_get_event(m_ei))) {
-        enum ei_event_type const type = ei_event_get_type(event);
-
-        switch (type) {
-        case EI_EVENT_CONNECT:
-            qCDebug(TextInputLog) << "PortalTextInput: EI connected";
-            break;
-
-        case EI_EVENT_DISCONNECT:
-            qCWarning(TextInputLog) << "PortalTextInput: EI disconnected";
-            m_deviceReady = false;
-            break;
-
-        case EI_EVENT_SEAT_ADDED: {
-            m_seat = ei_event_get_seat(event);
-            ei_seat_ref(m_seat);
-            qCDebug(TextInputLog) << "PortalTextInput: Seat added, binding keyboard capability";
-            ei_seat_bind_capabilities(m_seat, EI_DEVICE_CAP_KEYBOARD, nullptr);
-            break;
-        }
-
-        case EI_EVENT_DEVICE_ADDED: {
-            struct ei_device *device = ei_event_get_device(event);
-            if (ei_device_has_capability(device, EI_DEVICE_CAP_KEYBOARD)) {
-                m_device = device;
-                ei_device_ref(m_device);
-                qCDebug(TextInputLog) << "PortalTextInput: Keyboard device added";
-            }
-            break;
-        }
-
-        case EI_EVENT_DEVICE_RESUMED:
-            if (ei_event_get_device(event) == m_device) {
-                qCDebug(TextInputLog) << "PortalTextInput: Device resumed - ready to send events";
-                m_deviceReady = true;
-            }
-            break;
-
-        case EI_EVENT_DEVICE_PAUSED:
-            if (ei_event_get_device(event) == m_device) {
-                qCDebug(TextInputLog) << "PortalTextInput: Device paused";
-                m_deviceReady = false;
-            }
-            break;
-
-        case EI_EVENT_DEVICE_REMOVED:
-            if (ei_event_get_device(event) == m_device) {
-                qCDebug(TextInputLog) << "PortalTextInput: Device removed";
-                ei_device_unref(m_device);
-                m_device = nullptr;
-                m_deviceReady = false;
-            }
-            break;
-
-        default:
-            break;
-        }
-
-        ei_event_unref(event);
-    }
-}
+// =============================================================================
+// TextInputProvider Interface
+// =============================================================================
 
 bool PortalTextInput::typeText(const QString &text)
 {
-    qCDebug(TextInputLog) << "PortalTextInput: typeText() called with text length:" << text.length();
-    qCDebug(TextInputLog) << "PortalTextInput: Current state - portalConnected:" << m_portalConnected
-             << "deviceReady:" << m_deviceReady;
+    qCDebug(TextInputLog) << "PortalTextInput: typeText() called with" << text.length() << "characters";
 
-    // Reset permission state flags
+    if (text.isEmpty()) {
+        qCWarning(TextInputLog) << "PortalTextInput: Empty text provided";
+        return false;
+    }
+
+    // Reset permission state
     m_waitingForPermission = false;
     m_permissionRejected = false;
 
-    // Lazy initialization - create session only when needed
-    if (!m_portalConnected) {
-        qCDebug(TextInputLog) << "PortalTextInput: Portal not connected, creating RemoteDesktop session...";
-        qCDebug(TextInputLog) << "PortalTextInput: A system dialog should appear asking for permission!";
-
-        if (!m_oeffis) {
-            qCWarning(TextInputLog) << "PortalTextInput: oeffis context is NULL!";
+    // Initialize portal if needed
+    if (!m_portal) {
+        if (!initializePortal()) {
+            qCWarning(TextInputLog) << "PortalTextInput: Failed to initialize portal";
             return false;
         }
-
-        oeffis_create_session(m_oeffis, OEFFIS_DEVICE_KEYBOARD);
-        qCDebug(TextInputLog) << "PortalTextInput: oeffis_create_session() called, waiting for connection...";
-
-        // Wait for portal connection using AsyncWaiter
-        auto result = AsyncWaiter::waitFor(
-            [this]() { return m_portalConnected || m_permissionRejected || !m_oeffis; },
-            60000,  // 60 seconds timeout
-            1000,   // Log progress every second
-            [this](int elapsed) {
-                qCDebug(TextInputLog) << "PortalTextInput: Still waiting for portal connection... waited:" << elapsed << "ms";
-            }
-        );
-
-        int const totalWaited = result.elapsedMs;
-
-        // Check if permission was rejected
-        if (m_permissionRejected || !m_oeffis) {
-            qCWarning(TextInputLog) << "PortalTextInput: Permission rejected by user";
-            m_permissionRejected = true;
-            return false;
-        }
-
-        if (!m_portalConnected) {
-            qCWarning(TextInputLog) << "PortalTextInput: TIMEOUT waiting for portal connection after" << totalWaited << "ms";
-            qCWarning(TextInputLog) << "PortalTextInput: Did you approve the RemoteDesktop permission dialog?";
-            m_waitingForPermission = true;  // Mark that we're waiting for permission
-            return false;
-        }
-
-        qCDebug(TextInputLog) << "PortalTextInput: Portal connected after" << totalWaited << "ms";
     }
 
-    // Wait for device to be ready using AsyncWaiter
-    if (!m_deviceReady) {
-        qCDebug(TextInputLog) << "PortalTextInput: Device not ready, waiting...";
-
-        auto result = AsyncWaiter::waitFor(
-            [this]() { return m_deviceReady; },
-            30000,  // 30 seconds - EI protocol needs time for seat/device setup
-            500,    // Log progress every 500ms
-            [this](int elapsed) {
-                qCDebug(TextInputLog) << "PortalTextInput: Still waiting for device... waited:" << elapsed << "ms";
-            }
-        );
-
-        if (!result.success) {
-            qCWarning(TextInputLog) << "PortalTextInput: TIMEOUT - Device not ready after" << result.elapsedMs << "ms";
+    // Create session if needed
+    if (!m_sessionReady) {
+        if (!createSession()) {
+            qCWarning(TextInputLog) << "PortalTextInput: Failed to create portal session";
             return false;
         }
-
-        qCDebug(TextInputLog) << "PortalTextInput: Device ready after" << result.elapsedMs << "ms";
     }
 
-    qCDebug(TextInputLog) << "PortalTextInput: Sending key events...";
+    // Send key events
     return sendKeyEvents(text);
+}
+
+bool PortalTextInput::isCompatible() const
+{
+    // Only works on Wayland
+    const QString platformName = QGuiApplication::platformName();
+    const bool isWayland = platformName == QStringLiteral("wayland");
+
+    qCDebug(TextInputLog) << "PortalTextInput: isCompatible() - platform:" << platformName
+                           << "compatible:" << isWayland;
+
+    return isWayland;
+}
+
+QString PortalTextInput::providerName() const
+{
+    return QStringLiteral("Portal (libportal RemoteDesktop)");
+}
+
+// =============================================================================
+// Portal Initialization
+// =============================================================================
+
+bool PortalTextInput::initializePortal()
+{
+    qCDebug(TextInputLog) << "PortalTextInput: Initializing xdg-desktop-portal connection";
+
+    // Create portal instance (GLib-based, but works with Qt)
+    m_portal = xdp_portal_new();
+    if (!m_portal) {
+        qCWarning(TextInputLog) << "PortalTextInput: Failed to create XdpPortal";
+        return false;
+    }
+
+    qCDebug(TextInputLog) << "PortalTextInput: Portal initialized successfully";
+    return true;
+}
+
+// =============================================================================
+// Session Management
+// =============================================================================
+
+bool PortalTextInput::createSession()
+{
+    qCDebug(TextInputLog) << "PortalTextInput: Creating RemoteDesktop portal session";
+
+    if (!m_portal) {
+        qCWarning(TextInputLog) << "PortalTextInput: Portal not initialized";
+        return false;
+    }
+
+    // Prepare flags for RemoteDesktop session (keyboard only)
+    XdpDeviceType devices = XDP_DEVICE_KEYBOARD;
+    XdpOutputType outputs = XDP_OUTPUT_NONE;  // No screen sharing needed
+    XdpRemoteDesktopFlags flags = XDP_REMOTE_DESKTOP_FLAG_NONE;
+    XdpCursorMode cursor_mode = XDP_CURSOR_MODE_HIDDEN;  // Hide cursor (not needed for keyboard)
+
+    // Set up async callback variables
+    bool sessionCreated = false;
+    QString errorMessage;
+    QEventLoop loop;
+
+    // Lambda callback for session creation (C callback wrapper)
+    auto callback = [](GObject *source_object, GAsyncResult *result, gpointer user_data) {
+        auto *data = static_cast<std::tuple<bool*, QString*, QEventLoop*>*>(user_data);
+        auto &[success, error, eventLoop] = *data;
+
+        GError *g_error = nullptr;
+        XdpSession *session = xdp_portal_create_remote_desktop_session_finish(
+            XDP_PORTAL(source_object), result, &g_error);
+
+        if (session) {
+            qCDebug(TextInputLog) << "PortalTextInput: Session created successfully";
+            *success = true;
+
+            // Store session globally (will be retrieved later)
+            // Note: This is a simplified approach - in production code you'd want
+            // to pass the PortalTextInput instance through user_data
+            g_object_set_data(G_OBJECT(source_object), "yubikey_session", session);
+        } else {
+            qCWarning(TextInputLog) << "PortalTextInput: Session creation failed:"
+                                     << (g_error ? g_error->message : "Unknown error");
+            *error = g_error ? QString::fromUtf8(g_error->message) : QStringLiteral("Unknown error");
+            *success = false;
+
+            if (g_error) {
+                g_error_free(g_error);
+            }
+        }
+
+        eventLoop->quit();
+        delete data;
+    };
+
+    // Call async session creation
+    auto *callbackData = new std::tuple<bool*, QString*, QEventLoop*>(&sessionCreated, &errorMessage, &loop);
+
+    xdp_portal_create_remote_desktop_session(
+        m_portal,
+        devices,
+        outputs,
+        flags,
+        cursor_mode,
+        nullptr,  // cancellable
+        callback,
+        callbackData
+    );
+
+    // Wait for callback with timeout
+    QTimer::singleShot(30000, &loop, &QEventLoop::quit);  // 30s timeout
+    loop.exec();
+
+    if (!sessionCreated) {
+        qCWarning(TextInputLog) << "PortalTextInput: Session creation failed or timed out:" << errorMessage;
+
+        if (errorMessage.contains(QStringLiteral("denied")) || errorMessage.contains(QStringLiteral("cancelled"))) {
+            m_permissionRejected = true;
+        } else {
+            m_waitingForPermission = true;
+        }
+
+        return false;
+    }
+
+    // Retrieve session from GObject data (temporary storage)
+    m_session = static_cast<XdpSession*>(g_object_get_data(G_OBJECT(m_portal), "yubikey_session"));
+    if (!m_session) {
+        qCWarning(TextInputLog) << "PortalTextInput: Failed to retrieve session";
+        return false;
+    }
+
+    qCDebug(TextInputLog) << "PortalTextInput: Session retrieved successfully";
+
+    m_sessionReady = true;
+    qCDebug(TextInputLog) << "PortalTextInput: Session ready for keyboard emulation";
+    return true;
+}
+
+// =============================================================================
+// Keyboard Emulation via libportal API
+// =============================================================================
+
+bool PortalTextInput::sendKeycode(uint32_t keycode, bool pressed)
+{
+    if (!m_session || !m_sessionReady) {
+        qCWarning(TextInputLog) << "PortalTextInput: Session not ready for keycode" << keycode;
+        return false;
+    }
+
+    // Use libportal's keyboard emulation API
+    // Parameters:
+    // - session: XdpSession pointer
+    // - keysym: FALSE = evdev keycode (not X11 keysym)
+    // - key: evdev keycode value
+    // - state: XDP_KEY_PRESSED (1) or XDP_KEY_RELEASED (0)
+    XdpKeyState state = pressed ? XDP_KEY_PRESSED : XDP_KEY_RELEASED;
+
+    xdp_session_keyboard_key(m_session, FALSE, static_cast<int>(keycode), state);
+
+    return true;
 }
 
 bool PortalTextInput::sendKeyEvents(const QString &text)
 {
-    if (!m_device || !m_deviceReady) {
-        qCWarning(TextInputLog) << "PortalTextInput: Device not ready for sending events";
-        return false;
-    }
-
-    qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Starting to send key events at" << QDateTime::currentMSecsSinceEpoch();
-
-    // Start emulating sequence
-    ei_device_start_emulating(m_device, ++m_sequence);
+    qCDebug(TextInputLog) << "PortalTextInput: Sending" << text.length() << "characters via libportal";
+    qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Started at" << QDateTime::currentMSecsSinceEpoch();
 
     bool success = true;
-    int charIndex = 0;
+
     for (const QChar &ch : text) {
-        uint32_t keycode;
-        bool needShift;
+        uint32_t keycode = 0;
+        bool needShift = false;
 
         if (!convertCharToKeycode(ch, keycode, needShift)) {
-            qCWarning(TextInputLog) << "PortalTextInput: Cannot convert character:" << ch;
+            qCWarning(TextInputLog) << "PortalTextInput: Failed to convert character:" << ch;
             success = false;
             continue;
         }
 
-        uint64_t const timestamp = ei_now(m_ei);
-
-        qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Sending char" << charIndex << "'" << ch << "' keycode:" << keycode << "shift:" << needShift;
-
-        // Press Shift if needed
+        // Press shift if needed
         if (needShift) {
-            ei_device_keyboard_key(m_device, KEY_LEFTSHIFT, true);
+            if (!sendKeycode(KEY_LEFTSHIFT, true)) {
+                success = false;
+                continue;
+            }
+            QThread::msleep(KEY_DELAY_MS);
         }
 
         // Press key
-        ei_device_keyboard_key(m_device, keycode, true);
-        ei_device_frame(m_device, timestamp);
+        if (!sendKeycode(keycode, true)) {
+            success = false;
+            if (needShift) {
+                sendKeycode(KEY_LEFTSHIFT, false);  // Release shift even on error
+            }
+            continue;
+        }
+        QThread::msleep(KEY_DELAY_MS);
 
         // Release key
-        ei_device_keyboard_key(m_device, keycode, false);
-        ei_device_frame(m_device, timestamp);
-
-        // Release Shift if needed
-        if (needShift) {
-            ei_device_keyboard_key(m_device, KEY_LEFTSHIFT, false);
-            ei_device_frame(m_device, timestamp);
+        if (!sendKeycode(keycode, false)) {
+            success = false;
+            if (needShift) {
+                sendKeycode(KEY_LEFTSHIFT, false);
+            }
+            continue;
         }
+        QThread::msleep(KEY_DELAY_MS);
 
-        charIndex++;
+        // Release shift if needed
+        if (needShift) {
+            if (!sendKeycode(KEY_LEFTSHIFT, false)) {
+                success = false;
+            }
+            QThread::msleep(KEY_DELAY_MS);
+        }
     }
 
-    // Stop emulating
-    ei_device_stop_emulating(m_device);
+    qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Finished at" << QDateTime::currentMSecsSinceEpoch();
+    qCDebug(TextInputLog) << "PortalTextInput: Sent" << text.length() << "characters, success:" << success;
 
-    qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Finished sending" << text.length() << "characters at" << QDateTime::currentMSecsSinceEpoch();
-    qCDebug(TextInputLog) << "PortalTextInput: Successfully sent" << text.length() << "characters";
     return success;
 }
+
+// =============================================================================
+// Character to Keycode Conversion (US Keyboard Layout)
+// =============================================================================
 
 bool PortalTextInput::convertCharToKeycode(QChar ch, uint32_t &keycode, bool &needShift)
 {
     needShift = false;
     char16_t const unicode = ch.unicode();
 
-    // Simple ASCII mapping to evdev keycodes
-    // Based on US keyboard layout
+    // Numbers (0-9)
     if (unicode >= '0' && unicode <= '9') {
         keycode = KEY_1 + (unicode - '1');
-        if (unicode == '0') { keycode = KEY_0;
-}
+        if (unicode == '0') {
+            keycode = KEY_0;
+        }
         return true;
     }
 
+    // Lowercase letters (a-z)
     if (unicode >= 'a' && unicode <= 'z') {
         keycode = KEY_A + (unicode - 'a');
         return true;
     }
 
+    // Uppercase letters (A-Z)
     if (unicode >= 'A' && unicode <= 'Z') {
         keycode = KEY_A + (unicode - 'A');
         needShift = true;
         return true;
     }
 
-    // Special characters
+    // Special characters (unshifted)
     switch (ch.unicode()) {
     case ' ':  keycode = KEY_SPACE; break;
     case '-':  keycode = KEY_MINUS; break;
@@ -445,15 +372,26 @@ bool PortalTextInput::convertCharToKeycode(QChar ch, uint32_t &keycode, bool &ne
     return true;
 }
 
-bool PortalTextInput::isCompatible() const
-{
-    // Works on all Wayland compositors that support xdg-desktop-portal
-    return QApplication::platformName() == QStringLiteral("wayland");
-}
+// =============================================================================
+// Cleanup
+// =============================================================================
 
-QString PortalTextInput::providerName() const
+void PortalTextInput::cleanup()
 {
-    return QStringLiteral("Wayland (xdg-desktop-portal)");
+    qCDebug(TextInputLog) << "PortalTextInput: Cleanup";
+
+    m_sessionReady = false;
+
+    if (m_session) {
+        // Close session via portal
+        xdp_session_close(m_session);
+        m_session = nullptr;
+    }
+
+    if (m_portal) {
+        g_object_unref(m_portal);
+        m_portal = nullptr;
+    }
 }
 
 } // namespace Daemon

@@ -71,7 +71,6 @@ add_executable(yubikey-oath-daemon
     input/text_input_factory.cpp
     input/text_input_provider.cpp
     input/x11_text_input.cpp
-    input/wayland_text_input.cpp
     input/portal_text_input.cpp
     input/modifier_key_checker.cpp
 
@@ -117,8 +116,6 @@ pkg_check_modules(ZXing REQUIRED IMPORTED_TARGET zxing)
 pkg_check_modules(X11 REQUIRED IMPORTED_TARGET x11)
 pkg_check_modules(XTST REQUIRED IMPORTED_TARGET xtst)
 pkg_check_modules(XKBCOMMON REQUIRED IMPORTED_TARGET xkbcommon)
-pkg_check_modules(EI REQUIRED IMPORTED_TARGET libei-1.0)
-pkg_check_modules(OEFFIS REQUIRED IMPORTED_TARGET liboeffis-1.0)
 
 # Link libraries
 target_link_libraries(yubikey-oath-daemon
@@ -143,8 +140,7 @@ target_link_libraries(yubikey-oath-daemon
     PkgConfig::X11
     PkgConfig::XTST
     PkgConfig::XKBCOMMON
-    PkgConfig::EI
-    PkgConfig::OEFFIS
+    PkgConfig::LIBPORTAL_QT6
 )
 
 # Compiler options for PC/SC

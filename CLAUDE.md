@@ -474,7 +474,7 @@ OathProtocol (static utility functions)
 
 **TextInputFactory** (`src/input/text_input_factory.{h,cpp}`)
 - Creates appropriate input provider for current environment
-- Priority: Portal → Wayland → X11
+- Priority: Portal → X11
 - Factory pattern for platform abstraction
 
 **X11TextInput** (`src/input/x11_text_input.{h,cpp}`)
@@ -482,15 +482,15 @@ OathProtocol (static utility functions)
 - Direct keyboard simulation
 - Character-by-character typing
 
-**WaylandTextInput** (`src/input/wayland_text_input.{h,cpp}`)
-- Uses libei for Wayland input emulation
-- Portal-based authentication
-- Modern Wayland input protocol
-
 **PortalTextInput** (`src/input/portal_text_input.{h,cpp}`)
-- Uses org.freedesktop.portal.RemoteDesktop
-- Works across X11/Wayland with proper permissions
-- Requires user permission grants
+- Uses libportal for RemoteDesktop portal session management
+- Uses xdp_session_keyboard_key() API for keyboard emulation
+- Works across all Wayland compositors (KDE Plasma, GNOME, Sway, Hyprland)
+- Supports Wayland via xdg-desktop-portal RemoteDesktop interface
+- Clean, dependency-minimal implementation (no libei/liboeffis)
+- Requires user permission grants on first use
+- Async session creation with GLib callbacks and Qt QEventLoop
+- Uses Linux evdev keycodes for key events
 
 ### Storage and Configuration
 
@@ -859,12 +859,12 @@ echo $DBUS_SESSION_BUS_ADDRESS
 ## Dependencies
 
 - Qt 6.7+ (Core, Widgets, Qml, Quick, QuickWidgets, Gui, DBus, Concurrent, Sql)
-- KDE Frameworks 6.0+ (Runner, I18n, Config, ConfigWidgets, Notifications, CoreAddons, Wallet, KCMUtils)
+- KDE Frameworks 6.0+ (Runner, I18n, Config, ConfigWidgets, Notifications, CoreAddons, Wallet, KCMUtils, WidgetsAddons)
 - PC/SC Lite (libpcsclite)
 - xkbcommon (keyboard handling)
-- libei-1.0 (Wayland input)
-- liboeffis-1.0 (Wayland input)
+- libportal-qt6 (xdg-desktop-portal RemoteDesktop for Wayland input)
 - KWayland (Wayland protocol)
+- ZXing-C++ (QR code scanning)
 
 ## Code Style Notes
 
