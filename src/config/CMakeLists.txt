@@ -7,6 +7,8 @@ set(kcm_krunner_yubikey_SRCS
     # Shared UI components
     ../shared/ui/password_dialog.cpp
     ../shared/ui/password_dialog_helper.cpp
+    ../shared/ui/change_password_dialog.cpp
+    ../shared/ui/change_password_dialog_helper.cpp
     ../shared/ui/logging_categories.cpp
 )
 

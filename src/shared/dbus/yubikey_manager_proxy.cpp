@@ -286,9 +286,17 @@ void YubiKeyManagerProxy::onInterfacesAdded(const QDBusObjectPath &objectPath,
     QString path = objectPath.path();
     qCDebug(YubiKeyManagerProxyLog) << "InterfacesAdded:" << path;
 
+    // Debug: log all interfaces and properties
+    qCDebug(YubiKeyManagerProxyLog) << "Interfaces in signal:" << interfacesAndProperties.keys();
+
     // Check if this is a Device object
     if (interfacesAndProperties.contains(QLatin1String(DEVICE_INTERFACE))) {
         QVariantMap deviceProps = interfacesAndProperties.value(QLatin1String(DEVICE_INTERFACE)).toMap();
+
+        // Debug: log device properties
+        qCDebug(YubiKeyManagerProxyLog) << "Device properties:" << deviceProps;
+        qCDebug(YubiKeyManagerProxyLog) << "DeviceId property value:" << deviceProps.value(QLatin1String("DeviceId"));
+
         QHash<QString, QVariantMap> emptyCredentials; // New device has no credentials yet
         addDeviceProxy(path, deviceProps, emptyCredentials);
     }

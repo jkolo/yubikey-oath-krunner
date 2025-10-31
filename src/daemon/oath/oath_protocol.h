@@ -36,6 +36,7 @@ public:
     // Instruction codes
     static constexpr quint8 INS_PUT = 0x01;
     static constexpr quint8 INS_DELETE = 0x02;
+    static constexpr quint8 INS_SET_CODE = 0x03;
     static constexpr quint8 INS_SELECT = 0xa4;
     static constexpr quint8 INS_LIST = 0xa1;
     static constexpr quint8 INS_CALCULATE = 0xa2;
@@ -138,6 +139,32 @@ public:
      */
     static QByteArray createDeleteCommand(const QString &name);
 
+    /**
+     * @brief Creates SET_CODE command to set/change device password
+     * @param key Derived key (PBKDF2 of password, 16 bytes)
+     * @param challenge Challenge for mutual authentication (8 bytes)
+     * @param response HMAC response to device's challenge (variable length)
+     * @return APDU command bytes
+     *
+     * Format (TLV):
+     *   TAG_KEY (0x73): [algorithm (0x01=HMAC-SHA1)][key_bytes (16 bytes)]
+     *   TAG_CHALLENGE (0x74): 8-byte challenge
+     *   TAG_RESPONSE (0x75): HMAC response to device challenge
+     *
+     * Note: Algorithm 0x01 (HMAC-SHA1) is standard for OATH password auth
+     */
+    static QByteArray createSetCodeCommand(const QByteArray &key,
+                                           const QByteArray &challenge,
+                                           const QByteArray &response);
+
+    /**
+     * @brief Creates SET_CODE command to remove device password
+     * @return APDU command bytes (length 0 data)
+     *
+     * Sending SET_CODE with length 0 removes authentication requirement.
+     */
+    static QByteArray createRemoveCodeCommand();
+
     // Response parsing
     /**
      * @brief Parses SELECT response to extract device ID and challenge
@@ -170,6 +197,21 @@ public:
      * @return List of credentials with codes
      */
     static QList<OathCredential> parseCalculateAllResponse(const QByteArray &response);
+
+    /**
+     * @brief Parses SET_CODE response and verifies success
+     * @param response Response data from SET_CODE command
+     * @param outVerificationResponse Output parameter for verification response (TAG_RESPONSE)
+     * @return true on success (SW=0x9000), false on failure
+     *
+     * Status words:
+     *   0x9000: Success
+     *   0x6984: Response verification failed (wrong old password)
+     *   0x6982: Authentication required
+     *   0x6a80: Incorrect syntax
+     */
+    static bool parseSetCodeResponse(const QByteArray &response,
+                                    QByteArray &outVerificationResponse);
 
     // Helper functions
     /**

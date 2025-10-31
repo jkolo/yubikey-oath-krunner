@@ -205,10 +205,34 @@ bool YubiKeyDeviceObject::ChangePassword(const QString &oldPassword, const QStri
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: ChangePassword for device:" << m_deviceId;
 
-    // TODO: Implement ChangePassword in YubiKeyService
-    // For now, return false
-    qCWarning(YubiKeyDaemonLog) << "YubiKeyDeviceObject: ChangePassword not yet implemented";
-    return false;
+    bool success = m_service->changePassword(m_deviceId, oldPassword, newPassword);
+
+    if (success) {
+        // Update properties based on whether password was set or removed
+        bool requiresPassword = !newPassword.isEmpty();
+        bool hasValidPassword = !newPassword.isEmpty();
+
+        if (m_requiresPassword != requiresPassword) {
+            m_requiresPassword = requiresPassword;
+            Q_EMIT requiresPasswordChanged(m_requiresPassword);
+        }
+
+        if (m_hasValidPassword != hasValidPassword) {
+            m_hasValidPassword = hasValidPassword;
+            Q_EMIT hasValidPasswordChanged(m_hasValidPassword);
+        }
+
+        if (newPassword.isEmpty()) {
+            qCInfo(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Password removed for device:" << m_deviceId;
+        } else {
+            qCInfo(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Password changed for device:" << m_deviceId;
+        }
+    } else {
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Failed to change password for device:"
+                                    << m_deviceId;
+    }
+
+    return success;
 }
 
 void YubiKeyDeviceObject::Forget()

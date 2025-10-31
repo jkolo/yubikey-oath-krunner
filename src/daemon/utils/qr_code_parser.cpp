@@ -27,20 +27,34 @@ Result<QString> QrCodeParser::parse(const QString &imagePath)
         return Result<QString>::error(i18n("Failed to load image: %1", imagePath));
     }
 
-    qDebug() << "QrCodeParser: Processing image" << imagePath
+    qDebug() << "QrCodeParser: Processing image from file" << imagePath
+             << "size:" << image.width() << "x" << image.height();
+
+    // Delegate to in-memory parsing
+    return parse(image);
+}
+
+Result<QString> QrCodeParser::parse(const QImage &image)
+{
+    // Check if image is valid
+    if (image.isNull()) {
+        return Result<QString>::error(i18n("Image is null or invalid"));
+    }
+
+    qDebug() << "QrCodeParser: Processing in-memory image"
              << "size:" << image.width() << "x" << image.height()
              << "format:" << image.format();
 
     // Try with RGB first (better quality)
-    image = image.convertToFormat(QImage::Format_RGB888);
+    QImage rgbImage = image.convertToFormat(QImage::Format_RGB888);
 
     // Decode QR code using ZXing-C++
     ZXing::ImageView zxingImage{
-        image.bits(),
-        image.width(),
-        image.height(),
+        rgbImage.bits(),
+        rgbImage.width(),
+        rgbImage.height(),
         ZXing::ImageFormat::RGB,
-        image.bytesPerLine()
+        rgbImage.bytesPerLine()
     };
 
     ZXing::ReaderOptions options;
@@ -55,16 +69,16 @@ Result<QString> QrCodeParser::parse(const QString &imagePath)
         qDebug() << "QrCodeParser: Failed with RGB, trying grayscale...";
 
         // Try again with grayscale
-        image = image.convertToFormat(QImage::Format_Grayscale8);
-        ZXing::ImageView grayImage{
-            image.bits(),
-            image.width(),
-            image.height(),
+        QImage grayImage = image.convertToFormat(QImage::Format_Grayscale8);
+        ZXing::ImageView grayZxingImage{
+            grayImage.bits(),
+            grayImage.width(),
+            grayImage.height(),
             ZXing::ImageFormat::Lum,
-            image.bytesPerLine()
+            grayImage.bytesPerLine()
         };
 
-        result = ZXing::ReadBarcode(grayImage, options);
+        result = ZXing::ReadBarcode(grayZxingImage, options);
 
         if (!result.isValid()) {
             return Result<QString>::error(i18n("No QR code found in image or failed to decode"));

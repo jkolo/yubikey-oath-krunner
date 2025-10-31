@@ -95,6 +95,25 @@ public:
     bool savePassword(const QString &deviceId, const QString &password);
 
     /**
+     * @brief Changes password on YubiKey
+     * @param deviceId Device ID
+     * @param oldPassword Current password
+     * @param newPassword New password (empty string removes password)
+     * @return true on success, false on failure
+     *
+     * Flow:
+     * 1. Authenticates with old password
+     * 2. Sets new password via SET_CODE (or removes if newPassword empty)
+     * 3. Updates KWallet with new password (or removes entry)
+     * 4. Updates database and emits signals
+     *
+     * If newPassword is empty, password protection is removed from YubiKey.
+     */
+    bool changePassword(const QString &deviceId,
+                       const QString &oldPassword,
+                       const QString &newPassword);
+
+    /**
      * @brief Forgets device - removes from database and memory
      * @param deviceId Device ID
      */

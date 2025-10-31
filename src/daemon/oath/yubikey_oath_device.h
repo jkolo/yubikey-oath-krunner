@@ -127,10 +127,27 @@ public:
     Result<void> deleteCredential(const QString &name);
 
     /**
+     * @brief Changes password on YubiKey
+     * @param oldPassword Current password
+     * @param newPassword New password (empty string removes password)
+     * @return Result indicating success or containing error message
+     *
+     * Authenticates with old password, then sets new password.
+     * If newPassword is empty, removes password protection.
+     */
+    Result<void> changePassword(const QString &oldPassword, const QString &newPassword);
+
+    /**
      * @brief Sets password for this device
      * @param password Password to set
      */
     void setPassword(const QString &password);
+
+    /**
+     * @brief Checks if password is set for this device
+     * @return true if password is set
+     */
+    bool hasPassword() const { return !m_password.isEmpty(); }
 
     /**
      * @brief Asynchronously updates credential cache

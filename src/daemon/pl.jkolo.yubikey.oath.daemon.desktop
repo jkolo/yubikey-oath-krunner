@@ -9,3 +9,4 @@ NoDisplay=true
 Categories=System;
 X-DBUS-ServiceName=pl.jkolo.yubikey.oath.daemon
 X-DBUS-StartupType=Unique
+X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2

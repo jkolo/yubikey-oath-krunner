@@ -1,4 +1,4 @@
 [D-BUS Service]
 Name=pl.jkolo.yubikey.oath.daemon
 Exec=/usr/bin/yubikey-oath-daemon
-SystemdService=yubikey-oath-daemon.service
+SystemdService=app-pl.jkolo.yubikey.oath.daemon.service

@@ -117,6 +117,19 @@ ColumnLayout {
                             }
                         }
 
+                        // Change Password button
+                        QQC2.Button {
+                            text: i18n("Change Password")
+                            icon.name: "lock-edit"
+                            display: QQC2.AbstractButton.IconOnly
+                            visible: model.isConnected
+                            QQC2.ToolTip.visible: hovered
+                            QQC2.ToolTip.text: i18n("Change or remove YubiKey password")
+                            onClicked: {
+                                deviceModel.showChangePasswordDialog(model.deviceId, model.deviceName)
+                            }
+                        }
+
                         // Forget button
                         QQC2.Button {
                             text: i18n("Forget")

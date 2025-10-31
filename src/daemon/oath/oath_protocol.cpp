@@ -248,6 +248,74 @@ QByteArray OathProtocol::createDeleteCommand(const QString &name)
     return command;
 }
 
+QByteArray OathProtocol::createSetCodeCommand(const QByteArray &key,
+                                               const QByteArray &challenge,
+                                               const QByteArray &response)
+{
+    // Format: CLA INS P1 P2 Lc Data
+    // CLA=0x00, INS=0x03 (SET_CODE), P1=0x00, P2=0x00
+    // Data: TAG_KEY (0x73) + TAG_CHALLENGE (0x74) + TAG_RESPONSE (0x75)
+
+    QByteArray command;
+    command.reserve(256);
+
+    // APDU header
+    command.append(static_cast<char>(CLA));          // CLA = 0x00
+    command.append(static_cast<char>(INS_SET_CODE)); // INS = 0x03
+    command.append((char)0x00);                      // P1 = 0x00
+    command.append((char)0x00);                      // P2 = 0x00
+
+    // Build TLV data
+    QByteArray tlvData;
+
+    // TAG_KEY (0x73): algorithm (0x01=HMAC-SHA1) + key (16 bytes)
+    tlvData.append(static_cast<char>(TAG_KEY));
+    tlvData.append(static_cast<char>(1 + key.length())); // Length: 1 (algo) + 16 (key)
+    tlvData.append((char)0x01); // Algorithm: HMAC-SHA1
+    tlvData.append(key);
+
+    // TAG_CHALLENGE (0x74): 8-byte challenge for mutual authentication
+    tlvData.append(static_cast<char>(TAG_CHALLENGE));
+    tlvData.append(static_cast<char>(challenge.length()));
+    tlvData.append(challenge);
+
+    // TAG_RESPONSE (0x75): HMAC response to device's challenge
+    tlvData.append(static_cast<char>(TAG_RESPONSE));
+    tlvData.append(static_cast<char>(response.length()));
+    tlvData.append(response);
+
+    // Append Lc (data length)
+    command.append(static_cast<char>(tlvData.length()));
+
+    // Append data
+    command.append(tlvData);
+
+    // No Le per YubiKey OATH spec
+
+    return command;
+}
+
+QByteArray OathProtocol::createRemoveCodeCommand()
+{
+    // Format: CLA INS P1 P2 Lc
+    // CLA=0x00, INS=0x03 (SET_CODE), P1=0x00, P2=0x00, Lc=0x00
+    // Sending length 0 removes authentication requirement
+
+    QByteArray command;
+    command.reserve(5);
+
+    // APDU header
+    command.append(static_cast<char>(CLA));          // CLA = 0x00
+    command.append(static_cast<char>(INS_SET_CODE)); // INS = 0x03
+    command.append((char)0x00);                      // P1 = 0x00
+    command.append((char)0x00);                      // P2 = 0x00
+    command.append((char)0x00);                      // Lc = 0x00 (no data)
+
+    // No data, no Le
+
+    return command;
+}
+
 // =============================================================================
 // Response Parsing
 // =============================================================================
@@ -510,6 +578,43 @@ QList<OathCredential> OathProtocol::parseCalculateAllResponse(const QByteArray &
     }
 
     return credentials;
+}
+
+bool OathProtocol::parseSetCodeResponse(const QByteArray &response,
+                                        QByteArray &outVerificationResponse)
+{
+    if (response.length() < 2) {
+        return false;
+    }
+
+    // Check status word
+    quint16 const sw = getStatusWord(response);
+
+    // Extract response data (excluding status word)
+    QByteArray data = response.left(response.length() - 2);
+
+    // Try to extract verification response (TAG_RESPONSE 0x75)
+    outVerificationResponse = findTlvTag(data, TAG_RESPONSE);
+
+    // Check for success
+    if (sw == SW_SUCCESS) {
+        return true;
+    }
+
+    // Log specific errors
+    switch (sw) {
+    case 0x6984:
+        // Response verification failed - wrong old password
+        return false;
+    case SW_SECURITY_STATUS_NOT_SATISFIED: // 0x6982
+        // Authentication required
+        return false;
+    case SW_WRONG_DATA: // 0x6a80
+        // Incorrect syntax
+        return false;
+    default:
+        return false;
+    }
 }
 
 // =============================================================================

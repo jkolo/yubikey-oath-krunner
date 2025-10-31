@@ -153,6 +153,47 @@ public:
     Result<void> deleteCredential(const QString &name);
 
     /**
+     * @brief Sets new password on YubiKey
+     * @param newPassword New password to set
+     * @param deviceId Device ID for PBKDF2 salt
+     * @return Result with success or error message
+     *
+     * Uses SET_CODE command (0x03) to configure authentication.
+     * Flow:
+     * 1. Derives key from password using PBKDF2 (salt = deviceId, 1000 iterations)
+     * 2. Generates challenge for mutual authentication
+     * 3. Calculates HMAC-SHA1 response
+     * 4. Sends SET_CODE with key, challenge, and response
+     * 5. Verifies YubiKey's response
+     *
+     * Requires prior authentication if password already exists.
+     */
+    Result<void> setPassword(const QString &newPassword, const QString &deviceId);
+
+    /**
+     * @brief Removes password from YubiKey
+     * @return Result with success or error message
+     *
+     * Uses SET_CODE command (0x03) with length 0 to remove authentication.
+     * Requires prior authentication with current password.
+     */
+    Result<void> removePassword();
+
+    /**
+     * @brief Changes password on YubiKey
+     * @param oldPassword Current password
+     * @param newPassword New password (empty string removes password)
+     * @param deviceId Device ID for PBKDF2 salt
+     * @return Result with success or error message
+     *
+     * Combines authenticate() + setPassword() or removePassword().
+     * If newPassword is empty, removes password instead.
+     */
+    Result<void> changePassword(const QString &oldPassword,
+                                const QString &newPassword,
+                                const QString &deviceId);
+
+    /**
      * @brief Cancels pending operation by sending SELECT
      *
      * Useful for interrupting long-running touch-required operations.

@@ -105,6 +105,19 @@ public:
                                          const QString &deviceName);
 
     /**
+     * @brief Shows change password dialog
+     * @param deviceId Device ID
+     * @param deviceName Friendly device name
+     *
+     * Shows change password dialog using ChangePasswordDialogHelper.
+     * Validates device state first (must be connected).
+     * On success, refreshes device list from daemon. On failure, dialog stays open with error.
+     * Called from QML "Change Password" button.
+     */
+    Q_INVOKABLE void showChangePasswordDialog(const QString &deviceId,
+                                               const QString &deviceName);
+
+    /**
      * @brief Forgets device - removes from daemon database and deletes password
      * @param deviceId Device ID to forget
      *

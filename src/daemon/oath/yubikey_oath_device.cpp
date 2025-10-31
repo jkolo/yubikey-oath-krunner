@@ -218,6 +218,29 @@ Result<void> YubiKeyOathDevice::deleteCredential(const QString &name)
     return result;
 }
 
+Result<void> YubiKeyOathDevice::changePassword(const QString &oldPassword, const QString &newPassword)
+{
+    qCDebug(YubiKeyOathDeviceLog) << "changePassword() for device" << m_deviceId;
+
+    // Serialize card access to prevent race conditions between threads
+    QMutexLocker locker(&m_cardMutex);
+
+    // Change password via session (handles authentication internally)
+    auto result = m_session->changePassword(oldPassword, newPassword, m_deviceId);
+
+    if (result.isSuccess()) {
+        if (newPassword.isEmpty()) {
+            qCDebug(YubiKeyOathDeviceLog) << "Password removed successfully";
+        } else {
+            qCDebug(YubiKeyOathDeviceLog) << "Password changed successfully";
+        }
+    } else {
+        qCWarning(YubiKeyOathDeviceLog) << "Failed to change password:" << result.error();
+    }
+
+    return result;
+}
+
 void YubiKeyOathDevice::setPassword(const QString& password)
 {
     qCDebug(YubiKeyOathDeviceLog) << "setPassword() for device" << m_deviceId;

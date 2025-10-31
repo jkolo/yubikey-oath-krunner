@@ -11,7 +11,6 @@
 #include "../config/daemon_configuration.h"
 #include "../actions/yubikey_action_coordinator.h"
 #include "../logging_categories.h"
-#include "../utils/screenshot_capture.h"
 #include "../utils/qr_code_parser.h"
 #include "../utils/otpauth_uri_parser.h"
 #include "../ui/add_credential_dialog.h"
@@ -202,7 +201,20 @@ bool YubiKeyService::savePassword(const QString &deviceId, const QString &passwo
     auto authResult = device->authenticateWithPassword(password);
     if (authResult.isError()) {
         qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Password is invalid:" << authResult.error();
-        return false;
+
+        // FALLBACK: Maybe device doesn't require password at all?
+        // Try fetching credentials without password
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Testing if device requires password...";
+        device->setPassword(QString());  // Clear password temporarily
+        QList<OathCredential> testCreds = device->fetchCredentialsSync(QString());
+        if (!testCreds.isEmpty()) {
+            qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Device doesn't require password!";
+            m_database->setRequiresPassword(deviceId, false);
+            device->updateCredentialCacheAsync(QString());
+            return true;  // Success - device doesn't need password
+        }
+
+        return false;  // Password really is invalid
     }
 
     // Save password in device for future use
@@ -222,6 +234,67 @@ bool YubiKeyService::savePassword(const QString &deviceId, const QString &passwo
     device->updateCredentialCacheAsync(password);
 
     qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Password saved successfully";
+    return true;
+}
+
+bool YubiKeyService::changePassword(const QString &deviceId,
+                                    const QString &oldPassword,
+                                    const QString &newPassword)
+{
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: changePassword for device:" << deviceId;
+
+    // Get device
+    auto *device = m_deviceManager->getDevice(deviceId);
+    if (!device) {
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Device not found:" << deviceId;
+        return false;
+    }
+
+    // Change password via OathSession (handles auth + SET_CODE)
+    auto changeResult = device->changePassword(oldPassword, newPassword);
+    if (changeResult.isError()) {
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Failed to change password:" << changeResult.error();
+        return false;
+    }
+
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Password changed successfully on YubiKey";
+
+    // Update password storage in KWallet
+    if (newPassword.isEmpty()) {
+        // Password was removed
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Removing password from KWallet";
+        m_passwordStorage->removePassword(deviceId);
+
+        // Update database - no longer requires password
+        m_database->setRequiresPassword(deviceId, false);
+
+        // Clear password from device
+        device->setPassword(QString());
+
+        qCInfo(YubiKeyDaemonLog) << "YubiKeyService: Password removed from device" << deviceId;
+    } else {
+        // Password was changed
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Saving new password to KWallet";
+        if (!m_passwordStorage->savePassword(newPassword, deviceId)) {
+            qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Failed to save new password to KWallet";
+            // Password changed on YubiKey but not in KWallet - this is a problem
+            return false;
+        }
+
+        // Update database - still requires password
+        m_database->setRequiresPassword(deviceId, true);
+
+        // Update password in device for future operations
+        device->setPassword(newPassword);
+
+        qCInfo(YubiKeyDaemonLog) << "YubiKeyService: Password changed on device" << deviceId;
+    }
+
+    // Trigger credential cache refresh with new password (or empty if removed)
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Triggering credential cache refresh";
+    device->updateCredentialCacheAsync(newPassword);
+
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: changePassword completed successfully";
     return true;
 }
 
@@ -511,6 +584,13 @@ void YubiKeyService::onCredentialCacheFetched(const QString &deviceId,
     if (credentials.isEmpty()) {
         qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Empty credentials, likely auth failure - NOT emitting credentialsUpdated";
         return;
+    }
+
+    // AUTO-DETECT: If credentials were fetched successfully without password, device doesn't require password
+    auto *device = m_deviceManager->getDevice(deviceId);
+    if (device && !device->hasPassword()) {
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Auto-detected - device doesn't require password";
+        m_database->setRequiresPassword(deviceId, false);
     }
 
     Q_EMIT credentialsUpdated(deviceId);

@@ -6,6 +6,7 @@
 #pragma once
 
 #include <QString>
+#include <QImage>
 #include "common/result.h"
 
 namespace YubiKeyOath {
@@ -13,9 +14,9 @@ namespace Daemon {
 using Shared::Result;
 
 /**
- * @brief Parser for QR codes in image files
+ * @brief Parser for QR codes in images
  *
- * Uses QZXing library to decode QR codes from image files.
+ * Uses ZXing library to decode QR codes from images (in-memory or from files).
  * Supports common image formats: PNG, JPG, BMP, etc.
  */
 class QrCodeParser
@@ -36,6 +37,22 @@ public:
      * - Failed to decode QR code
      */
     static Result<QString> parse(const QString &imagePath);
+
+    /**
+     * @brief Decodes QR code from in-memory image
+     * @param image QImage to decode
+     * @return Result with decoded string on success, error message on failure
+     *
+     * Preferred method for security-sensitive screenshots (no disk I/O).
+     * The decoded string is typically an otpauth:// URI but could be any text.
+     * Use OtpauthUriParser to parse the result if it's an OATH URI.
+     *
+     * Possible errors:
+     * - Image is null
+     * - No QR code found in image
+     * - Failed to decode QR code
+     */
+    static Result<QString> parse(const QImage &image);
 
 private:
     QrCodeParser() = delete; // Utility class - no instances

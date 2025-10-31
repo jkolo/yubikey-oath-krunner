@@ -7,6 +7,7 @@
 #include "dbus/yubikey_manager_proxy.h"
 #include "dbus/yubikey_device_proxy.h"
 #include "ui/password_dialog_helper.h"
+#include "ui/change_password_dialog_helper.h"
 #include "logging_categories.h"
 
 #include <KLocalizedString>
@@ -200,6 +201,36 @@ void YubiKeyDeviceModel::showPasswordDialog(const QString &deviceId,
     PasswordDialogHelper::showDialog(
         deviceId,
         deviceName,
+        m_manager,
+        this,
+        [this]() {
+            // Success - refresh device list from manager
+            refreshDevices();
+        }
+    );
+}
+
+void YubiKeyDeviceModel::showChangePasswordDialog(const QString &deviceId,
+                                                   const QString &deviceName)
+{
+    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Showing change password dialog for device:" << deviceId;
+
+    // Validate device state first
+    DeviceInfo *device = findDevice(deviceId);
+    if (!device) {
+        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found:" << deviceId;
+        return;
+    }
+
+    if (!device->isConnected) {
+        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not connected:" << deviceId;
+        return;
+    }
+
+    ChangePasswordDialogHelper::showDialog(
+        deviceId,
+        deviceName,
+        device->requiresPassword,
         m_manager,
         this,
         [this]() {
