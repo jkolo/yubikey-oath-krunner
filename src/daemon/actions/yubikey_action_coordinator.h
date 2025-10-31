@@ -22,6 +22,7 @@ class NotificationOrchestrator;
 class DaemonConfiguration;
 class YubiKeyDeviceManager;
 class YubiKeyDatabase;
+class SecretStorage;
 class TouchHandler;
 class TouchWorkflowCoordinator;
 
@@ -44,11 +45,13 @@ public:
      * @brief Constructs YubiKey action coordinator
      * @param deviceManager YubiKey device manager for operations
      * @param database YubiKey database for device information
+     * @param secretStorage Secret storage for KWallet operations
      * @param config Daemon configuration
      * @param parent Parent QObject
      */
     explicit YubiKeyActionCoordinator(YubiKeyDeviceManager *deviceManager,
                                      YubiKeyDatabase *database,
+                                     SecretStorage *secretStorage,
                                      DaemonConfiguration *config,
                                      QObject *parent = nullptr);
 
@@ -112,6 +115,7 @@ private:
 
     YubiKeyDeviceManager *m_deviceManager;
     YubiKeyDatabase *m_database;
+    SecretStorage *m_secretStorage;
     DaemonConfiguration *m_config;
 
     std::unique_ptr<ClipboardManager> m_clipboardManager;

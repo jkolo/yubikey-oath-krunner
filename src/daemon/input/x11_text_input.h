@@ -10,6 +10,9 @@
 namespace YubiKeyOath {
 namespace Daemon {
 
+// Forward declarations
+class SecretStorage;
+
 /**
  * @brief X11-specific text input implementation
  */
@@ -18,7 +21,7 @@ class X11TextInput : public TextInputProvider
     Q_OBJECT
 
 public:
-    explicit X11TextInput(QObject *parent = nullptr);
+    explicit X11TextInput(SecretStorage *secretStorage, QObject *parent = nullptr);
     ~X11TextInput() override = default;
 
     bool typeText(const QString &text) override;

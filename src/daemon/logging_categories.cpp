@@ -17,7 +17,7 @@ Q_LOGGING_CATEGORY(YubiKeyOathDeviceLog, "pl.jkolo.yubikey.oath.daemon.oath.devi
 
 // Storage components
 Q_LOGGING_CATEGORY(CardReaderMonitorLog, "pl.jkolo.yubikey.oath.daemon.pcsc", QtWarningMsg)
-Q_LOGGING_CATEGORY(PasswordStorageLog, "pl.jkolo.yubikey.oath.daemon.storage", QtWarningMsg)
+Q_LOGGING_CATEGORY(SecretStorageLog, "pl.jkolo.yubikey.oath.daemon.storage", QtWarningMsg)
 Q_LOGGING_CATEGORY(YubiKeyDatabaseLog, "pl.jkolo.yubikey.oath.daemon.database", QtWarningMsg)
 
 // Action and workflow components (moved from krunner)

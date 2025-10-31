@@ -7,7 +7,7 @@
 #include "../oath/yubikey_device_manager.h"
 #include "types/oath_credential_data.h"
 #include "../storage/yubikey_database.h"
-#include "../storage/password_storage.h"
+#include "../storage/secret_storage.h"
 #include "../config/daemon_configuration.h"
 #include "../actions/yubikey_action_coordinator.h"
 #include "../logging_categories.h"
@@ -29,9 +29,9 @@ YubiKeyService::YubiKeyService(QObject *parent)
     : QObject(parent)
     , m_deviceManager(std::make_unique<YubiKeyDeviceManager>(nullptr))
     , m_database(std::make_unique<YubiKeyDatabase>(nullptr))
-    , m_passwordStorage(std::make_unique<PasswordStorage>(nullptr))
+    , m_secretStorage(std::make_unique<SecretStorage>(nullptr))
     , m_config(std::make_unique<DaemonConfiguration>(this))
-    , m_actionCoordinator(std::make_unique<YubiKeyActionCoordinator>(m_deviceManager.get(), m_database.get(), m_config.get(), this))
+    , m_actionCoordinator(std::make_unique<YubiKeyActionCoordinator>(m_deviceManager.get(), m_database.get(), m_secretStorage.get(), m_config.get(), this))
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Initializing";
 
@@ -123,7 +123,7 @@ QList<DeviceInfo> YubiKeyService::listDevices()
 
         // Check if we have valid password in KWallet
         if (info.requiresPassword) {
-            const QString storedPassword = m_passwordStorage->loadPasswordSync(deviceId);
+            const QString storedPassword = m_secretStorage->loadPasswordSync(deviceId);
             info.hasValidPassword = !storedPassword.isEmpty();
         } else {
             info.hasValidPassword = true;
@@ -221,7 +221,7 @@ bool YubiKeyService::savePassword(const QString &deviceId, const QString &passwo
     device->setPassword(password);
 
     // Save to KWallet
-    if (!m_passwordStorage->savePassword(password, deviceId)) {
+    if (!m_secretStorage->savePassword(password, deviceId)) {
         qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Failed to save password to KWallet";
         return false;
     }
@@ -263,7 +263,7 @@ bool YubiKeyService::changePassword(const QString &deviceId,
     if (newPassword.isEmpty()) {
         // Password was removed
         qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Removing password from KWallet";
-        m_passwordStorage->removePassword(deviceId);
+        m_secretStorage->removePassword(deviceId);
 
         // Update database - no longer requires password
         m_database->setRequiresPassword(deviceId, false);
@@ -275,7 +275,7 @@ bool YubiKeyService::changePassword(const QString &deviceId,
     } else {
         // Password was changed
         qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Saving new password to KWallet";
-        if (!m_passwordStorage->savePassword(newPassword, deviceId)) {
+        if (!m_secretStorage->savePassword(newPassword, deviceId)) {
             qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Failed to save new password to KWallet";
             // Password changed on YubiKey but not in KWallet - this is a problem
             return false;
@@ -305,7 +305,7 @@ void YubiKeyService::forgetDevice(const QString &deviceId)
     // IMPORTANT: Order matters to prevent race condition!
     // 1. Remove password from KWallet FIRST (before device is re-detected)
     qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Removing password from KWallet";
-    m_passwordStorage->removePassword(deviceId);
+    m_secretStorage->removePassword(deviceId);
 
     // 2. Remove from database
     qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Removing device from database";
@@ -536,7 +536,7 @@ void YubiKeyService::onDeviceConnectedInternal(const QString &deviceId)
         qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Device requires password, loading synchronously from KWallet:" << deviceId;
 
         // Load password synchronously
-        const QString password = m_passwordStorage->loadPasswordSync(deviceId);
+        const QString password = m_secretStorage->loadPasswordSync(deviceId);
 
         if (!password.isEmpty()) {
             qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Password loaded successfully, saving in device and fetching credentials";

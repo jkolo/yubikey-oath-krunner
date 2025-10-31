@@ -26,14 +26,16 @@ using namespace YubiKeyOath::Shared;
 
 YubiKeyActionCoordinator::YubiKeyActionCoordinator(YubiKeyDeviceManager *deviceManager,
                                          YubiKeyDatabase *database,
+                                         SecretStorage *secretStorage,
                                          DaemonConfiguration *config,
                                          QObject *parent)
     : QObject(parent)
     , m_deviceManager(deviceManager)
     , m_database(database)
+    , m_secretStorage(secretStorage)
     , m_config(config)
     , m_clipboardManager(std::make_unique<ClipboardManager>(this))
-    , m_textInput(TextInputFactory::createProvider(this))
+    , m_textInput(TextInputFactory::createProvider(secretStorage, this))
     , m_notificationManager(std::make_unique<DBusNotificationManager>(this))
     , m_notificationOrchestrator(std::make_unique<NotificationOrchestrator>(
         m_notificationManager.get(),

@@ -30,7 +30,7 @@ class PasswordDialog;
  *
  * This model manages the list of known YubiKey devices, combining:
  * - Currently connected devices (from YubiKeyDeviceManager)
- * - Previously seen devices (from PasswordStorage/KWallet)
+ * - Previously seen devices (from SecretStorage/KWallet)
  *
  * Provides real-time updates when devices are connected/disconnected.
  */

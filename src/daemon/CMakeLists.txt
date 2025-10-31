@@ -49,7 +49,7 @@ add_executable(yubikey-oath-daemon
 
     # Storage components
     storage/yubikey_database.cpp
-    storage/password_storage.cpp
+    storage/secret_storage.cpp
 
     # PC/SC monitoring
     pcsc/card_reader_monitor.cpp

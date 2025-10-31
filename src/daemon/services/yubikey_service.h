@@ -18,7 +18,7 @@ namespace YubiKeyOath {
 namespace Daemon {
     class YubiKeyDeviceManager;
     class YubiKeyDatabase;
-    class PasswordStorage;
+    class SecretStorage;
     class DaemonConfiguration;
     class YubiKeyActionCoordinator;
 }
@@ -46,7 +46,7 @@ using namespace YubiKeyOath::Shared;
  *     ↓ delegates
  * YubiKeyService (business logic) ← YOU ARE HERE
  *     ↓ uses
- * Components (DeviceManager, Database, PasswordStorage...)
+ * Components (DeviceManager, Database, SecretStorage...)
  * ```
  */
 class YubiKeyService : public QObject
@@ -252,7 +252,7 @@ private:
 
     std::unique_ptr<YubiKeyDeviceManager> m_deviceManager;
     std::unique_ptr<YubiKeyDatabase> m_database;
-    std::unique_ptr<PasswordStorage> m_passwordStorage;
+    std::unique_ptr<SecretStorage> m_secretStorage;
     std::unique_ptr<DaemonConfiguration> m_config;
     std::unique_ptr<YubiKeyActionCoordinator> m_actionCoordinator;
 };

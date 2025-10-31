@@ -18,6 +18,9 @@ typedef struct _XdpSession XdpSession;
 namespace YubiKeyOath {
 namespace Daemon {
 
+// Forward declarations
+class SecretStorage;
+
 /**
  * @brief Modern Wayland text input using xdg-desktop-portal
  *
@@ -39,7 +42,7 @@ class PortalTextInput : public TextInputProvider
     Q_OBJECT
 
 public:
-    explicit PortalTextInput(QObject *parent = nullptr);
+    explicit PortalTextInput(SecretStorage *secretStorage, QObject *parent = nullptr);
     ~PortalTextInput() override;
 
     bool typeText(const QString &text) override;
@@ -71,6 +74,7 @@ private:
     XdpPortal *m_portal = nullptr;
     XdpSession *m_session = nullptr;
     bool m_sessionReady = false;
+    SecretStorage *m_secretStorage = nullptr;  // For loading/saving restore token
 
     // Permission state tracking
     bool m_waitingForPermission = false;

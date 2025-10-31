@@ -13,18 +13,24 @@
 namespace YubiKeyOath {
 namespace Daemon {
 
+// Forward declaration
+class SecretStorage;
+
 namespace {
 /**
  * @brief Helper to try creating a text input provider
  * @tparam T Provider type to create
+ * @param secretStorage Secret storage for KWallet operations
  * @param parent Parent QObject
  * @param description Human-readable description for logging
  * @return Provider instance if compatible, nullptr otherwise
  */
 template<typename T>
-std::unique_ptr<TextInputProvider> tryCreateProvider(QObject* parent, const char* description)
+std::unique_ptr<TextInputProvider> tryCreateProvider(SecretStorage* secretStorage,
+                                                     QObject* parent,
+                                                     const char* description)
 {
-    auto provider = std::make_unique<T>(parent);
+    auto provider = std::make_unique<T>(secretStorage, parent);
     if (provider->isCompatible()) {
         qCDebug(TextInputLog) << "TextInputFactory: Created" << description << "provider";
         return provider;
@@ -33,16 +39,17 @@ std::unique_ptr<TextInputProvider> tryCreateProvider(QObject* parent, const char
 }
 } // anonymous namespace
 
-std::unique_ptr<TextInputProvider> TextInputFactory::createProvider(QObject *parent)
+std::unique_ptr<TextInputProvider> TextInputFactory::createProvider(SecretStorage *secretStorage,
+                                                                    QObject *parent)
 {
     // Try providers in priority order: Portal → X11
     // Portal works on Wayland (all compositors via xdg-desktop-portal)
     // X11 works on X11 sessions
-    if (auto provider = tryCreateProvider<PortalTextInput>(parent, "Portal (libportal-qt6 + D-Bus)")) {
+    if (auto provider = tryCreateProvider<PortalTextInput>(secretStorage, parent, "Portal (libportal-qt6 + D-Bus)")) {
         return provider;
     }
 
-    if (auto provider = tryCreateProvider<X11TextInput>(parent, "X11")) {
+    if (auto provider = tryCreateProvider<X11TextInput>(secretStorage, parent, "X11")) {
         return provider;
     }
 

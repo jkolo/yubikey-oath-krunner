@@ -4,6 +4,7 @@
  */
 
 #include "portal_text_input.h"
+#include "../storage/secret_storage.h"
 #include "../logging_categories.h"
 
 #include <QDebug>
@@ -23,8 +24,9 @@ namespace Daemon {
 // Constructor / Destructor
 // =============================================================================
 
-PortalTextInput::PortalTextInput(QObject *parent)
+PortalTextInput::PortalTextInput(SecretStorage *secretStorage, QObject *parent)
     : TextInputProvider(parent)
+    , m_secretStorage(secretStorage)
 {
     qCDebug(TextInputLog) << "PortalTextInput: Constructor";
 }
@@ -126,6 +128,7 @@ bool PortalTextInput::createSession()
     XdpOutputType outputs = XDP_OUTPUT_NONE;  // No screen sharing needed
     XdpRemoteDesktopFlags flags = XDP_REMOTE_DESKTOP_FLAG_NONE;
     XdpCursorMode cursor_mode = XDP_CURSOR_MODE_HIDDEN;  // Hide cursor (not needed for keyboard)
+    XdpPersistMode persist_mode = XDP_PERSIST_MODE_PERSISTENT;  // Save permission permanently
 
     // Set up async callback variables
     bool sessionCreated = false;
@@ -167,12 +170,33 @@ bool PortalTextInput::createSession()
     // Call async session creation
     auto *callbackData = new std::tuple<bool*, QString*, QEventLoop*>(&sessionCreated, &errorMessage, &loop);
 
-    xdp_portal_create_remote_desktop_session(
+    // Load restore token from KWallet (via SecretStorage)
+    QString restoreToken;
+    if (m_secretStorage) {
+        restoreToken = m_secretStorage->loadRestoreToken();
+        if (!restoreToken.isEmpty()) {
+            qCDebug(TextInputLog) << "PortalTextInput: Loaded restore token from KWallet";
+        }
+    }
+
+    // Prepare restore token (convert QString to const char*)
+    QByteArray tokenBytes = restoreToken.toUtf8();
+    const char* restore_token = restoreToken.isEmpty() ? nullptr : tokenBytes.constData();
+
+    if (restore_token) {
+        qCDebug(TextInputLog) << "PortalTextInput: Using restore token to skip permission dialog";
+    } else {
+        qCDebug(TextInputLog) << "PortalTextInput: No restore token - first time setup, permission dialog will appear";
+    }
+
+    xdp_portal_create_remote_desktop_session_full(
         m_portal,
         devices,
         outputs,
         flags,
         cursor_mode,
+        persist_mode,
+        restore_token,
         nullptr,  // cancellable
         callback,
         callbackData
@@ -202,6 +226,84 @@ bool PortalTextInput::createSession()
     }
 
     qCDebug(TextInputLog) << "PortalTextInput: Session retrieved successfully";
+
+    // Start the session to activate it for keyboard emulation
+    bool sessionStarted = false;
+    QString startErrorMessage;
+    QEventLoop startLoop;
+
+    // Lambda callback for session start (C callback wrapper)
+    auto startCallback = [](GObject *source_object, GAsyncResult *result, gpointer user_data) {
+        auto *data = static_cast<std::tuple<bool*, QString*, QEventLoop*>*>(user_data);
+        auto &[success, error, eventLoop] = *data;
+
+        GError *g_error = nullptr;
+        gboolean started = xdp_session_start_finish(XDP_SESSION(source_object), result, &g_error);
+
+        if (started) {
+            qCDebug(TextInputLog) << "PortalTextInput: Session started successfully";
+            *success = true;
+        } else {
+            qCWarning(TextInputLog) << "PortalTextInput: Session start failed:"
+                                     << (g_error ? g_error->message : "Unknown error");
+            *error = g_error ? QString::fromUtf8(g_error->message) : QStringLiteral("Unknown error");
+            *success = false;
+
+            if (g_error) {
+                g_error_free(g_error);
+            }
+        }
+
+        eventLoop->quit();
+        delete data;
+    };
+
+    // Call async session start
+    auto *startCallbackData = new std::tuple<bool*, QString*, QEventLoop*>(&sessionStarted, &startErrorMessage, &startLoop);
+
+    xdp_session_start(
+        m_session,
+        nullptr,  // parent window
+        nullptr,  // cancellable
+        startCallback,
+        startCallbackData
+    );
+
+    // Wait for callback with timeout
+    QTimer::singleShot(30000, &startLoop, &QEventLoop::quit);  // 30s timeout
+    startLoop.exec();
+
+    if (!sessionStarted) {
+        qCWarning(TextInputLog) << "PortalTextInput: Session start failed or timed out:" << startErrorMessage;
+
+        if (startErrorMessage.contains(QStringLiteral("denied")) || startErrorMessage.contains(QStringLiteral("cancelled"))) {
+            m_permissionRejected = true;
+        } else {
+            m_waitingForPermission = true;
+        }
+
+        return false;
+    }
+
+    // Get restore token for future sessions (to skip permission dialog)
+    char *token = xdp_session_get_restore_token(m_session);
+    if (token) {
+        QString newToken = QString::fromUtf8(token);
+        g_free(token);  // Free GLib-allocated string
+
+        // Save to KWallet for persistence across daemon restarts
+        if (m_secretStorage) {
+            if (m_secretStorage->saveRestoreToken(newToken)) {
+                qCDebug(TextInputLog) << "PortalTextInput: Restore token saved to KWallet for future sessions";
+            } else {
+                qCWarning(TextInputLog) << "PortalTextInput: Failed to save restore token to KWallet";
+            }
+        } else {
+            qCWarning(TextInputLog) << "PortalTextInput: No SecretStorage available, token won't persist across restarts";
+        }
+    } else {
+        qCDebug(TextInputLog) << "PortalTextInput: No restore token available (may be using existing token)";
+    }
 
     m_sessionReady = true;
     qCDebug(TextInputLog) << "PortalTextInput: Session ready for keyboard emulation";

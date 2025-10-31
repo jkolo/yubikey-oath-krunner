@@ -18,17 +18,17 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 /**
- * @brief Manages secure password storage using KWallet
+ * @brief Manages secure secret storage using KWallet
  *
- * Single Responsibility: Handle password persistence in KWallet
+ * Single Responsibility: Handle secret persistence in KWallet (passwords, tokens)
  */
-class PasswordStorage : public QObject
+class SecretStorage : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit PasswordStorage(QObject *parent = nullptr);
-    ~PasswordStorage() override;
+    explicit SecretStorage(QObject *parent = nullptr);
+    ~SecretStorage() override;
 
     /**
      * @brief Loads password from KWallet synchronously
@@ -52,6 +52,25 @@ public:
      */
     bool removePassword(const QString &deviceId);
 
+    /**
+     * @brief Loads portal restore token from KWallet
+     * @return Token or empty string if not found
+     */
+    QString loadRestoreToken();
+
+    /**
+     * @brief Saves portal restore token to KWallet
+     * @param token Token to save
+     * @return true if successful
+     */
+    bool saveRestoreToken(const QString &token);
+
+    /**
+     * @brief Removes portal restore token from KWallet
+     * @return true if successful
+     */
+    bool removeRestoreToken();
+
 private:
     KWallet::Wallet *m_wallet;
 
@@ -60,6 +79,9 @@ private:
     static QString passwordKey(const QString &deviceId) {
         return QStringLiteral("yubikey_") + deviceId;
     }
+
+    // Portal restore token key (used by portal_text_input for session persistence)
+    static constexpr const char* PORTAL_TOKEN_KEY = "portal_restore_token";
 
     bool ensureWalletOpen();
 };

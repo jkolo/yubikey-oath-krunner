@@ -26,7 +26,7 @@ Q_DECLARE_LOGGING_CATEGORY(YubiKeyOathDeviceLog)
 
 // Storage components
 Q_DECLARE_LOGGING_CATEGORY(CardReaderMonitorLog)
-Q_DECLARE_LOGGING_CATEGORY(PasswordStorageLog)
+Q_DECLARE_LOGGING_CATEGORY(SecretStorageLog)
 Q_DECLARE_LOGGING_CATEGORY(YubiKeyDatabaseLog)
 
 // Action and workflow components (moved from krunner)
