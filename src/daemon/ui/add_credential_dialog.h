@@ -83,8 +83,8 @@ private Q_SLOTS:
     void onOkClicked();
     void onRevealSecretClicked();
     void onScanQrClicked();
-    void onScreenshotCaptured(const QString &filePath);
-    void onScreenshotCancelled();
+    void onCaptured(const QImage &image);
+    void onCancelled();
 
 private:
     void setupUi(const OathCredentialData &initialData, const QMap<QString, QString> &devices);
@@ -116,8 +116,8 @@ private:
     // Processing overlay
     ProcessingOverlay *m_processingOverlay;
 
-    // Screenshot capture (UI thread)
-    class ScreenshotCapture *m_screenshotCapture;
+    // Screenshot capturer (UI thread)
+    class ScreenshotCapturer *m_screenshotCapturer;
 
     bool m_secretRevealed;
 };

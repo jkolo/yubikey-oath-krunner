@@ -90,7 +90,7 @@ add_executable(yubikey-oath-daemon
     ui/processing_overlay.cpp
 
     # Utils
-    utils/screenshot_capture.cpp
+    utils/screenshot_capturer.cpp
     utils/qr_code_parser.cpp
     utils/otpauth_uri_parser.cpp
     utils/async_waiter.cpp
@@ -169,7 +169,7 @@ install(FILES pl.jkolo.yubikey.oath.daemon.service
         DESTINATION ${KDE_INSTALL_DBUSSERVICEDIR})
 
 # systemd user service file
-install(FILES yubikey-oath-daemon.service
+install(FILES app-pl.jkolo.yubikey.oath.daemon.service
         DESTINATION ${KDE_INSTALL_SYSTEMDUSERUNITDIR})
 
 # Desktop file for app ID

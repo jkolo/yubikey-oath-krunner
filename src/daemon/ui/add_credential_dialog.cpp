@@ -5,7 +5,7 @@
 
 #include "add_credential_dialog.h"
 #include "processing_overlay.h"
-#include "../utils/screenshot_capture.h"
+#include "../utils/screenshot_capturer.h"
 #include "../utils/qr_code_parser.h"
 #include "../utils/otpauth_uri_parser.h"
 #include "../logging_categories.h"
@@ -37,7 +37,7 @@ AddCredentialDialog::AddCredentialDialog(const OathCredentialData &initialData,
                                         const QString &preselectedDeviceId,
                                         QWidget *parent)
     : QDialog(parent)
-    , m_screenshotCapture(nullptr)
+    , m_screenshotCapturer(nullptr)
     , m_secretRevealed(false)
 {
     setWindowTitle(i18n("Add OATH Credential to YubiKey"));
@@ -315,29 +315,20 @@ void AddCredentialDialog::onScanQrClicked()
     // Show overlay with initial status (UI thread)
     showProcessingOverlay(i18n("Scanning screen"));
 
-    // Create ScreenshotCapture in UI thread (QDBusInterface requires event loop)
+    // Create ScreenshotCapturer in UI thread (QDBusInterface requires event loop)
     
-        delete m_screenshotCapture;
+        delete m_screenshotCapturer;
     
-    m_screenshotCapture = new ScreenshotCapture(this);
+    m_screenshotCapturer = new ScreenshotCapturer(this);
 
     // Connect signals for async screenshot handling
-    connect(m_screenshotCapture, &ScreenshotCapture::screenshotCaptured,
-            this, &AddCredentialDialog::onScreenshotCaptured);
-    connect(m_screenshotCapture, &ScreenshotCapture::screenshotCancelled,
-            this, &AddCredentialDialog::onScreenshotCancelled);
+    connect(m_screenshotCapturer, &ScreenshotCapturer::captured,
+            this, &AddCredentialDialog::onCaptured);
+    connect(m_screenshotCapturer, &ScreenshotCapturer::cancelled,
+            this, &AddCredentialDialog::onCancelled);
 
-    // Start screenshot capture (async, UI thread)
-    auto result = m_screenshotCapture->captureInteractive(30000);
-
-    // Handle immediate errors (e.g., Spectacle not available)
-    if (result.isError()) {
-        qCWarning(YubiKeyDaemonLog) << "AddCredentialDialog: Screenshot capture failed immediately:" << result.error();
-        hideProcessingOverlay();
-        showMessage(result.error(), KMessageWidget::Error);
-        delete m_screenshotCapture;
-        m_screenshotCapture = nullptr;
-    }
+    // Start screenshot capture (async, will emit captured or cancelled)
+    m_screenshotCapturer->captureFullscreen(30000);
 }
 
 void AddCredentialDialog::fillFieldsFromQrData(const OathCredentialData &data)
@@ -373,19 +364,20 @@ void AddCredentialDialog::showProcessingOverlay(const QString &message)
     m_processingOverlay->show(message);
 }
 
-void AddCredentialDialog::onScreenshotCaptured(const QString &filePath)
+void AddCredentialDialog::onCaptured(const QImage &image)
 {
-    qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Screenshot captured:" << filePath;
+    qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Screenshot captured:"
+                              << image.width() << "x" << image.height();
 
     // Update overlay status to QR parsing
     updateOverlayStatus(i18n("Processing QR code"));
 
     // Run QR parsing + URI parsing in background thread (CPU-heavy)
-    QFuture<Result<OathCredentialData>> const future = QtConcurrent::run([filePath]() -> Result<OathCredentialData> {
+    QFuture<Result<OathCredentialData>> const future = QtConcurrent::run([image]() -> Result<OathCredentialData> {
         qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Background QR parsing started";
 
-        // Parse QR code from image (static method - thread-safe)
-        auto qrResult = QrCodeParser::parse(filePath);
+        // Parse QR code from in-memory image (static method - thread-safe)
+        auto qrResult = QrCodeParser::parse(image);
 
         if (qrResult.isError()) {
             qCWarning(YubiKeyDaemonLog) << "AddCredentialDialog: QR parsing failed:" << qrResult.error();
@@ -419,9 +411,9 @@ void AddCredentialDialog::onScreenshotCaptured(const QString &filePath)
         hideProcessingOverlay();
 
         // Clean up screenshot capture
-        if (m_screenshotCapture) {
-            delete m_screenshotCapture;
-            m_screenshotCapture = nullptr;
+        if (m_screenshotCapturer) {
+            delete m_screenshotCapturer;
+            m_screenshotCapturer = nullptr;
         }
 
         if (result.isError()) {
@@ -442,7 +434,7 @@ void AddCredentialDialog::onScreenshotCaptured(const QString &filePath)
     watcher->setFuture(future);
 }
 
-void AddCredentialDialog::onScreenshotCancelled()
+void AddCredentialDialog::onCancelled()
 {
     qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Screenshot cancelled by user";
 
@@ -450,9 +442,9 @@ void AddCredentialDialog::onScreenshotCancelled()
     hideProcessingOverlay();
 
     // Clean up screenshot capture
-    if (m_screenshotCapture) {
-        delete m_screenshotCapture;
-        m_screenshotCapture = nullptr;
+    if (m_screenshotCapturer) {
+        delete m_screenshotCapturer;
+        m_screenshotCapturer = nullptr;
     }
 }
 
