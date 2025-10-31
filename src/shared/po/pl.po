@@ -678,6 +678,12 @@ msgstr "Czy na pewno chcesz usunąć '%1' z YubiKey?\n\nTej operacji nie można 
 msgid "Capture QR code and add credential"
 msgstr "Przechwyć kod QR i dodaj dane uwierzytelniające"
 
+#: src/krunner/yubikeyrunner.cpp:437
+#, kde-format
+msgctxt "search keyword"
+msgid "add"
+msgstr "dodaj"
+
 #: src/krunner/actions/action_manager.cpp:81
 #, kde-format
 msgid "Unknown action"

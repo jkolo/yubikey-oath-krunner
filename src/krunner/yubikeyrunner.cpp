@@ -117,8 +117,8 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
 {
     qCDebug(YubiKeyRunnerLog) << "match() called with query:" << context.query();
 
-    if (!context.isValid() || context.query().length() < 2) {
-        qCDebug(YubiKeyRunnerLog) << "Query too short or invalid";
+    if (!context.isValid() || context.query().length() < 3) {
+        qCDebug(YubiKeyRunnerLog) << "Query too short or invalid (minimum 3 characters)";
         return;
     }
 
@@ -129,11 +129,17 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
 
     const QString query = context.query().toLower();
 
-    // Check for "Add OATH" command
-    if (query.contains(QStringLiteral("add")) &&
-        (query.contains(QStringLiteral("oath")) || query.contains(QStringLiteral("credential")))) {
-        qCDebug(YubiKeyRunnerLog) << "Detected 'Add OATH' command";
+    // Check for "Add OATH" command - multilingual keyword matching
+    bool matchesKeyword = false;
+    for (const QString &keyword : m_addOathKeywords) {
+        if (query.contains(keyword)) {
+            matchesKeyword = true;
+            qCDebug(YubiKeyRunnerLog) << "Detected 'Add OATH' command (matched keyword:" << keyword << ")";
+            break;
+        }
+    }
 
+    if (matchesKeyword) {
         KRunner::QueryMatch match(this);
         match.setId(QStringLiteral("add-oath-credential"));
         match.setText(i18n("Add OATH Credential to YubiKey"));
@@ -427,6 +433,15 @@ void YubiKeyRunner::reloadConfiguration()
     // Note: Don't call m_config->reload() here to avoid infinite recursion
     // QFileSystemWatcher automatically calls reload() which emits configurationChanged()
     // which is connected to setupActions()
+
+    // Initialize translated keywords for "Add OATH" matching
+    m_addOathKeywords.clear();
+    m_addOathKeywords << i18nc("search keyword", "add").toLower();
+    m_addOathKeywords << QStringLiteral("oath");
+    m_addOathKeywords << QStringLiteral("totp");
+    m_addOathKeywords << QStringLiteral("hotp");
+
+    qCDebug(YubiKeyRunnerLog) << "Add OATH keywords:" << m_addOathKeywords;
 
     // This method is kept for manual reload from init()
     setupActions();

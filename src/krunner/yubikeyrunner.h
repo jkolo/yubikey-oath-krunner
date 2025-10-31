@@ -92,6 +92,9 @@ private:
 
     // Actions
     KRunner::Actions m_actions;
+
+    // Translated keywords for "Add OATH" matching
+    QStringList m_addOathKeywords;
 };
 
 } // namespace Runner
