@@ -692,16 +692,9 @@ Result<void> OathSession::removePassword()
 {
     qCDebug(YubiKeyOathDeviceLog) << "removePassword() for device" << m_deviceId;
 
-    // Execute SELECT to ensure OATH application is selected before SET_CODE
-    qCDebug(YubiKeyOathDeviceLog) << "Executing SELECT before REMOVE_CODE";
-    QByteArray selectChallenge;
-    auto selectResult = selectOathApplication(selectChallenge);
-    if (selectResult.isError()) {
-        qCWarning(YubiKeyOathDeviceLog) << "Failed to SELECT OATH application:" << selectResult.error();
-        return Result<void>::error(tr("Failed to select OATH application: %1").arg(selectResult.error()));
-    }
-
     // Create SET_CODE command with length 0 (removes password)
+    // Note: This command relies on the existing authenticated session from earlier VALIDATE
+    // Do NOT call SELECT here as it would reset the authentication session
     QByteArray command = OathProtocol::createRemoveCodeCommand();
 
     qCDebug(YubiKeyOathDeviceLog) << "Sending REMOVE_CODE command (SET_CODE with Lc=0)";

@@ -56,8 +56,9 @@ void showDialog(
                     return;
                 }
 
-                // Change password via device proxy (blocking call)
-                bool success = device->changePassword(oldPassword, newPassword);
+                // Change password via device proxy (blocking call) - get detailed error message
+                QString errorMessage;
+                bool success = device->changePassword(oldPassword, newPassword, errorMessage);
 
                 // Check if dialog still exists before accessing it
                 if (!dialogPtr) {
@@ -83,14 +84,16 @@ void showDialog(
                         }
                     }, Qt::QueuedConnection);
                 } else {
-                    // Failed - show error in dialog, keep it open
-                    qCWarning(YubiKeyUILog) << "Password change failed for device:" << devId;
-                    QMetaObject::invokeMethod(dialogPtr.data(), [dialogPtr]() {
+                    // Failed - show detailed error in dialog, keep it open
+                    qCWarning(YubiKeyUILog) << "Password change failed for device:" << devId << "Error:" << errorMessage;
+                    QMetaObject::invokeMethod(dialogPtr.data(), [dialogPtr, errorMessage]() {
                         if (dialogPtr) {
-                            dialogPtr->showError(
-                                i18n("Failed to change password.\n"
-                                     "The current password may be incorrect, or the YubiKey may not be accessible.")
-                            );
+                            // Use detailed error message if available, otherwise use generic message
+                            QString displayError = errorMessage.isEmpty()
+                                ? i18n("Failed to change password.\n"
+                                       "The current password may be incorrect, or the YubiKey may not be accessible.")
+                                : errorMessage;
+                            dialogPtr->showError(displayError);
                         }
                     }, Qt::QueuedConnection);
                 }

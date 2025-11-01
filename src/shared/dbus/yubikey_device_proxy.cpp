@@ -11,6 +11,7 @@
 #include <QDBusVariant>
 #include <QLatin1String>
 #include <QLoggingCategory>
+#include <KLocalizedString>
 
 Q_LOGGING_CATEGORY(YubiKeyDeviceProxyLog, "pl.jkolo.yubikey.oath.daemon.device.proxy")
 
@@ -134,8 +135,15 @@ bool YubiKeyDeviceProxy::savePassword(const QString &password)
 
 bool YubiKeyDeviceProxy::changePassword(const QString &oldPassword, const QString &newPassword)
 {
+    QString errorMessage;  // Unused in this overload
+    return changePassword(oldPassword, newPassword, errorMessage);
+}
+
+bool YubiKeyDeviceProxy::changePassword(const QString &oldPassword, const QString &newPassword, QString &errorMessage)
+{
     if (!m_interface || !m_interface->isValid()) {
-        qCWarning(YubiKeyDeviceProxyLog) << "Cannot change password: D-Bus interface invalid";
+        errorMessage = QStringLiteral("D-Bus interface invalid");
+        qCWarning(YubiKeyDeviceProxyLog) << "Cannot change password:" << errorMessage;
         return false;
     }
 
@@ -143,13 +151,22 @@ bool YubiKeyDeviceProxy::changePassword(const QString &oldPassword, const QStrin
                                                 oldPassword, newPassword);
 
     if (!reply.isValid()) {
+        errorMessage = reply.error().message();
         qCWarning(YubiKeyDeviceProxyLog) << "ChangePassword failed for" << m_name
-                                          << "Error:" << reply.error().message();
+                                          << "Error:" << errorMessage;
         return false;
     }
 
     bool success = reply.value();
     qCDebug(YubiKeyDeviceProxyLog) << "ChangePassword for" << m_name << "Result:" << success;
+
+    if (!success) {
+        // D-Bus call succeeded but operation failed
+        // Unfortunately, standard D-Bus doesn't provide error message when call succeeds but returns false
+        // We can only provide a generic message here
+        errorMessage = i18n("Password change failed. The current password may be incorrect, or the YubiKey may not be accessible.");
+    }
+
     return success;
 }
 

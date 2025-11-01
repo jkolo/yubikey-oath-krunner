@@ -34,6 +34,7 @@ target_link_libraries(kcm_krunner_yubikey
     KF6::ConfigCore
     KF6::CoreAddons
     KF6::KCMUtils
+    KF6::WidgetsAddons
     yubikey_dbus_client
 )
 

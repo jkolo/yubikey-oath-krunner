@@ -297,21 +297,27 @@ QByteArray OathProtocol::createSetCodeCommand(const QByteArray &key,
 
 QByteArray OathProtocol::createRemoveCodeCommand()
 {
-    // Format: CLA INS P1 P2 Lc
-    // CLA=0x00, INS=0x03 (SET_CODE), P1=0x00, P2=0x00, Lc=0x00
-    // Sending length 0 removes authentication requirement
+    // Format: CLA INS P1 P2 Lc Data
+    // CLA=0x00, INS=0x03 (SET_CODE), P1=0x00, P2=0x00, Lc=0x02
+    // Data: TAG_KEY (0x73) + Length (0x00)
+    // Sending TAG_KEY with length 0 removes authentication requirement
+    // Based on official Yubico implementation: yubikey-manager/yubikit/oath.py
 
     QByteArray command;
-    command.reserve(5);
+    command.reserve(7);
 
     // APDU header
     command.append(static_cast<char>(CLA));          // CLA = 0x00
     command.append(static_cast<char>(INS_SET_CODE)); // INS = 0x03
     command.append((char)0x00);                      // P1 = 0x00
     command.append((char)0x00);                      // P2 = 0x00
-    command.append((char)0x00);                      // Lc = 0x00 (no data)
+    command.append((char)0x02);                      // Lc = 0x02 (tag + length)
 
-    // No data, no Le
+    // Data: TLV with TAG_KEY and length 0
+    command.append(static_cast<char>(TAG_KEY));      // TAG = 0x73
+    command.append((char)0x00);                      // Length = 0x00 (remove password)
+
+    // No Le per YubiKey OATH spec
 
     return command;
 }

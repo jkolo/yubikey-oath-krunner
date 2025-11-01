@@ -7,6 +7,7 @@
 
 #include <QDialog>
 #include <QString>
+#include <KMessageWidget>
 
 class QLineEdit;
 class QLabel;
@@ -86,6 +87,7 @@ private:
     QLineEdit *m_confirmPasswordField;
     QCheckBox *m_removePasswordCheckbox;
     QLabel *m_errorLabel;
+    KMessageWidget *m_messageWidget;
     QPushButton *m_okButton;
     QProgressBar *m_progressBar;
 

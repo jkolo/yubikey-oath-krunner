@@ -32,6 +32,7 @@ ChangePasswordDialog::ChangePasswordDialog(const QString &deviceId,
     , m_confirmPasswordField(nullptr)
     , m_removePasswordCheckbox(nullptr)
     , m_errorLabel(nullptr)
+    , m_messageWidget(nullptr)
     , m_okButton(nullptr)
     , m_progressBar(nullptr)
 {
@@ -62,6 +63,14 @@ void ChangePasswordDialog::setupUi(const QString &deviceName)
     boldFont.setBold(true);
     m_deviceNameLabel->setFont(boldFont);
     mainLayout->addWidget(m_deviceNameLabel);
+
+    // Error message widget (KMessageWidget) - hidden by default
+    m_messageWidget = new KMessageWidget(this);
+    m_messageWidget->setMessageType(KMessageWidget::Error);
+    m_messageWidget->setCloseButtonVisible(true);
+    m_messageWidget->setWordWrap(true);
+    m_messageWidget->hide();
+    mainLayout->addWidget(m_messageWidget);
 
     // Form layout for password fields
     auto *formLayout = new QFormLayout();
@@ -140,8 +149,8 @@ void ChangePasswordDialog::setupUi(const QString &deviceName)
                                !m_confirmPasswordField->text().isEmpty();
         bool passwordsAreMatching = passwordsMatch();
 
-        // Old password required only if: device has password AND not removing password
-        bool needsOldPassword = m_requiresPassword && !removeMode;
+        // Old password required if device has password (always, regardless of operation)
+        bool needsOldPassword = m_requiresPassword;
 
         // Enable OK button when:
         // - Remove mode: checkbox checked AND (no password required OR has old password)
@@ -155,6 +164,9 @@ void ChangePasswordDialog::setupUi(const QString &deviceName)
         // Hide error when user starts typing
         if (m_errorLabel->isVisible()) {
             m_errorLabel->setVisible(false);
+        }
+        if (m_messageWidget->isVisible()) {
+            m_messageWidget->animatedHide();
         }
     };
 
@@ -258,8 +270,14 @@ void ChangePasswordDialog::onOkClicked()
 
 void ChangePasswordDialog::showError(const QString &errorMessage)
 {
+    // Show error using KMessageWidget
+    m_messageWidget->setText(errorMessage);
+    m_messageWidget->animatedShow();
+
+    // Also show in legacy error label for backward compatibility
     m_errorLabel->setText(errorMessage);
     m_errorLabel->setVisible(true);
+
     setVerifying(false);
 
     // Clear password fields for retry

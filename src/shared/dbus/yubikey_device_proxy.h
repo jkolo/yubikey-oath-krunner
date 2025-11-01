@@ -112,6 +112,7 @@ public:
      * Updates YubiKey password and KWallet entry.
      */
     bool changePassword(const QString &oldPassword, const QString &newPassword);
+    bool changePassword(const QString &oldPassword, const QString &newPassword, QString &errorMessage);
 
     /**
      * @brief Forgets device - removes from database and KWallet
