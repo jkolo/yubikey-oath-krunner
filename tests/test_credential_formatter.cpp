@@ -50,7 +50,7 @@ void TestCredentialFormatter::testFormatDisplayName_OathCredential_Basic()
 {
     OathCredential cred;
     cred.issuer = "Google";
-    cred.username = "user@example.com";
+    cred.account = "user@example.com";
 
     QString result = CredentialFormatter::formatDisplayName(
         cred,
@@ -69,7 +69,7 @@ void TestCredentialFormatter::testFormatDisplayName_OathCredential_WithUsername(
 {
     OathCredential cred;
     cred.issuer = "Google";
-    cred.username = "user@example.com";
+    cred.account = "user@example.com";
 
     QString result = CredentialFormatter::formatDisplayName(
         cred,
@@ -118,7 +118,7 @@ void TestCredentialFormatter::testFormatDisplayName_OathCredential_AllOptions()
 {
     OathCredential cred;
     cred.issuer = "Google";
-    cred.username = "user@example.com";
+    cred.account = "user@example.com";
     cred.code = "123456";
     cred.requiresTouch = false;
 
@@ -141,7 +141,7 @@ void TestCredentialFormatter::testFormatDisplayName_CredentialInfo_Basic()
 {
     CredentialInfo cred;
     cred.issuer = "GitHub";
-    cred.username = "developer";
+    cred.account = "developer";
     cred.name = "GitHub:developer";
 
     QString result = CredentialFormatter::formatDisplayName(
@@ -157,7 +157,7 @@ void TestCredentialFormatter::testFormatDisplayName_CredentialInfo_WithUsername(
 {
     CredentialInfo cred;
     cred.issuer = "GitHub";
-    cred.username = "developer";
+    cred.account = "developer";
     cred.name = "GitHub:developer";
 
     QString result = CredentialFormatter::formatDisplayName(
@@ -173,7 +173,7 @@ void TestCredentialFormatter::testFormatDisplayName_CredentialInfo_WithCode()
 {
     CredentialInfo cred;
     cred.issuer = "GitHub";
-    cred.username = "developer";
+    cred.account = "developer";
     cred.name = "GitHub:developer";
     cred.requiresTouch = false;
 
@@ -193,7 +193,7 @@ void TestCredentialFormatter::testFormatDisplayName_CredentialInfo_WithDeviceNam
 {
     CredentialInfo cred;
     cred.issuer = "GitHub";
-    cred.username = "developer";
+    cred.account = "developer";
     cred.name = "GitHub:developer";
 
     QString result = CredentialFormatter::formatDisplayName(
@@ -212,7 +212,7 @@ void TestCredentialFormatter::testFormatDisplayName_CredentialInfo_AllOptions()
 {
     CredentialInfo cred;
     cred.issuer = "GitHub";
-    cred.username = "developer";
+    cred.account = "developer";
     cred.name = "GitHub:developer";
     cred.requiresTouch = false;
 
@@ -236,9 +236,9 @@ void TestCredentialFormatter::testFormatDisplayName_EmptyFields()
     // Test with empty issuer - should fall back to name
     {
         OathCredential cred;
-        cred.name = "MyAccount";
+        cred.originalName = "MyAccount";
         cred.issuer = "";
-        cred.username = "user";
+        cred.account = "user";
 
         QString result = CredentialFormatter::formatDisplayName(
             cred, false, false, false, QString(), 1, false
@@ -251,7 +251,7 @@ void TestCredentialFormatter::testFormatDisplayName_EmptyFields()
     {
         OathCredential cred;
         cred.issuer = "Amazon";
-        cred.username = "";
+        cred.account = "";
 
         QString result = CredentialFormatter::formatDisplayName(
             cred, true, false, false, QString(), 1, false
@@ -329,7 +329,7 @@ void TestCredentialFormatter::testRealWorldCredentials()
     {
         OathCredential cred;
         cred.issuer = "Google";
-        cred.username = "user@gmail.com";
+        cred.account = "user@gmail.com";
         cred.code = "123456";
         cred.requiresTouch = false;
 
@@ -344,7 +344,7 @@ void TestCredentialFormatter::testRealWorldCredentials()
     {
         OathCredential cred;
         cred.issuer = "GitHub";
-        cred.username = "developer";
+        cred.account = "developer";
         cred.code = "789012";
         cred.requiresTouch = true;
 
@@ -360,7 +360,7 @@ void TestCredentialFormatter::testRealWorldCredentials()
     {
         OathCredential cred;
         cred.issuer = "AWS";
-        cred.username = "admin@company.com";
+        cred.account = "admin@company.com";
 
         QString result = CredentialFormatter::formatDisplayName(
             cred, true, false,
@@ -377,7 +377,7 @@ void TestCredentialFormatter::testRealWorldCredentials()
     {
         OathCredential cred;
         cred.issuer = "Corporate VPN";
-        cred.username = "employee.name@corporation.example.com";
+        cred.account = "employee.name@corporation.example.com";
         cred.code = "567890";
         cred.requiresTouch = false;
 
@@ -395,7 +395,7 @@ void TestCredentialFormatter::testRealWorldCredentials()
         CredentialInfo cred;
         cred.name = "Slack:workspace";
         cred.issuer = "Slack";
-        cred.username = "workspace";
+        cred.account = "workspace";
         cred.deviceId = "abc123";
         cred.requiresTouch = false;
 

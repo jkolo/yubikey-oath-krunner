@@ -22,9 +22,9 @@ enum class OathAlgorithm;
  * @brief Represents a YubiKey OATH credential
  */
 struct OathCredential {
-    QString name;              ///< Full credential name
+    QString originalName;      ///< Full name as stored in YubiKey WITH period if non-standard ([period/]issuer:account)
     QString issuer;            ///< Service issuer
-    QString username;          ///< Username/account
+    QString account;           ///< Account/username
     QString code;              ///< Generated TOTP/HOTP code
     qint64 validUntil = 0;     ///< Code validity timestamp
     bool requiresTouch = false; ///< Whether credential requires physical touch
@@ -41,20 +41,20 @@ struct OathCredential {
 // QDebug operator for debug output
 inline QDebug operator<<(QDebug debug, const OathCredential &cred) {
     QDebugStateSaver saver(debug);
-    debug.nospace() << "OathCredential(" << cred.name << ")";
+    debug.nospace() << "OathCredential(" << cred.originalName << ")";
     return debug;
 }
 
 // QDataStream operators for serialization
 inline QDataStream &operator<<(QDataStream &out, const OathCredential &cred) {
-    out << cred.name << cred.issuer << cred.username << cred.code
+    out << cred.originalName << cred.issuer << cred.account << cred.code
         << cred.validUntil << cred.requiresTouch << cred.isTotp
         << cred.digits << cred.period << cred.algorithm << cred.type;
     return out;
 }
 
 inline QDataStream &operator>>(QDataStream &in, OathCredential &cred) {
-    in >> cred.name >> cred.issuer >> cred.username >> cred.code
+    in >> cred.originalName >> cred.issuer >> cred.account >> cred.code
        >> cred.validUntil >> cred.requiresTouch >> cred.isTotp
        >> cred.digits >> cred.period >> cred.algorithm >> cred.type;
     return in;

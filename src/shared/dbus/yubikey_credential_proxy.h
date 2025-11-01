@@ -62,7 +62,7 @@ public:
     QString objectPath() const { return m_objectPath; }
     QString name() const { return m_name; }
     QString issuer() const { return m_issuer; }
-    QString username() const { return m_username; }
+    QString account() const { return m_account; }
     bool requiresTouch() const { return m_requiresTouch; }
     QString type() const { return m_type; }
     QString algorithm() const { return m_algorithm; }
@@ -126,7 +126,7 @@ private:
     // Cached properties (all const - never change after construction)
     QString m_name;
     QString m_issuer;
-    QString m_username;
+    QString m_account;
     bool m_requiresTouch;
     QString m_type;
     QString m_algorithm;

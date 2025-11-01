@@ -182,9 +182,9 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
     for (auto *credential : credentials) {
         QString name = credential->name().toLower();
         QString issuer = credential->issuer().toLower();
-        QString username = credential->username().toLower();
+        QString account = credential->account().toLower();
 
-        if (name.contains(query) || issuer.contains(query) || username.contains(query)) {
+        if (name.contains(query) || issuer.contains(query) || account.contains(query)) {
             qCDebug(YubiKeyRunnerLog) << "Creating match for credential:" << credential->name();
             KRunner::QueryMatch match = m_matchBuilder->buildCredentialMatch(
                 credential, query, m_manager);

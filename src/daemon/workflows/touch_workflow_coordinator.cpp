@@ -125,7 +125,7 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
     bool credentialFound = false;
 
     for (const auto &cred : credentials) {
-        if (cred.name == credentialName && cred.deviceId == m_pendingDeviceId) {
+        if (cred.originalName == credentialName && cred.deviceId == m_pendingDeviceId) {
             foundCredential = cred;
             credentialFound = true;
             break;

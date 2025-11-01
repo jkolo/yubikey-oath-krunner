@@ -36,7 +36,7 @@ QDBusArgument &operator<<(QDBusArgument &arg, const YubiKeyOath::Shared::Credent
     arg.beginStructure();
     arg << cred.name
         << cred.issuer
-        << cred.username
+        << cred.account
         << cred.requiresTouch
         << cred.validUntil
         << cred.deviceId;
@@ -49,7 +49,7 @@ const QDBusArgument &operator>>(const QDBusArgument &arg, YubiKeyOath::Shared::C
     arg.beginStructure();
     arg >> cred.name
         >> cred.issuer
-        >> cred.username
+        >> cred.account
         >> cred.requiresTouch
         >> cred.validUntil
         >> cred.deviceId;

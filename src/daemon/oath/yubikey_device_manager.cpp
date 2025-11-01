@@ -339,7 +339,7 @@ QList<OathCredential> YubiKeyDeviceManager::getCredentials() {
         // Add credentials from this device to aggregated list
         for (const auto &credential : device->credentials()) {
             aggregatedCredentials.append(credential);
-            qCDebug(YubiKeyDeviceManagerLog) << "Added credential from device" << deviceId << ":" << credential.name;
+            qCDebug(YubiKeyDeviceManagerLog) << "Added credential from device" << deviceId << ":" << credential.originalName;
         }
     }
 

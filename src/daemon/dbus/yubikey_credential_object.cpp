@@ -33,13 +33,13 @@ YubiKeyCredentialObject::YubiKeyCredentialObject(const Shared::OathCredential &c
     // credentialId is encoded by parent
 
     qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Constructing for credential:"
-                              << m_credential.name << "on device:" << m_deviceId;
+                              << m_credential.originalName << "on device:" << m_deviceId;
 }
 
 YubiKeyCredentialObject::~YubiKeyCredentialObject()
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Destructor for credential:"
-                              << m_credential.name;
+                              << m_credential.originalName;
     unregisterObject();
 }
 
@@ -56,7 +56,7 @@ bool YubiKeyCredentialObject::registerObject()
 {
     if (m_registered) {
         qCWarning(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Already registered:"
-                                    << m_credential.name;
+                                    << m_credential.originalName;
         return true;
     }
 
@@ -78,7 +78,7 @@ bool YubiKeyCredentialObject::registerObject()
 
     m_registered = true;
     qCInfo(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Registered successfully:"
-                             << m_credential.name << "at" << m_objectPath;
+                             << m_credential.originalName << "at" << m_objectPath;
 
     return true;
 }
@@ -91,7 +91,7 @@ void YubiKeyCredentialObject::unregisterObject()
 
     m_connection.unregisterObject(m_objectPath);
     m_registered = false;
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Unregistered:" << m_credential.name;
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Unregistered:" << m_credential.originalName;
 }
 
 QString YubiKeyCredentialObject::objectPath() const
@@ -101,7 +101,7 @@ QString YubiKeyCredentialObject::objectPath() const
 
 QString YubiKeyCredentialObject::name() const
 {
-    return m_credential.name;
+    return m_credential.originalName;
 }
 
 QString YubiKeyCredentialObject::issuer() const
@@ -109,9 +109,9 @@ QString YubiKeyCredentialObject::issuer() const
     return m_credential.issuer;
 }
 
-QString YubiKeyCredentialObject::username() const
+QString YubiKeyCredentialObject::account() const
 {
-    return m_credential.username;
+    return m_credential.account;
 }
 
 bool YubiKeyCredentialObject::requiresTouch() const
@@ -159,31 +159,31 @@ QString YubiKeyCredentialObject::deviceId() const
 Shared::GenerateCodeResult YubiKeyCredentialObject::GenerateCode()
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: GenerateCode for credential:"
-                              << m_credential.name << "on device:" << m_deviceId;
+                              << m_credential.originalName << "on device:" << m_deviceId;
 
-    return m_service->generateCode(m_deviceId, m_credential.name);
+    return m_service->generateCode(m_deviceId, m_credential.originalName);
 }
 
 bool YubiKeyCredentialObject::CopyToClipboard()
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: CopyToClipboard for credential:"
-                              << m_credential.name << "on device:" << m_deviceId;
+                              << m_credential.originalName << "on device:" << m_deviceId;
 
-    return m_service->copyCodeToClipboard(m_deviceId, m_credential.name);
+    return m_service->copyCodeToClipboard(m_deviceId, m_credential.originalName);
 }
 
 bool YubiKeyCredentialObject::TypeCode(bool fallbackToCopy)
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: TypeCode for credential:"
-                              << m_credential.name << "on device:" << m_deviceId
+                              << m_credential.originalName << "on device:" << m_deviceId
                               << "fallbackToCopy:" << fallbackToCopy;
 
-    const bool success = m_service->typeCode(m_deviceId, m_credential.name);
+    const bool success = m_service->typeCode(m_deviceId, m_credential.originalName);
 
     // If typing failed and fallback is enabled, try clipboard
     if (!success && fallbackToCopy) {
         qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: TypeCode failed, falling back to clipboard";
-        return m_service->copyCodeToClipboard(m_deviceId, m_credential.name);
+        return m_service->copyCodeToClipboard(m_deviceId, m_credential.originalName);
     }
 
     return success;
@@ -192,14 +192,14 @@ bool YubiKeyCredentialObject::TypeCode(bool fallbackToCopy)
 void YubiKeyCredentialObject::Delete()
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Delete credential:"
-                              << m_credential.name << "from device:" << m_deviceId;
+                              << m_credential.originalName << "from device:" << m_deviceId;
 
     // Delegate to YubiKeyService for deletion
-    bool success = m_service->deleteCredential(m_deviceId, m_credential.name);
+    bool success = m_service->deleteCredential(m_deviceId, m_credential.originalName);
 
     if (!success) {
         qCWarning(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Failed to delete credential:"
-                                    << m_credential.name;
+                                    << m_credential.originalName;
     }
 }
 
@@ -209,9 +209,9 @@ QVariantMap YubiKeyCredentialObject::getManagedObjectData() const
 
     // pl.jkolo.yubikey.oath.Credential interface properties
     QVariantMap credProps;
-    credProps.insert(QLatin1String("Name"), m_credential.name);
+    credProps.insert(QLatin1String("Name"), m_credential.originalName);
     credProps.insert(QLatin1String("Issuer"), m_credential.issuer);
-    credProps.insert(QLatin1String("Username"), m_credential.username);
+    credProps.insert(QLatin1String("Account"), m_credential.account);
     credProps.insert(QLatin1String("RequiresTouch"), m_credential.requiresTouch);
     credProps.insert(QLatin1String("Type"), type());
     credProps.insert(QLatin1String("Algorithm"), algorithm());

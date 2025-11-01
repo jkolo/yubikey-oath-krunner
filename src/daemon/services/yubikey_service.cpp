@@ -185,10 +185,25 @@ GenerateCodeResult YubiKeyService::generateCode(const QString &deviceId,
 
     const QString code = result.value();
 
-    // Calculate validUntil timestamp (30 seconds from now for TOTP)
-    const qint64 validUntil = QDateTime::currentSecsSinceEpoch() + 30;
+    // Get credential to find its period
+    int period = 30; // Default period
+    auto credentials = device->credentials();
+    for (const auto &cred : credentials) {
+        if (cred.originalName == credentialName) {
+            period = cred.period;
+            qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Found credential period:" << period;
+            break;
+        }
+    }
 
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Generated code, valid until:" << validUntil;
+    // Calculate validUntil using actual period
+    qint64 const currentTime = QDateTime::currentSecsSinceEpoch();
+    qint64 const timeInPeriod = currentTime % period;
+    qint64 const validityRemaining = period - timeInPeriod;
+    const qint64 validUntil = currentTime + validityRemaining;
+
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Generated code, period:" << period
+                              << "valid until:" << validUntil;
     return {.code = code, .validUntil = validUntil};
 }
 
@@ -450,6 +465,13 @@ AddCredentialResult YubiKeyService::addCredential(const QString &deviceId,
     data.counter = counter > 0 ? static_cast<quint32>(counter) : 0;
     data.requireTouch = requireTouch;
 
+    // Encode period in credential name for TOTP (ykman-compatible format: [period/]issuer:account)
+    // Only prepend period if it's non-standard (not 30 seconds)
+    if (data.type == OathType::TOTP && data.period != 30) {
+        data.name = QString::number(data.period) + QStringLiteral("/") + data.name;
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Encoded period in name:" << data.name;
+    }
+
     // Split name into issuer and account if not already set
     if (data.name.contains(QStringLiteral(":"))) {
         QStringList parts = data.name.split(QStringLiteral(":"));
@@ -654,6 +676,13 @@ void YubiKeyService::showAddCredentialDialogAsync(const QString &deviceId,
             qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Validation failed:" << validationError;
             dialog->deleteLater();
             return;
+        }
+
+        // Encode period in credential name for TOTP (ykman-compatible format: [period/]issuer:account)
+        // Only prepend period if it's non-standard (not 30 seconds)
+        if (dialogData.type == OathType::TOTP && dialogData.period != 30) {
+            dialogData.name = QString::number(dialogData.period) + QStringLiteral("/") + dialogData.name;
+            qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Encoded period in dialog data name:" << dialogData.name;
         }
 
         // Add credential to device

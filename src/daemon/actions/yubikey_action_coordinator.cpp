@@ -147,7 +147,7 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
     bool credentialFound = false;
 
     for (const auto &cred : credentials) {
-        if (cred.name == credentialName && cred.deviceId == actualDeviceId) {
+        if (cred.originalName == credentialName && cred.deviceId == actualDeviceId) {
             requiresTouch = cred.requiresTouch;
             foundCredential = cred;
             credentialFound = true;

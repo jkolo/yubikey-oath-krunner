@@ -344,7 +344,7 @@ void TestProxyUnit::testCredentialProxyConstruction()
 
     QCOMPARE(proxy.name(), QStringLiteral("GitHub:jdoe"));
     QCOMPARE(proxy.issuer(), QStringLiteral("GitHub"));
-    QCOMPARE(proxy.username(), QStringLiteral("jdoe"));
+    QCOMPARE(proxy.account(), QStringLiteral("jdoe"));
     QCOMPARE(proxy.type(), QStringLiteral("TOTP"));
     QCOMPARE(proxy.algorithm(), QStringLiteral("SHA1"));
     QCOMPARE(proxy.digits(), 6);
@@ -378,7 +378,7 @@ void TestProxyUnit::testCredentialProxyProperties()
     // All properties should be const/cached
     QVERIFY(!proxy.name().isEmpty());
     QVERIFY(!proxy.issuer().isEmpty());
-    QVERIFY(!proxy.username().isEmpty());
+    QVERIFY(!proxy.account().isEmpty());
     QVERIFY(!proxy.type().isEmpty());
     QVERIFY(!proxy.algorithm().isEmpty());
     QVERIFY(proxy.digits() >= 6 && proxy.digits() <= 8);
@@ -495,7 +495,7 @@ void TestProxyUnit::testCredentialProxyToCredentialInfo()
 
     QCOMPARE(info.name, proxy.name());
     QCOMPARE(info.issuer, proxy.issuer());
-    QCOMPARE(info.username, proxy.username());
+    QCOMPARE(info.account, proxy.account());
     QCOMPARE(info.requiresTouch, proxy.requiresTouch());
     QCOMPARE(info.deviceId, proxy.deviceId());
 

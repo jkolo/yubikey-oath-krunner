@@ -8,6 +8,7 @@
 
 #include <QDateTime>
 #include <QDebug>
+#include <QRegularExpression>
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -408,19 +409,26 @@ QList<OathCredential> OathProtocol::parseCredentialList(const QByteArray &respon
                 QString const name = QString::fromUtf8(nameBytes);
 
                 OathCredential cred;
-                cred.name = name;
-                cred.isTotp = (nameAlgo & 0x0F) == 0x02; // TOTP if lower nibble is 0x02
+                cred.originalName = name;
 
-                // Parse issuer and username from name (format: "issuer:username")
-                if (name.contains(QStringLiteral(":"))) {
-                    QStringList parts = name.split(QStringLiteral(":"));
-                    if (parts.size() >= 2) {
-                        cred.issuer = parts[0];
-                        cred.username = parts.mid(1).join(QStringLiteral(":"));
-                    }
-                } else {
-                    cred.issuer = name;
-                }
+                // Extract type from lower 4 bits of nameAlgo
+                quint8 const oathType = nameAlgo & 0x0F;
+                cred.isTotp = (oathType == 0x02); // TOTP if lower nibble is 0x02
+                cred.type = static_cast<int>(oathType);
+
+                // Extract algorithm from upper 4 bits of nameAlgo
+                quint8 const algorithmBits = (nameAlgo >> 4) & 0x0F;
+                cred.algorithm = static_cast<int>(algorithmBits);
+
+                // Parse credential ID to extract period, issuer, and account
+                int period = 30;
+                QString issuer;
+                QString account;
+                parseCredentialId(name, cred.isTotp, period, issuer, account);
+
+                cred.period = period;
+                cred.issuer = issuer;
+                cred.account = account;
 
                 credentials.append(cred);
             }
@@ -519,19 +527,18 @@ QList<OathCredential> OathProtocol::parseCalculateAllResponse(const QByteArray &
             QString const name = QString::fromUtf8(nameBytes);
 
             OathCredential cred;
-            cred.name = name;
-            cred.isTotp = true; // Assume TOTP by default
+            cred.originalName = name;
+            cred.isTotp = true; // Assume TOTP by default (updated below if HOTP)
 
-            // Parse issuer and username from name
-            if (name.contains(QStringLiteral(":"))) {
-                QStringList parts = name.split(QStringLiteral(":"));
-                if (parts.size() >= 2) {
-                    cred.issuer = parts[0];
-                    cred.username = parts.mid(1).join(QStringLiteral(":"));
-                }
-            } else {
-                cred.issuer = name;
-            }
+            // Parse credential ID to extract period, issuer, and account
+            int period = 30;
+            QString issuer;
+            QString account;
+            parseCredentialId(name, cred.isTotp, period, issuer, account);
+
+            cred.period = period;
+            cred.issuer = issuer;
+            cred.account = account;
 
             credentials.append(cred);
             i += length;
@@ -553,6 +560,14 @@ QList<OathCredential> OathProtocol::parseCalculateAllResponse(const QByteArray &
                     // HOTP credential - no response to avoid incrementing counter
                     if (!credentials.isEmpty()) {
                         credentials.last().isTotp = false;
+                        credentials.last().type = 1; // HOTP type
+
+                        // Re-parse credential ID with isTotp=false to get period=0
+                        int hotpPeriod = 0;
+                        QString hotpIssuer;
+                        QString hotpAccount;
+                        parseCredentialId(credentials.last().originalName, false, hotpPeriod, hotpIssuer, hotpAccount);
+                        credentials.last().period = hotpPeriod; // Should be 0 for HOTP
                     }
                 } else if (respTag == TAG_TOTP_RESPONSE && respLength >= 5) {
                     // Parse code
@@ -566,15 +581,14 @@ QList<OathCredential> OathProtocol::parseCalculateAllResponse(const QByteArray &
 
                     if (!credentials.isEmpty()) {
                         credentials.last().code = code;
+                        credentials.last().digits = static_cast<int>(digits);
+                        credentials.last().type = 2; // TOTP type
 
-                        // Calculate validity using default 30-second TOTP period
-                        // NOTE: For credentials with non-standard period, validUntil will be incorrect.
-                        // Caller should recalculate validUntil using the actual period from metadata.
-                        // YubiKey doesn't return period info in CALCULATE_ALL response.
+                        // Calculate validity using actual period extracted from credential name
                         qint64 const currentTime = QDateTime::currentSecsSinceEpoch();
-                        constexpr int defaultPeriod = 30;
-                        qint64 const timeInPeriod = currentTime % defaultPeriod;
-                        qint64 const validityRemaining = defaultPeriod - timeInPeriod;
+                        int const credPeriod = credentials.last().period; // Period extracted from name
+                        qint64 const timeInPeriod = currentTime % credPeriod;
+                        qint64 const validityRemaining = credPeriod - timeInPeriod;
                         credentials.last().validUntil = currentTime + validityRemaining;
                     }
                 }
@@ -759,6 +773,57 @@ QByteArray OathProtocol::decodeBase32(const QString &base32)
     }
 
     return result;
+}
+
+void OathProtocol::parseCredentialId(const QString &credentialId,
+                                     bool isTotp,
+                                     int &outPeriod,
+                                     QString &outIssuer,
+                                     QString &outAccount)
+{
+    // Default values
+    constexpr int DEFAULT_PERIOD = 30;
+    outPeriod = isTotp ? DEFAULT_PERIOD : 0;
+    outIssuer.clear();
+    outAccount = credentialId;
+
+    if (credentialId.isEmpty()) {
+        return;
+    }
+
+    // Regex pattern: ^((\d+)/)?(([^:]+):)?(.+)$
+    // Groups: 1=period with slash, 2=period number, 3=issuer with colon, 4=issuer, 5=account
+    static const QRegularExpression CREDENTIAL_ID_PATTERN(
+        QStringLiteral(R"(^((\d+)/)?(([^:]+):)?(.+)$)")
+    );
+
+    QRegularExpressionMatch match = CREDENTIAL_ID_PATTERN.match(credentialId);
+    if (!match.hasMatch()) {
+        // Pattern didn't match - use whole string as account
+        return;
+    }
+
+    // Extract period (group 2) - only for TOTP
+    if (isTotp) {
+        QString periodStr = match.captured(2);
+        if (!periodStr.isEmpty()) {
+            bool ok = false;
+            int period = periodStr.toInt(&ok);
+            if (ok && period > 0) {
+                outPeriod = period;
+            }
+        }
+    }
+
+    // Extract issuer (group 4)
+    outIssuer = match.captured(4);
+
+    // Extract account (group 5)
+    outAccount = match.captured(5);
+    if (outAccount.isEmpty()) {
+        // Fallback: use original credential ID as account
+        outAccount = credentialId;
+    }
 }
 
 } // namespace Daemon

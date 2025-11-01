@@ -173,7 +173,17 @@ Result<QString> YubiKeyOathDevice::generateCode(const QString& name)
     // Serialize card access to prevent race conditions between threads
     QMutexLocker locker(&m_cardMutex);
 
-    auto result = m_session->calculateCode(name);
+    // Find credential to get its period
+    int period = 30; // Default period
+    for (const auto &cred : m_credentials) {
+        if (cred.originalName == name) {
+            period = cred.period;
+            qCDebug(YubiKeyOathDeviceLog) << "Found credential period:" << period << "for" << name;
+            break;
+        }
+    }
+
+    auto result = m_session->calculateCode(name, period);
 
     // Check if password required
     if (result.isError() && result.error() == tr("Password required")) {
@@ -185,7 +195,7 @@ Result<QString> YubiKeyOathDevice::generateCode(const QString& name)
             if (authResult.isSuccess()) {
                 // Retry CALCULATE command after authentication
                 qCDebug(YubiKeyOathDeviceLog) << "Re-authentication successful, retrying CALCULATE";
-                result = m_session->calculateCode(name);
+                result = m_session->calculateCode(name, period);
             } else {
                 qCDebug(YubiKeyOathDeviceLog) << "Re-authentication failed:" << authResult.error();
                 return Result<QString>::error(tr("Authentication failed"));

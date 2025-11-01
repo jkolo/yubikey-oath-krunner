@@ -57,7 +57,7 @@ YubiKeyCredentialProxy::YubiKeyCredentialProxy(const QString &objectPath,
     // Extract and cache properties from GetManagedObjects() result
     m_name = properties.value(QStringLiteral("Name")).toString();
     m_issuer = properties.value(QStringLiteral("Issuer")).toString();
-    m_username = properties.value(QStringLiteral("Username")).toString();
+    m_account = properties.value(QStringLiteral("Account")).toString();
     m_requiresTouch = properties.value(QStringLiteral("RequiresTouch")).toBool();
     m_type = properties.value(QStringLiteral("Type")).toString();
     m_algorithm = properties.value(QStringLiteral("Algorithm")).toString();
@@ -183,7 +183,7 @@ CredentialInfo YubiKeyCredentialProxy::toCredentialInfo() const
     CredentialInfo info;
     info.name = m_name;
     info.issuer = m_issuer;
-    info.username = m_username;
+    info.account = m_account;
     info.requiresTouch = m_requiresTouch;
     info.validUntil = 0; // Not available in proxy (only in GenerateCodeResult)
     info.deviceId = m_deviceId;

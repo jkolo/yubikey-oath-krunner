@@ -273,9 +273,9 @@ Shared::AddCredentialResult YubiKeyDeviceObject::AddCredential(const QString &na
 
 YubiKeyCredentialObject* YubiKeyDeviceObject::addCredential(const Shared::OathCredential &credential)
 {
-    const QString credId = encodeCredentialId(credential.name);
+    const QString credId = encodeCredentialId(credential.originalName);
 
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Adding credential:" << credential.name
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Adding credential:" << credential.originalName
                               << "id:" << credId << "for device:" << m_deviceId;
 
     // Check if already exists
@@ -305,7 +305,7 @@ YubiKeyCredentialObject* YubiKeyDeviceObject::addCredential(const Shared::OathCr
     Q_EMIT CredentialAdded(QDBusObjectPath(path));
     Q_EMIT credentialAdded(); // Internal signal for Manager
 
-    qCInfo(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Credential added:" << credential.name
+    qCInfo(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Credential added:" << credential.originalName
                              << "at" << path;
 
     return credObj;
@@ -362,7 +362,7 @@ void YubiKeyDeviceObject::updateCredentials()
     // Build set of current credential IDs
     QSet<QString> currentCredIds;
     for (const auto &cred : currentCreds) {
-        currentCredIds.insert(encodeCredentialId(cred.name));
+        currentCredIds.insert(encodeCredentialId(cred.originalName));
     }
 
     // Build set of existing credential IDs
@@ -378,7 +378,7 @@ void YubiKeyDeviceObject::updateCredentials()
     // Add new credentials
     const QSet<QString> toAdd = currentCredIds - existingCredIds;
     for (const auto &cred : currentCreds) {
-        const QString credId = encodeCredentialId(cred.name);
+        const QString credId = encodeCredentialId(cred.originalName);
         if (toAdd.contains(credId)) {
             addCredential(cred);
         }

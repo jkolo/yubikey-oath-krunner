@@ -128,7 +128,7 @@ void TestMatchBuilder::testCalculateRelevance_ExactNameMatch()
     CredentialInfo cred;
     cred.name = "Google:user@example.com";
     cred.issuer = "Google";
-    cred.username = "user@example.com";
+    cred.account = "user@example.com";
 
     // Test case: Query matches start of full name
     // Expected: 1.0 relevance (highest)
@@ -148,7 +148,7 @@ void TestMatchBuilder::testCalculateRelevance_IssuerStartsWith()
     CredentialInfo cred;
     cred.name = "Example:Google";  // Name doesn't start with "google"
     cred.issuer = "Google";
-    cred.username = "user";
+    cred.account = "user";
 
     // Test case: Query matches start of issuer
     // Expected: 0.9 relevance
@@ -165,13 +165,13 @@ void TestMatchBuilder::testCalculateRelevance_UsernameStartsWith()
     CredentialInfo cred;
     cred.name = "service:admin@example.com";  // Name starts with "service"
     cred.issuer = "Service";  // Issuer starts with "Service"
-    cred.username = "admin@example.com";
+    cred.account = "admin@example.com";
 
     // Test case: Query matches start of username but not name or issuer
     // We need a query that starts username but not name/issuer
     cred.name = "MyService:admin";
     cred.issuer = "MyService";
-    cred.username = "admin@example.com";
+    cred.account = "admin@example.com";
 
     qreal relevance = m_builder->testCalculateRelevance(cred, "admin");
     QCOMPARE(relevance, 0.8);
@@ -182,7 +182,7 @@ void TestMatchBuilder::testCalculateRelevance_NameContains()
     CredentialInfo cred;
     cred.name = "MyGoogleAccount:user";  // "google" is in middle of name
     cred.issuer = "MyGoogleAccount";
-    cred.username = "user";
+    cred.account = "user";
 
     // Test case: Query is contained in name (but doesn't start with it)
     // Expected: 0.7 relevance
@@ -198,7 +198,7 @@ void TestMatchBuilder::testCalculateRelevance_DefaultRelevance()
     CredentialInfo cred;
     cred.name = "Google:user@example.com";
     cred.issuer = "Google";
-    cred.username = "user@example.com";
+    cred.account = "user@example.com";
 
     // Test case: Query doesn't match any field
     // Expected: 0.5 relevance (default)
@@ -217,7 +217,7 @@ void TestMatchBuilder::testCalculateRelevance_CaseInsensitive()
     CredentialInfo cred;
     cred.name = "GitHub:developer";
     cred.issuer = "GitHub";
-    cred.username = "developer";
+    cred.account = "developer";
 
     // All these should give same relevance (1.0 - name starts with)
     QCOMPARE(m_builder->testCalculateRelevance(cred, "GitHub"), 1.0);
@@ -233,7 +233,7 @@ void TestMatchBuilder::testCalculateRelevance_EmptyQuery()
     CredentialInfo cred;
     cred.name = "Google:user";
     cred.issuer = "Google";
-    cred.username = "user";
+    cred.account = "user";
 
     // Empty query should return default relevance (0.5)
     qreal relevance = m_builder->testCalculateRelevance(cred, "");
@@ -246,7 +246,7 @@ void TestMatchBuilder::testCalculateRelevance_EmptyCredential()
     CredentialInfo cred;
     cred.name = "";
     cred.issuer = "";
-    cred.username = "";
+    cred.account = "";
 
     // Should return default relevance (0.5) since nothing matches
     qreal relevance = m_builder->testCalculateRelevance(cred, "test");
@@ -262,7 +262,7 @@ void TestMatchBuilder::testCalculateRelevance_PartialMatches()
     CredentialInfo cred;
     cred.name = "Amazon:shopper@example.com";
     cred.issuer = "Amazon";
-    cred.username = "shopper@example.com";
+    cred.account = "shopper@example.com";
 
     // Partial matches with different relevance levels
     QCOMPARE(m_builder->testCalculateRelevance(cred, "Am"), 1.0);      // Name starts
@@ -341,7 +341,7 @@ void TestMatchBuilder::testRelevanceScoring_RealWorldQueries()
         CredentialInfo cred;
         cred.name = testCase.credentialName;
         cred.issuer = testCase.issuer;
-        cred.username = testCase.username;
+        cred.account = testCase.username;
 
         qreal relevance = m_builder->testCalculateRelevance(cred, testCase.query);
         QCOMPARE(relevance, testCase.expectedRelevance);

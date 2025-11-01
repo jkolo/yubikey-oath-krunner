@@ -374,13 +374,13 @@ void TestOathProtocol::testParseCredentialList()
     QCOMPARE(credentials.size(), 2);
 
     // Check first credential
-    QCOMPARE(credentials[0].name, QString("Google:user@test"));
+    QCOMPARE(credentials[0].originalName, QString("Google:user@test"));
     QCOMPARE(credentials[0].issuer, QString("Google"));
-    QCOMPARE(credentials[0].username, QString("user@test"));
+    QCOMPARE(credentials[0].account, QString("user@test"));
     QVERIFY(credentials[0].isTotp); // Algo 0x22 has TOTP (0x02) in lower nibble
 
     // Check second credential
-    QCOMPARE(credentials[1].name, QString("GitHub"));
+    QCOMPARE(credentials[1].originalName, QString("GitHub"));
     QCOMPARE(credentials[1].issuer, QString("GitHub"));
 }
 
@@ -432,7 +432,7 @@ void TestOathProtocol::testParseCalculateAllResponse()
     QList<OathCredential> credentials = OathProtocol::parseCalculateAllResponse(response);
 
     QCOMPARE(credentials.size(), 1);
-    QCOMPARE(credentials[0].name, QString("Google:user@test"));
+    QCOMPARE(credentials[0].originalName, QString("Google:user@test"));
     QCOMPARE(credentials[0].code, QString("003906"));
 }
 

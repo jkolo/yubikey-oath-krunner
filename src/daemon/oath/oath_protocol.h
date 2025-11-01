@@ -277,6 +277,30 @@ public:
      */
     static QByteArray decodeBase32(const QString &base32);
 
+    /**
+     * @brief Parses credential ID to extract period, issuer, and account
+     * @param credentialId Full credential ID from YubiKey (format: [period/][issuer:]account)
+     * @param isTotp Whether this is a TOTP credential (period only applies to TOTP)
+     * @param outPeriod Output: TOTP period in seconds (default 30 if not specified)
+     * @param outIssuer Output: Service issuer (empty if not present)
+     * @param outAccount Output: Account name
+     *
+     * Parses YubiKey credential ID format used by ykman:
+     * - TOTP: [period/][issuer:]account
+     *   Examples: "Google:user@example.com" (period=30, default)
+     *             "60/GitHub:mytoken" (period=60)
+     *             "15/Steam:login" (period=15)
+     * - HOTP: [issuer:]account (no period)
+     *
+     * Regex: ^((\d+)/)?(([^:]+):)?(.+)$
+     * Groups: (1: period with slash, 2: period number, 3: issuer with colon, 4: issuer, 5: account)
+     */
+    static void parseCredentialId(const QString &credentialId,
+                                   bool isTotp,
+                                   int &outPeriod,
+                                   QString &outIssuer,
+                                   QString &outAccount);
+
 private:
     // Private constructor - utility class only
     OathProtocol() = delete;

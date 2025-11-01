@@ -65,7 +65,7 @@ void TestCredentialFormatter::testFormat_OnlyIssuer()
 {
     OathCredential cred;
     cred.issuer = "Google";
-    cred.username = "user@example.com";
+    cred.account = "user@example.com";
     cred.code = "123456";
     cred.requiresTouch = false;
 
@@ -87,7 +87,7 @@ void TestCredentialFormatter::testFormat_IssuerWithUsername()
 {
     OathCredential cred;
     cred.issuer = "Google";
-    cred.username = "user@example.com";
+    cred.account = "user@example.com";
 
     QString result = CredentialFormatter::formatDisplayName(
         cred,
@@ -102,7 +102,7 @@ void TestCredentialFormatter::testFormat_IssuerWithCode()
 {
     OathCredential cred;
     cred.issuer = "Google";
-    cred.username = "user@example.com";
+    cred.account = "user@example.com";
     cred.code = "123456";
     cred.requiresTouch = false;
 
@@ -137,7 +137,7 @@ void TestCredentialFormatter::testFormat_AllOptions()
 {
     OathCredential cred;
     cred.issuer = "Google";
-    cred.username = "user@example.com";
+    cred.account = "user@example.com";
     cred.code = "123456";
     cred.requiresTouch = false;
 
@@ -160,7 +160,7 @@ void TestCredentialFormatter::testFormat_Username_Enabled()
 {
     OathCredential cred;
     cred.issuer = "GitHub";
-    cred.username = "developer";
+    cred.account = "developer";
 
     QString result = CredentialFormatter::formatDisplayName(
         cred, true, false, false, QString(), 1, false
@@ -173,7 +173,7 @@ void TestCredentialFormatter::testFormat_Username_Disabled()
 {
     OathCredential cred;
     cred.issuer = "GitHub";
-    cred.username = "developer";
+    cred.account = "developer";
 
     QString result = CredentialFormatter::formatDisplayName(
         cred, false, false, false, QString(), 1, false
@@ -186,7 +186,7 @@ void TestCredentialFormatter::testFormat_Username_EmptyUsername()
 {
     OathCredential cred;
     cred.issuer = "GitHub";
-    cred.username = "";
+    cred.account = "";
 
     QString result = CredentialFormatter::formatDisplayName(
         cred, true, false, false, QString(), 1, false
@@ -366,7 +366,7 @@ void TestCredentialFormatter::testFormatWithCode_WithCode()
 {
     OathCredential cred;
     cred.issuer = "Dropbox";
-    cred.username = "user";
+    cred.account = "user";
     cred.requiresTouch = false;
 
     QString result = CredentialFormatter::formatWithCode(
@@ -388,7 +388,7 @@ void TestCredentialFormatter::testFormatWithCode_RequiresTouch()
 {
     OathCredential cred;
     cred.issuer = "Dropbox";
-    cred.username = "user";
+    cred.account = "user";
     cred.requiresTouch = true;
 
     QString result = CredentialFormatter::formatWithCode(
@@ -411,7 +411,7 @@ void TestCredentialFormatter::testFormatWithCode_AllOptions()
 {
     OathCredential cred;
     cred.issuer = "Dropbox";
-    cred.username = "user";
+    cred.account = "user";
     cred.requiresTouch = false;
 
     QString result = CredentialFormatter::formatWithCode(
@@ -434,9 +434,9 @@ void TestCredentialFormatter::testFormatWithCode_AllOptions()
 void TestCredentialFormatter::testFormat_EmptyIssuer_UsesName()
 {
     OathCredential cred;
-    cred.name = "MyAccount";
+    cred.originalName = "MyAccount";
     cred.issuer = "";
-    cred.username = "user";
+    cred.account = "user";
 
     QString result = CredentialFormatter::formatDisplayName(
         cred, false, false, false, QString(), 1, false
@@ -449,9 +449,9 @@ void TestCredentialFormatter::testFormat_EmptyIssuer_UsesName()
 void TestCredentialFormatter::testFormat_EmptyIssuerAndName()
 {
     OathCredential cred;
-    cred.name = "";
+    cred.originalName = "";
     cred.issuer = "";
-    cred.username = "user";
+    cred.account = "user";
 
     QString result = CredentialFormatter::formatDisplayName(
         cred, false, false, false, QString(), 1, false
@@ -464,9 +464,9 @@ void TestCredentialFormatter::testFormat_EmptyIssuerAndName()
 void TestCredentialFormatter::testFormat_AllEmpty()
 {
     OathCredential cred;
-    cred.name = "";
+    cred.originalName = "";
     cred.issuer = "";
-    cred.username = "";
+    cred.account = "";
 
     QString result = CredentialFormatter::formatDisplayName(
         cred, true, false, false, QString(), 1, false
@@ -484,7 +484,7 @@ void TestCredentialFormatter::testRealWorldScenarios()
     {
         OathCredential cred;
         cred.issuer = "Google";
-        cred.username = "user@gmail.com";
+        cred.account = "user@gmail.com";
         cred.code = "123456";
         cred.requiresTouch = false;
 
@@ -500,7 +500,7 @@ void TestCredentialFormatter::testRealWorldScenarios()
     {
         OathCredential cred;
         cred.issuer = "GitHub";
-        cred.username = "developer";
+        cred.account = "developer";
         cred.requiresTouch = true;
 
         QString result = CredentialFormatter::formatDisplayName(
@@ -516,7 +516,7 @@ void TestCredentialFormatter::testRealWorldScenarios()
     {
         OathCredential cred;
         cred.issuer = "AWS";
-        cred.username = "admin";
+        cred.account = "admin";
 
         QString result = CredentialFormatter::formatDisplayName(
             cred, false, false, false,
@@ -530,7 +530,7 @@ void TestCredentialFormatter::testRealWorldScenarios()
     {
         OathCredential cred;
         cred.issuer = "Slack";
-        cred.username = "team@company.com";
+        cred.account = "team@company.com";
 
         QString result = CredentialFormatter::formatDisplayName(
             cred, true, false, true,
@@ -544,7 +544,7 @@ void TestCredentialFormatter::testRealWorldScenarios()
     {
         OathCredential cred;
         cred.issuer = "Slack";
-        cred.username = "team@company.com";
+        cred.account = "team@company.com";
 
         QString result = CredentialFormatter::formatDisplayName(
             cred, true, false, true,

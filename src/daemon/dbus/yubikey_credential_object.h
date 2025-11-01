@@ -39,7 +39,7 @@ class YubiKeyCredentialObject : public QObject
     // Properties exposed via D-Bus Properties interface (all const - credentials don't change)
     Q_PROPERTY(QString Name READ name CONSTANT)
     Q_PROPERTY(QString Issuer READ issuer CONSTANT)
-    Q_PROPERTY(QString Username READ username CONSTANT)
+    Q_PROPERTY(QString Account READ account CONSTANT)
     Q_PROPERTY(bool RequiresTouch READ requiresTouch CONSTANT)
     Q_PROPERTY(QString Type READ type CONSTANT)
     Q_PROPERTY(QString Algorithm READ algorithm CONSTANT)
@@ -91,7 +91,7 @@ public:
     // Property getters
     QString name() const;
     QString issuer() const;
-    QString username() const;
+    QString account() const;
     bool requiresTouch() const;
     QString type() const;
     QString algorithm() const;

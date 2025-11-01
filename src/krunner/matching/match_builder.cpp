@@ -94,9 +94,9 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
 
     // Prepare OathCredential for formatting
     OathCredential tempCred;
-    tempCred.name = credentialProxy->name();
+    tempCred.originalName = credentialProxy->name();
     tempCred.issuer = credentialProxy->issuer();
-    tempCred.username = credentialProxy->username();
+    tempCred.account = credentialProxy->account();
     tempCred.requiresTouch = credentialProxy->requiresTouch();
 
     // Format display name
@@ -188,12 +188,12 @@ qreal MatchBuilder::calculateRelevance(const CredentialInfo &credential, const Q
 {
     QString name = credential.name.toLower();
     QString issuer = credential.issuer.toLower();
-    QString username = credential.username.toLower();
+    QString account = credential.account.toLower();
     QString lowerQuery = query.toLower();
 
     qCDebug(MatchBuilderLog) << "Calculating relevance - name:" << name
              << "issuer:" << issuer
-             << "username:" << username
+             << "account:" << account
              << "query:" << lowerQuery;
 
     // Empty query should return default relevance
@@ -205,7 +205,7 @@ qreal MatchBuilder::calculateRelevance(const CredentialInfo &credential, const Q
         return 1.0;
     } else if (issuer.startsWith(lowerQuery)) {
         return 0.9;
-    } else if (username.startsWith(lowerQuery)) {
+    } else if (account.startsWith(lowerQuery)) {
         return 0.8;
     } else if (name.contains(lowerQuery)) {
         return 0.7;

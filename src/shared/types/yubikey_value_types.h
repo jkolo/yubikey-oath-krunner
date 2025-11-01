@@ -27,9 +27,9 @@ struct DeviceInfo {
  * @brief Information about an OATH credential for D-Bus transfer
  */
 struct CredentialInfo {
-    QString name;               ///< Full credential name (issuer:username or just name)
+    QString name;               ///< Full credential name (issuer:account or just account)
     QString issuer;             ///< Issuer (extracted from name)
-    QString username;           ///< Username (extracted from name)
+    QString account;            ///< Account/username (extracted from name)
     bool requiresTouch;         ///< Requires physical touch to generate code
     qint64 validUntil;          ///< Unix timestamp when code expires (0 if touch required)
     QString deviceId;           ///< Device ID identifying which YubiKey has this credential

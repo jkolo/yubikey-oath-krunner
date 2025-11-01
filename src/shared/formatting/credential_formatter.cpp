@@ -16,12 +16,12 @@ QString CredentialFormatter::formatDisplayName(const OathCredential &credential,
                                                 int connectedDeviceCount,
                                                 bool showDeviceOnlyWhenMultiple)
 {
-    // Start with issuer (or full name if no issuer)
-    QString result = credential.issuer.isEmpty() ? credential.name : credential.issuer;
+    // Start with issuer (or account if no issuer)
+    QString result = credential.issuer.isEmpty() ? credential.account : credential.issuer;
 
-    // Add username if requested
-    if (showUsername && !credential.username.isEmpty()) {
-        result += QStringLiteral(" (%1)").arg(credential.username);
+    // Add account if requested
+    if (showUsername && !credential.account.isEmpty()) {
+        result += QStringLiteral(" (%1)").arg(credential.account);
     }
 
     // Add code if requested and available (only for non-touch credentials)
@@ -52,9 +52,9 @@ QString CredentialFormatter::formatDisplayName(const CredentialInfo &credential,
 {
     // Convert CredentialInfo to OathCredential for formatting
     OathCredential oathCred;
-    oathCred.name = credential.name;
+    oathCred.originalName = credential.name;
     oathCred.issuer = credential.issuer;
-    oathCred.username = credential.username;
+    oathCred.account = credential.account;
     oathCred.requiresTouch = credential.requiresTouch;
     oathCred.isTotp = true; // Default to TOTP (daemon doesn't distinguish)
     oathCred.code = QString(); // No code in CredentialInfo
@@ -79,12 +79,12 @@ QString CredentialFormatter::formatWithCode(const OathCredential &credential,
                                              int connectedDeviceCount,
                                              bool showDeviceOnlyWhenMultiple)
 {
-    // Start with issuer (or full name if no issuer)
-    QString result = credential.issuer.isEmpty() ? credential.name : credential.issuer;
+    // Start with issuer (or account if no issuer)
+    QString result = credential.issuer.isEmpty() ? credential.account : credential.issuer;
 
-    // Add username if requested
-    if (showUsername && !credential.username.isEmpty()) {
-        result += QStringLiteral(" (%1)").arg(credential.username);
+    // Add account if requested
+    if (showUsername && !credential.account.isEmpty()) {
+        result += QStringLiteral(" (%1)").arg(credential.account);
     }
 
     // Add code or touch indicator if requested

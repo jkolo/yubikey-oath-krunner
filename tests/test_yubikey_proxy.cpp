@@ -111,7 +111,7 @@ void TestYubiKeyProxy::printDebugInfo()
     for (auto *cred : credentials) {
         qDebug() << "Credential" << ++count << ":" << cred->name();
         qDebug() << "  Issuer:" << cred->issuer();
-        qDebug() << "  Username:" << cred->username();
+        qDebug() << "  Username:" << cred->account();
         qDebug() << "  Type:" << cred->type();
         qDebug() << "  Requires touch:" << cred->requiresTouch();
         qDebug() << "  Device:" << cred->deviceId();
@@ -281,7 +281,7 @@ void TestYubiKeyProxy::testCredentialProxyProperties()
 
     qDebug() << "  name:" << cred->name();
     qDebug() << "  issuer:" << cred->issuer();
-    qDebug() << "  username:" << cred->username();
+    qDebug() << "  username:" << cred->account();
     qDebug() << "  type:" << cred->type();
     qDebug() << "  algorithm:" << cred->algorithm();
     qDebug() << "  digits:" << cred->digits();
