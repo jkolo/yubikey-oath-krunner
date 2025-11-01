@@ -149,21 +149,70 @@ void NotificationOrchestrator::closeTouchNotification()
 
 void NotificationOrchestrator::showSimpleNotification(const QString &title, const QString &message, int type)
 {
-    Q_UNUSED(type)
-
-    if (!m_config->showNotifications()) {
+    if (!m_config->showNotifications() || !m_notificationManager || !m_notificationManager->isAvailable()) {
         return;
     }
 
-    auto *notification = new KNotification(QStringLiteral("yubikey-oath"),
-                                         KNotification::CloseOnTimeout,
-                                         nullptr);
-    notification->setComponentName(QStringLiteral("yubikey_oath"));
-    notification->setTitle(title);
-    notification->setText(message);
-    notification->setIconName(QStringLiteral(":/icons/yubikey.svg"));
+    qCDebug(NotificationOrchestratorLog) << "Showing simple notification:" << title << "-" << message << "type:" << type;
 
-    notification->sendEvent();
+    // Use DBusNotificationManager directly (like other notifications)
+    // type: 0 = info, 1 = warning/error
+    uint urgency = (type == 1) ? 2 : 1; // 1 = normal, 2 = critical
+    QVariantMap hints;
+    hints[QStringLiteral("urgency")] = urgency;
+
+    // Show notification with 5 second timeout (auto-close)
+    m_notificationManager->showNotification(
+        QStringLiteral("YubiKey OATH"),
+        0, // replaces_id - don't replace anything
+        QStringLiteral(":/icons/yubikey.svg"),
+        title,
+        message,
+        QStringList(), // No actions
+        hints,
+        5000 // 5 second timeout
+    );
+
+    qCDebug(NotificationOrchestratorLog) << "Simple notification shown";
+}
+
+uint NotificationOrchestrator::showPersistentNotification(const QString &title, const QString &message, int type)
+{
+    if (!m_config->showNotifications() || !m_notificationManager || !m_notificationManager->isAvailable()) {
+        return 0;
+    }
+
+    qCDebug(NotificationOrchestratorLog) << "Showing persistent notification:" << title << "-" << message << "type:" << type;
+
+    // type: 0 = info, 1 = warning/error
+    uint urgency = (type == 1) ? 2 : 1; // 1 = normal, 2 = critical
+    QVariantMap hints;
+    hints[QStringLiteral("urgency")] = urgency;
+
+    // Show notification with NO timeout - must be closed manually
+    uint notificationId = m_notificationManager->showNotification(
+        QStringLiteral("YubiKey OATH"),
+        0, // replaces_id - don't replace anything
+        QStringLiteral(":/icons/yubikey.svg"),
+        title,
+        message,
+        QStringList(), // No actions
+        hints,
+        0 // NO timeout - stays until closed
+    );
+
+    qCDebug(NotificationOrchestratorLog) << "Persistent notification shown with ID:" << notificationId;
+    return notificationId;
+}
+
+void NotificationOrchestrator::closeNotification(uint notificationId)
+{
+    if (!m_notificationManager || !m_notificationManager->isAvailable() || notificationId == 0) {
+        return;
+    }
+
+    qCDebug(NotificationOrchestratorLog) << "Closing notification ID:" << notificationId;
+    m_notificationManager->closeNotification(notificationId);
 }
 
 void NotificationOrchestrator::showModifierReleaseNotification(const QStringList& modifiers, int timeoutSeconds)

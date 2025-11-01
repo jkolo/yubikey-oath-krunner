@@ -561,10 +561,14 @@ QList<OathCredential> OathProtocol::parseCalculateAllResponse(const QByteArray &
                     if (!credentials.isEmpty()) {
                         credentials.last().code = code;
 
-                        // Calculate validity (30-second TOTP period)
+                        // Calculate validity using default 30-second TOTP period
+                        // NOTE: For credentials with non-standard period, validUntil will be incorrect.
+                        // Caller should recalculate validUntil using the actual period from metadata.
+                        // YubiKey doesn't return period info in CALCULATE_ALL response.
                         qint64 const currentTime = QDateTime::currentSecsSinceEpoch();
-                        qint64 const timeInPeriod = currentTime % 30;
-                        qint64 const validityRemaining = 30 - timeInPeriod;
+                        constexpr int defaultPeriod = 30;
+                        qint64 const timeInPeriod = currentTime % defaultPeriod;
+                        qint64 const validityRemaining = defaultPeriod - timeInPeriod;
                         credentials.last().validUntil = currentTime + validityRemaining;
                     }
                 }

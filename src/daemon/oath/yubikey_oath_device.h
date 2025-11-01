@@ -168,6 +168,32 @@ public:
     void cancelPendingOperation();
 
     /**
+     * @brief Handles reconnect result from YubiKeyDeviceManager
+     * @param success true if reconnect succeeded, false otherwise
+     *
+     * This method is called by YubiKeyDeviceManager after reconnect attempt.
+     * It emits appropriate signal to OathSession (reconnectReady or reconnectFailed)
+     * to unblock the waiting sendApdu() call.
+     */
+    void onReconnectResult(bool success);
+
+    /**
+     * @brief Reconnects card handle without destroying device object
+     * @param readerName PC/SC reader name to reconnect to
+     * @return Result indicating success or containing error message
+     *
+     * This method performs reconnect by:
+     * 1. Disconnecting old card handle (frees PC/SC resource)
+     * 2. Exponential backoff reconnect with SCardConnect
+     * 3. SELECT OATH applet to verify functionality
+     * 4. Update card handle in OathSession without destroying it
+     *
+     * Used instead of disconnectDevice() + connectToDevice() to avoid
+     * destroying the device object while background threads are using it.
+     */
+    Result<void> reconnectCardHandle(const QString &readerName);
+
+    /**
      * @brief Fetches credentials synchronously
      * @param password Password for authentication if required
      * @return List of credentials or empty on error
@@ -199,6 +225,17 @@ Q_SIGNALS:
      * @param credentials List of fetched credentials
      */
     void credentialCacheFetched(const QList<OathCredential> &credentials);
+
+    /**
+     * @brief Emitted when card reset is detected and reconnect is needed
+     * @param deviceId Device ID that needs reconnect
+     * @param readerName PC/SC reader name to reconnect to
+     * @param command APDU command that failed and needs to be retried after reconnect
+     *
+     * This signal is forwarded from OathSession::cardResetDetected to
+     * YubiKeyDeviceManager for reconnect coordination.
+     */
+    void needsReconnect(const QString &deviceId, const QString &readerName, const QByteArray &command);
 
 private:
     // Device state

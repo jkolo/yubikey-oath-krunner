@@ -10,6 +10,7 @@
 #include "../storage/secret_storage.h"
 #include "../config/daemon_configuration.h"
 #include "../actions/yubikey_action_coordinator.h"
+#include "../workflows/notification_orchestrator.h"
 #include "../logging_categories.h"
 #include "../utils/qr_code_parser.h"
 #include "../utils/otpauth_uri_parser.h"
@@ -55,6 +56,10 @@ YubiKeyService::YubiKeyService(QObject *parent)
             this, &YubiKeyService::deviceForgotten);  // Forward signal directly
     connect(m_deviceManager.get(), &YubiKeyDeviceManager::credentialCacheFetchedForDevice,
             this, &YubiKeyService::onCredentialCacheFetched);
+    connect(m_deviceManager.get(), &YubiKeyDeviceManager::reconnectStarted,
+            this, &YubiKeyService::onReconnectStarted);
+    connect(m_deviceManager.get(), &YubiKeyDeviceManager::reconnectCompleted,
+            this, &YubiKeyService::onReconnectCompleted);
 
     // Load passwords for already-connected devices
     const QStringList connectedDevices = m_deviceManager->getConnectedDeviceIds();
@@ -695,6 +700,62 @@ QString YubiKeyService::generateDefaultDeviceName(const QString &deviceId) const
         return QStringLiteral("YubiKey (...") + shortId + QStringLiteral(")");
     }
     return QStringLiteral("YubiKey (") + deviceId + QStringLiteral(")");
+}
+
+QString YubiKeyService::getDeviceName(const QString &deviceId) const
+{
+    // Try to get custom name from database, fallback to generated default
+    auto deviceRecord = m_database->getDevice(deviceId);
+    if (deviceRecord.has_value() && !deviceRecord->deviceName.isEmpty()) {
+        return deviceRecord->deviceName;
+    }
+    return generateDefaultDeviceName(deviceId);
+}
+
+void YubiKeyService::onReconnectStarted(const QString &deviceId)
+{
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Reconnect started for device:" << deviceId;
+
+    // Show persistent notification that reconnect is in progress
+    if (m_config->showNotifications() && m_actionCoordinator) {
+        QString deviceName = getDeviceName(deviceId);
+        QString title = tr("Reconnecting to YubiKey");
+        QString message = tr("Restoring connection to %1...").arg(deviceName);
+
+        // Show persistent notification (no timeout) - will be closed when reconnect completes
+        m_reconnectNotificationId = m_actionCoordinator->showPersistentNotification(title, message, 0);
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Reconnect notification shown with ID:" << m_reconnectNotificationId;
+    }
+}
+
+void YubiKeyService::onReconnectCompleted(const QString &deviceId, bool success)
+{
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Reconnect completed for device:" << deviceId
+                              << "success:" << success;
+
+    if (!m_config->showNotifications() || !m_actionCoordinator) {
+        return;
+    }
+
+    // Get device name for user-friendly notification
+    QString deviceName = getDeviceName(deviceId);
+
+    if (success) {
+        // Success - close the reconnecting notification
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Reconnect successful, closing notification ID:" << m_reconnectNotificationId;
+        m_actionCoordinator->closeNotification(m_reconnectNotificationId);
+        m_reconnectNotificationId = 0;
+    } else {
+        // Failure - close reconnecting notification and show error
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Reconnect failed, closing old notification and showing error";
+        m_actionCoordinator->closeNotification(m_reconnectNotificationId);
+        m_reconnectNotificationId = 0;
+
+        QString title = tr("Reconnect Failed");
+        QString message = tr("Could not restore connection to %1. Please remove and reinsert the YubiKey.").arg(deviceName);
+
+        m_actionCoordinator->showSimpleNotification(title, message, 1);
+    }
 }
 
 } // namespace Daemon

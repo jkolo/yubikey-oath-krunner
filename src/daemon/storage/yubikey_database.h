@@ -45,6 +45,24 @@ public:
     };
 
     /**
+     * @brief Credential metadata structure
+     *
+     * Stores per-credential metadata that YubiKey doesn't preserve:
+     * - TOTP period (YubiKey doesn't store this!)
+     * - Digits count
+     * - Algorithm
+     *
+     * This data is needed for correct TOTP challenge generation.
+     */
+    struct CredentialMetadata {
+        QString deviceId;           ///< Device ID (foreign key to devices table)
+        QString credentialName;     ///< Full credential name (issuer:account)
+        int period = 30;            ///< TOTP period in seconds (default 30)
+        int digits = 6;             ///< Number of digits (6-8)
+        int algorithm = 1;          ///< Algorithm: 1=SHA1, 2=SHA256, 3=SHA512
+    };
+
+    /**
      * @brief Constructs YubiKeyDatabase instance
      * @param parent Parent QObject
      */
@@ -133,6 +151,50 @@ public:
      * @return true if device exists in database
      */
     bool hasDevice(const QString &deviceId);
+
+    // Credential metadata management
+    /**
+     * @brief Saves credential metadata (period, digits, algorithm)
+     * @param deviceId Device ID
+     * @param credentialName Full credential name
+     * @param period TOTP period in seconds
+     * @param digits Number of digits (6-8)
+     * @param algorithm Algorithm (1=SHA1, 2=SHA256, 3=SHA512)
+     * @return true if successful
+     *
+     * Inserts or replaces existing metadata for the credential.
+     */
+    bool saveCredentialMetadata(const QString &deviceId,
+                                const QString &credentialName,
+                                int period,
+                                int digits,
+                                int algorithm);
+
+    /**
+     * @brief Gets credential metadata by device ID and credential name
+     * @param deviceId Device ID
+     * @param credentialName Full credential name
+     * @return CredentialMetadata if found, std::nullopt if not found
+     */
+    std::optional<CredentialMetadata> getCredentialMetadata(const QString &deviceId,
+                                                            const QString &credentialName);
+
+    /**
+     * @brief Removes credential metadata from database
+     * @param deviceId Device ID
+     * @param credentialName Full credential name
+     * @return true if successful
+     */
+    bool deleteCredentialMetadata(const QString &deviceId, const QString &credentialName);
+
+    /**
+     * @brief Removes all credential metadata for a device
+     * @param deviceId Device ID
+     * @return true if successful
+     *
+     * Called when device is removed from database.
+     */
+    bool deleteAllCredentialMetadataForDevice(const QString &deviceId);
 
 private:
     QSqlDatabase m_db;

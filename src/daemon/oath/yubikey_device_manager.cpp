@@ -250,6 +250,17 @@ QString YubiKeyDeviceManager::connectToDevice(const QString &readerName) {
                 Q_EMIT credentialCacheFetchedForDevice(deviceId, credentials);
             });
 
+    // Connect reconnect signals for card reset handling
+    connect(device, &YubiKeyOathDevice::needsReconnect,
+            this, &YubiKeyDeviceManager::reconnectDeviceAsync);
+    connect(this, &YubiKeyDeviceManager::reconnectCompleted,
+            device, [device, deviceId](const QString &reconnectedDeviceId, bool success) {
+        // Only forward to this device if the reconnect was for this device
+        if (reconnectedDeviceId == deviceId) {
+            device->onReconnectResult(success);
+        }
+    });
+
     // Critical section: add to device map
     {
         QMutexLocker locker(&m_devicesMutex);
@@ -537,6 +548,105 @@ void YubiKeyDeviceManager::removeDeviceFromMemory(const QString &deviceId)
 
     // Emit credentials changed since this device's credentials are now gone
     Q_EMIT credentialsChanged();
+}
+
+void YubiKeyDeviceManager::reconnectDeviceAsync(const QString &deviceId, const QString &readerName, const QByteArray &command)
+{
+    qCDebug(YubiKeyDeviceManagerLog) << "reconnectDeviceAsync() called for device" << deviceId
+             << "reader:" << readerName << "command length:" << command.length();
+
+    // Stop any existing reconnect operation
+    if (m_reconnectTimer) {
+        qCDebug(YubiKeyDeviceManagerLog) << "Stopping existing reconnect timer";
+        m_reconnectTimer->stop();
+        delete m_reconnectTimer;
+        m_reconnectTimer = nullptr;
+    }
+
+    // CRITICAL FIX: Copy parameters to local variables BEFORE device operations
+    // because references may point to fields of the device object
+    QString deviceIdCopy = deviceId;
+    QString readerNameCopy = readerName;
+    QByteArray commandCopy = command;
+
+    // Store reconnect parameters (using copies)
+    m_reconnectDeviceId = deviceIdCopy;
+    m_reconnectReaderName = readerNameCopy;
+    m_reconnectCommand = commandCopy;
+
+    // NEW APPROACH: Reconnect card handle WITHOUT destroying device object
+    // This avoids race condition with background threads using the device
+    qCDebug(YubiKeyDeviceManagerLog) << "Starting async reconnect for device" << deviceIdCopy;
+
+    // Emit signal that reconnect started (for notification display)
+    Q_EMIT reconnectStarted(deviceIdCopy);
+
+    // Use Qt's async mechanism to avoid blocking main thread
+    // reconnectCardHandle() has exponential backoff built-in
+    m_reconnectTimer = new QTimer(this);
+    m_reconnectTimer->setSingleShot(true);
+    connect(m_reconnectTimer, &QTimer::timeout, this, &YubiKeyDeviceManager::onReconnectTimer);
+
+    qCDebug(YubiKeyDeviceManagerLog) << "Starting reconnect with 10ms initial delay";
+    m_reconnectTimer->start(10);  // Small delay to let ykman release the card
+}
+
+void YubiKeyDeviceManager::onReconnectTimer()
+{
+    qCDebug(YubiKeyDeviceManagerLog) << "onReconnectTimer() for device" << m_reconnectDeviceId
+             << "reader:" << m_reconnectReaderName;
+
+    // Get device instance (without destroying it)
+    auto *device = getDevice(m_reconnectDeviceId);
+    if (!device) {
+        qCWarning(YubiKeyDeviceManagerLog) << "Device" << m_reconnectDeviceId << "no longer exists";
+
+        // Stop timer and cleanup
+        if (m_reconnectTimer) {
+            delete m_reconnectTimer;
+            m_reconnectTimer = nullptr;
+        }
+
+        // Emit failure signal
+        Q_EMIT reconnectCompleted(m_reconnectDeviceId, false);
+
+        // Clear reconnect state
+        m_reconnectDeviceId.clear();
+        m_reconnectReaderName.clear();
+        m_reconnectCommand.clear();
+
+        return;
+    }
+
+    // Try to reconnect card handle (has exponential backoff built-in)
+    qCDebug(YubiKeyDeviceManagerLog) << "Calling reconnectCardHandle() on device" << m_reconnectDeviceId;
+    auto result = device->reconnectCardHandle(m_reconnectReaderName);
+
+    // Stop timer and cleanup
+    if (m_reconnectTimer) {
+        delete m_reconnectTimer;
+        m_reconnectTimer = nullptr;
+    }
+
+    if (result.isSuccess()) {
+        // Success!
+        qCInfo(YubiKeyDeviceManagerLog) << "Reconnect successful for device" << m_reconnectDeviceId;
+
+        // Emit success signal
+        Q_EMIT reconnectCompleted(m_reconnectDeviceId, true);
+    } else {
+        // Failed after all retry attempts
+        qCWarning(YubiKeyDeviceManagerLog) << "Reconnect failed for device" << m_reconnectDeviceId
+                 << "error:" << result.error();
+
+        // Emit failure signal
+        Q_EMIT reconnectCompleted(m_reconnectDeviceId, false);
+    }
+
+    // Clear reconnect state
+    m_reconnectDeviceId.clear();
+    m_reconnectReaderName.clear();
+    m_reconnectCommand.clear();
 }
 
 

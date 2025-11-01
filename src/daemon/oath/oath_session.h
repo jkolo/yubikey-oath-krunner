@@ -85,13 +85,17 @@ public:
     /**
      * @brief Calculates TOTP code for single credential
      * @param name Full credential name (issuer:username)
+     * @param period TOTP period in seconds (default 30)
      * @return Result with code string or error
      *
      * Uses CALCULATE command (0xA2) with current timestamp.
      * Returns 6-8 digit code string.
      * Emits touchRequired() signal if credential requires physical touch.
+     *
+     * For credentials with non-standard period (≠30s), pass the correct period
+     * to generate the proper TOTP challenge.
      */
-    Result<QString> calculateCode(const QString &name);
+    Result<QString> calculateCode(const QString &name, int period = 30);
 
     /**
      * @brief Calculates TOTP codes for all credentials
@@ -202,6 +206,17 @@ public:
     void cancelOperation();
 
     /**
+     * @brief Updates card handle after reconnect
+     * @param newHandle New PC/SC card handle
+     * @param newProtocol New PC/SC protocol
+     *
+     * Called by YubiKeyOathDevice after successful reconnect to update
+     * the handle without destroying the OathSession object.
+     * Marks session as inactive (requires SELECT after reconnect).
+     */
+    void updateCardHandle(SCARDHANDLE newHandle, DWORD newProtocol);
+
+    /**
      * @brief Gets device ID from last SELECT response
      * @return Device ID (hex string) or empty if SELECT not yet executed
      */
@@ -222,18 +237,51 @@ Q_SIGNALS:
      */
     void errorOccurred(const QString &error);
 
+    /**
+     * @brief Emitted when card reset is detected (SCARD_W_RESET_CARD)
+     * @param command The APDU command that failed due to reset
+     *
+     * Triggered when external application (like ykman) resets the card.
+     * This signal initiates reconnect workflow through upper layers.
+     */
+    void cardResetDetected(const QByteArray &command);
+
+    /**
+     * @brief Emitted when reconnect completed successfully
+     *
+     * This signal is emitted by upper layer (YubiKeyOathDevice) after
+     * successful reconnect. OathSession waits for this in sendApdu()
+     * to retry the failed command.
+     */
+    void reconnectReady();
+
+    /**
+     * @brief Emitted when reconnect failed
+     *
+     * This signal is emitted by upper layer (YubiKeyOathDevice) when
+     * reconnect attempts fail. OathSession waits for this in sendApdu()
+     * to abort the operation.
+     */
+    void reconnectFailed();
+
 private:
     /**
      * @brief Sends APDU command to YubiKey with chained response handling
      * @param command APDU command bytes
+     * @param retryCount Internal parameter for retry recursion guard (default 0)
      * @return Response data including status word, or empty on error
      *
      * Handles chained responses:
      * - If SW=0x61XX (more data available), sends SEND REMAINING (0xA5)
      * - Accumulates all data parts into single response
      * - Returns full data with final status word
+     *
+     * Handles card reset (SCARD_W_RESET_CARD):
+     * - Attempts SCardReconnect() to refresh handle
+     * - Retries command once after successful reconnect
+     * - Prevents infinite recursion with retryCount guard
      */
-    QByteArray sendApdu(const QByteArray &command);
+    QByteArray sendApdu(const QByteArray &command, int retryCount = 0);
 
     /**
      * @brief Derives PBKDF2 key from password
@@ -247,6 +295,29 @@ private:
                                      const QByteArray &salt,
                                      int iterations,
                                      int keyLength);
+
+    /**
+     * @brief Ensures OATH session is active, reactivates if needed
+     * @return Result with success or error message
+     *
+     * Checks m_sessionActive flag. If session is inactive, executes SELECT
+     * to reactivate OATH applet. This is needed after external apps (like ykman)
+     * interact with YubiKey and may leave it in a different state.
+     */
+    Result<void> ensureSessionActive();
+
+    /**
+     * @brief Attempts to reconnect to card after reset
+     * @return true if reconnect successful, false otherwise
+     *
+     * Uses SCardReconnect() to refresh the card handle after external
+     * apps (like ykman) reset the card. This preserves the connection
+     * without requiring full disconnect/connect cycle.
+     *
+     * After successful reconnect, m_sessionActive is set to false
+     * (OATH applet needs to be selected again).
+     */
+    bool reconnectCard();
 
     SCARDHANDLE m_cardHandle;  ///< PC/SC card handle (non-owning)
     DWORD m_protocol;          ///< PC/SC protocol (T=0 or T=1)

@@ -223,6 +223,8 @@ private Q_SLOTS:
     void onDeviceDisconnectedInternal(const QString &deviceId);
     void onCredentialCacheFetched(const QString &deviceId,
                                  const QList<OathCredential> &credentials);
+    void onReconnectStarted(const QString &deviceId);
+    void onReconnectCompleted(const QString &deviceId, bool success);
 
 private:
     /**
@@ -231,6 +233,13 @@ private:
      * @return "YubiKey <deviceId>"
      */
     QString generateDefaultDeviceName(const QString &deviceId) const;
+
+    /**
+     * @brief Gets device name (custom or generated default)
+     * @param deviceId Device ID
+     * @return Custom name from database or generated default
+     */
+    QString getDeviceName(const QString &deviceId) const;
 
     /**
      * @brief Clears device from memory
@@ -249,6 +258,9 @@ private:
      */
     void showAddCredentialDialogAsync(const QString &deviceId,
                                       const OathCredentialData &initialData);
+
+    // Reconnect notification state
+    uint m_reconnectNotificationId = 0;
 
     std::unique_ptr<YubiKeyDeviceManager> m_deviceManager;
     std::unique_ptr<YubiKeyDatabase> m_database;

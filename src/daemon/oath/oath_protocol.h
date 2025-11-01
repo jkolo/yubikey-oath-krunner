@@ -52,6 +52,8 @@ public:
     static constexpr quint16 SW_NO_SUCH_OBJECT = 0x6984;
     static constexpr quint16 SW_WRONG_DATA = 0x6A80;
     static constexpr quint16 SW_INSUFFICIENT_SPACE = 0x6A84;
+    static constexpr quint16 SW_INS_NOT_SUPPORTED = 0x6D00;
+    static constexpr quint16 SW_CLA_NOT_SUPPORTED = 0x6E00;
 
     // TLV tags
     static constexpr quint8 TAG_NAME = 0x71;

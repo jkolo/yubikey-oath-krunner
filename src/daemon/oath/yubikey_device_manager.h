@@ -11,6 +11,7 @@
 #include <QMutex>
 #include <QObject>
 #include <QString>
+#include <QTimer>
 
 // STL includes
 #include <memory>
@@ -143,6 +144,23 @@ public:
      */
     void removeDeviceFromMemory(const QString &deviceId);
 
+    /**
+     * @brief Asynchronously reconnects to YubiKey after card reset
+     * @param deviceId Device ID to reconnect
+     * @param readerName PC/SC reader name to reconnect to
+     * @param command APDU command to retry after successful reconnect
+     *
+     * This method handles card reset (SCARD_W_RESET_CARD) by performing:
+     * 1. Full disconnect of device (frees card handle)
+     * 2. Exponential backoff retry: 100ms, 200ms, 400ms, 800ms, 1600ms, 3000ms
+     * 3. Reconnect attempt on each timer tick
+     * 4. Emits reconnectCompleted(deviceId, success) when done
+     *
+     * The exponential backoff allows external apps (like ykman) to release
+     * the card before we retry connection.
+     */
+    void reconnectDeviceAsync(const QString &deviceId, const QString &readerName, const QByteArray &command);
+
 Q_SIGNALS:
     /**
      * @brief Emitted when YubiKey touch is required
@@ -185,6 +203,26 @@ Q_SIGNALS:
      */
     void credentialCacheFetchedForDevice(const QString &deviceId, const QList<OathCredential> &credentials);
 
+    /**
+     * @brief Emitted when device reconnect starts
+     * @param deviceId Device ID that is being reconnected
+     *
+     * This signal is emitted when reconnectDeviceAsync() begins reconnect attempt.
+     * Used by YubiKeyService to show reconnect notification.
+     */
+    void reconnectStarted(const QString &deviceId);
+
+    /**
+     * @brief Emitted when device reconnect completes (success or failure)
+     * @param deviceId Device ID that was reconnected
+     * @param success true if reconnect succeeded, false otherwise
+     *
+     * This signal is emitted after reconnectDeviceAsync() completes.
+     * Used to notify YubiKeyOathDevice::onReconnectResult() which forwards
+     * to OathSession to unblock waiting sendApdu().
+     */
+    void reconnectCompleted(const QString &deviceId, bool success);
+
 private Q_SLOTS:
     /**
      * @brief Handles reader list change (device added/removed)
@@ -209,6 +247,14 @@ private Q_SLOTS:
      * @param credentials List of fetched credentials
      */
     void onCredentialCacheFetchedForDevice(const QString &deviceId, const QList<OathCredential> &credentials);
+
+    /**
+     * @brief Handles reconnect timer timeout (exponential backoff retry)
+     *
+     * Called by m_reconnectTimer on each timeout.
+     * Attempts to reconnect to device, increases delay, or emits failure after max attempts.
+     */
+    void onReconnectTimer();
 
 private:
     // Core PC/SC operations
@@ -241,6 +287,14 @@ private:
 
     SCARDCONTEXT m_context = 0;  ///< PC/SC context (shared by all devices)
     bool m_initialized = false;  ///< Tracks initialization state
+
+    // Reconnect state (for exponential backoff)
+    QTimer *m_reconnectTimer = nullptr;  ///< Timer for exponential backoff reconnect
+    QString m_reconnectDeviceId;         ///< Device ID being reconnected
+    QString m_reconnectReaderName;       ///< Reader name for reconnection
+    QByteArray m_reconnectCommand;       ///< Command to retry after reconnect
+    int m_reconnectAttempt = 0;          ///< Current reconnect attempt number (0-based)
+    static constexpr int MAX_RECONNECT_ATTEMPTS = 6;  ///< Maximum reconnect attempts
 };
 } // namespace Daemon
 } // namespace YubiKeyOath

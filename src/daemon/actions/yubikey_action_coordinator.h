@@ -95,6 +95,35 @@ public:
                                                                const QString &credentialName,
                                                                const QString &actionType);
 
+    /**
+     * @brief Shows simple auto-closing notification
+     * @param title Notification title
+     * @param message Notification message
+     * @param type Notification type (0 = info, 1 = warning/error)
+     *
+     * Delegates to NotificationOrchestrator for showing simple notification.
+     */
+    void showSimpleNotification(const QString &title, const QString &message, int type = 0);
+
+    /**
+     * @brief Shows persistent notification that stays until closed
+     * @param title Notification title
+     * @param message Notification message
+     * @param type Notification type (0 = info, 1 = warning/error)
+     * @return Notification ID (use with closeNotification to close)
+     *
+     * Delegates to NotificationOrchestrator for showing persistent notification.
+     */
+    uint showPersistentNotification(const QString &title, const QString &message, int type = 0);
+
+    /**
+     * @brief Closes notification by ID
+     * @param notificationId ID returned by showPersistentNotification()
+     *
+     * Delegates to NotificationOrchestrator for closing notification.
+     */
+    void closeNotification(uint notificationId);
+
 private:
     /**
      * @brief Helper method to execute an action (copy or type)

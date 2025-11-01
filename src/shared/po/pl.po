@@ -643,7 +643,7 @@ msgstr "Hasło niewymagane"
 msgid "Password saved"
 msgstr "Hasło zapisane"
 
-#: src/config/resources/ui/YubiKeyConfig.qml:186
+#: src/config/resources/ui/YubiKeyConfig.qml:186 src/daemon/oath/oath_session.cpp
 #, kde-format
 msgid "Password required"
 msgstr "Wymagane hasło"
@@ -703,6 +703,76 @@ msgstr "Wymagane hasło YubiKey: %1"
 #, kde-format
 msgid "Device: %1 - Click to enter password"
 msgstr "Urządzenie: %1 - Kliknij, aby wprowadzić hasło"
+
+#: src/daemon/oath/oath_session.cpp
+#, kde-format
+msgid "Card reset and reconnect failed"
+msgstr "Reset karty i ponowne połączenie nie powiodło się"
+
+#: src/daemon/oath/oath_session.cpp
+#, kde-format
+msgid "Failed to communicate with YubiKey"
+msgstr "Nie udało się komunikować z YubiKey"
+
+#: src/daemon/oath/oath_session.cpp
+#, kde-format
+msgid "Failed to reactivate session: %1"
+msgstr "Nie udało się reaktywować sesji: %1"
+
+#: src/daemon/oath/oath_session.cpp
+#, kde-format
+msgid "Session lost and retry failed"
+msgstr "Sesja utracona i ponowienie nie powiodło się"
+
+#: src/daemon/oath/oath_session.cpp
+#, kde-format
+msgid "Touch required"
+msgstr "Wymagane dotknięcie"
+
+#: src/daemon/oath/oath_session.cpp
+#, kde-format
+msgid "Failed to parse TOTP code from response"
+msgstr "Nie udało się sparsować kodu TOTP z odpowiedzi"
+
+#: src/daemon/oath/oath_session.cpp
+#, kde-format
+msgid "Unexpected error in calculateCode"
+msgstr "Nieoczekiwany błąd w calculateCode"
+
+#: src/daemon/oath/oath_session.cpp
+#, kde-format
+msgid "Failed to calculate codes"
+msgstr "Nie udało się obliczyć kodów"
+
+#: src/daemon/oath/oath_session.cpp
+#, kde-format
+msgid "Unexpected error in calculateAll"
+msgstr "Nieoczekiwany błąd w calculateAll"
+
+#: src/daemon/oath/yubikey_oath_device.cpp
+#, kde-format
+msgid "Failed to reconnect after multiple attempts"
+msgstr "Nie udało się połączyć ponownie po wielu próbach"
+
+#: src/daemon/services/yubikey_service.cpp
+#, kde-format
+msgid "Reconnecting to YubiKey"
+msgstr "Ponowne łączenie z YubiKey"
+
+#: src/daemon/services/yubikey_service.cpp
+#, kde-format
+msgid "Restoring connection to %1..."
+msgstr "Przywracanie połączenia z %1..."
+
+#: src/daemon/services/yubikey_service.cpp
+#, kde-format
+msgid "Reconnect Failed"
+msgstr "Ponowne połączenie nie powiodło się"
+
+#: src/daemon/services/yubikey_service.cpp
+#, kde-format
+msgid "Could not restore connection to %1. Please remove and reinsert the YubiKey."
+msgstr "Nie udało się przywrócić połączenia z %1. Proszę wyjąć i włożyć ponownie YubiKey."
 
 #, kde-format
 #~ msgid "No YubiKey connected"

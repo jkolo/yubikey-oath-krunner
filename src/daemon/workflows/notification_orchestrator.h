@@ -149,6 +149,32 @@ public:
     void showSimpleNotification(const QString &title, const QString &message, int type = 0);
 
     /**
+     * @brief Shows persistent notification that stays until closed
+     *
+     * Displays notification with no timeout - must be closed manually via closeNotification().
+     * Useful for long-running operations (like reconnect).
+     *
+     * @param title Notification title
+     * @param message Notification message body
+     * @param type Notification urgency: 0=info (default), 1=warning/error
+     * @return Notification ID (use with closeNotification to close)
+     *
+     * @par Thread Safety
+     * Must be called from main/UI thread.
+     */
+    uint showPersistentNotification(const QString &title, const QString &message, int type = 0);
+
+    /**
+     * @brief Closes notification by ID
+     *
+     * @param notificationId ID returned by showPersistentNotification()
+     *
+     * @par Thread Safety
+     * Must be called from main/UI thread.
+     */
+    void closeNotification(uint notificationId);
+
+    /**
      * @brief Shows notification requesting modifier key release with timeout countdown
      *
      * Displays persistent notification with:

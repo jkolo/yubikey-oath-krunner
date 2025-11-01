@@ -346,10 +346,33 @@ void YubiKeyManagerProxy::onDBusServiceRegistered(const QString &serviceName)
     Q_UNUSED(serviceName)
     qCDebug(YubiKeyManagerProxyLog) << "Daemon service registered";
 
+    // CRITICAL FIX: Recreate D-Bus interfaces for new daemon instance
+    // Old interfaces become stale after daemon crash/restart and isValid() returns false
+    qCDebug(YubiKeyManagerProxyLog) << "Recreating D-Bus interfaces for new daemon instance";
+
+    if (m_managerInterface) {
+        delete m_managerInterface;
+    }
+    if (m_objectManagerInterface) {
+        delete m_objectManagerInterface;
+    }
+
+    m_managerInterface = new QDBusInterface(QLatin1String(SERVICE_NAME),
+                                            QLatin1String(MANAGER_PATH),
+                                            QLatin1String(MANAGER_INTERFACE),
+                                            QDBusConnection::sessionBus(),
+                                            this);
+
+    m_objectManagerInterface = new QDBusInterface(QLatin1String(SERVICE_NAME),
+                                                   QLatin1String(MANAGER_PATH),
+                                                   QLatin1String(OBJECT_MANAGER_INTERFACE),
+                                                   QDBusConnection::sessionBus(),
+                                                   this);
+
     m_daemonAvailable = true;
     Q_EMIT daemonAvailable();
 
-    // Reconnect to signals and refresh objects
+    // Reconnect to signals and refresh objects with new interfaces
     connectToSignals();
     refreshManagedObjects();
 }

@@ -104,6 +104,27 @@ ActionExecutor::ActionResult YubiKeyActionCoordinator::executeActionWithNotifica
     return result;
 }
 
+void YubiKeyActionCoordinator::showSimpleNotification(const QString &title, const QString &message, int type)
+{
+    qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: showSimpleNotification"
+                                << "title:" << title;
+    m_notificationOrchestrator->showSimpleNotification(title, message, type);
+}
+
+uint YubiKeyActionCoordinator::showPersistentNotification(const QString &title, const QString &message, int type)
+{
+    qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: showPersistentNotification"
+                                << "title:" << title;
+    return m_notificationOrchestrator->showPersistentNotification(title, message, type);
+}
+
+void YubiKeyActionCoordinator::closeNotification(uint notificationId)
+{
+    qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: closeNotification"
+                                << "id:" << notificationId;
+    m_notificationOrchestrator->closeNotification(notificationId);
+}
+
 bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
                                                      const QString &credentialName,
                                                      const QString &actionType)
