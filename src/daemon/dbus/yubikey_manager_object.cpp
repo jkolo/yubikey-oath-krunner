@@ -11,6 +11,7 @@
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusMetaType>
+#include <utility>
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -21,13 +22,12 @@ static constexpr const char *OBJECTMANAGER_INTERFACE = "org.freedesktop.DBus.Obj
 static constexpr const char *DAEMON_VERSION = "1.0"; // Initial release version
 
 YubiKeyManagerObject::YubiKeyManagerObject(YubiKeyService *service,
-                                           const QDBusConnection &connection,
+                                           QDBusConnection connection,
                                            QObject *parent)
     : QObject(parent)
     , m_service(service)
-    , m_connection(connection)
+    , m_connection(std::move(connection))
     , m_objectPath(QString::fromLatin1(MANAGER_PATH))
-    , m_registered(false)
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: Constructing at path:" << m_objectPath;
 
@@ -103,11 +103,11 @@ ManagedObjectMap YubiKeyManagerObject::GetManagedObjects()
 
     // Iterate over all device objects
     for (auto it = m_devices.constBegin(); it != m_devices.constEnd(); ++it) {
-        YubiKeyDeviceObject *deviceObj = it.value();
+        const YubiKeyDeviceObject * const deviceObj = it.value();
 
         // Get device object path and properties
         const QString devicePath = deviceObj->objectPath();
-        QVariantMap deviceInterfacesVariant = deviceObj->getManagedObjectData();
+        const QVariantMap deviceInterfacesVariant = deviceObj->getManagedObjectData();
 
         // Convert QVariantMap to InterfacePropertiesMap (QMap<QString, QVariantMap>)
         InterfacePropertiesMap deviceInterfaces;
@@ -127,7 +127,7 @@ ManagedObjectMap YubiKeyManagerObject::GetManagedObjects()
 
         for (auto credIt = credentialObjects.constBegin();
              credIt != credentialObjects.constEnd(); ++credIt) {
-            QVariantMap credInterfacesVariant = credIt.value().toMap();
+            const QVariantMap credInterfacesVariant = credIt.value().toMap();
 
             // Convert QVariantMap to InterfacePropertiesMap
             InterfacePropertiesMap credInterfaces;

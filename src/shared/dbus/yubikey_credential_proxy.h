@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#pragma once
+#ifndef YUBIKEY_CREDENTIAL_PROXY_H
+#define YUBIKEY_CREDENTIAL_PROXY_H
 
 #include <QObject>
 #include <QString>
@@ -121,24 +122,24 @@ public:
 
 private:
     QString m_objectPath;
-    QDBusInterface *m_interface;
+    QDBusInterface *m_interface{nullptr};
 
     // Cached properties (all const - never change after construction)
     QString m_name;
     QString m_issuer;
     QString m_account;
-    bool m_requiresTouch;
+    bool m_requiresTouch{false};
     QString m_type;
     QString m_algorithm;
-    int m_digits;
-    int m_period;
+    int m_digits{0};
+    int m_period{0};
     QString m_deviceId;
 
     // Code cache (mutable - updated on generateCode() calls)
     // PERFORMANCE: Caching eliminates N separate D-Bus calls when building matches
     // Cache is valid until validUntil timestamp (typically 30s for TOTP)
     mutable QString m_cachedCode;
-    mutable qint64 m_cachedValidUntil;
+    mutable qint64 m_cachedValidUntil{0};
 
     static constexpr const char *SERVICE_NAME = "pl.jkolo.yubikey.oath.daemon";
     static constexpr const char *INTERFACE_NAME = "pl.jkolo.yubikey.oath.Credential";
@@ -146,3 +147,5 @@ private:
 
 } // namespace Shared
 } // namespace YubiKeyOath
+
+#endif // YUBIKEY_CREDENTIAL_PROXY_H

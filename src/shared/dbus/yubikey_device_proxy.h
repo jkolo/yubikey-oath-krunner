@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#pragma once
+#ifndef YUBIKEY_DEVICE_PROXY_H
+#define YUBIKEY_DEVICE_PROXY_H
 
 #include <QObject>
 #include <QString>
@@ -197,7 +198,7 @@ private Q_SLOTS:
                             const QVariantMap &changedProperties,
                             const QStringList &invalidatedProperties);
 
-private:
+private:  // NOLINT(readability-redundant-access-specifiers) - Required to close Q_SLOTS section for moc
     void connectToSignals();
     void addCredentialProxy(const QString &objectPath, const QVariantMap &properties);
     void removeCredentialProxy(const QString &objectPath);
@@ -222,3 +223,5 @@ private:
 
 } // namespace Shared
 } // namespace YubiKeyOath
+
+#endif // YUBIKEY_DEVICE_PROXY_H

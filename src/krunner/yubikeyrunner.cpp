@@ -87,7 +87,7 @@ void YubiKeyRunner::setupActions()
     m_actions.clear();
 
     // Get primary action from configuration
-    QString primary = m_config->primaryAction();
+    const QString primary = m_config->primaryAction();
     qCDebug(YubiKeyRunnerLog) << "setupActions() - primary action:" << primary;
 
     // Add only the alternative action as a button
@@ -151,7 +151,7 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
     }
 
     // Get all devices to check their password status
-    QList<YubiKeyDeviceProxy*> devices = m_manager->devices();
+    const QList<YubiKeyDeviceProxy*> devices = m_manager->devices();
     qCDebug(YubiKeyRunnerLog) << "Found" << devices.size() << "known devices";
 
     // For each CONNECTED device that needs password, show password error match
@@ -161,15 +161,15 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
             !device->hasValidPassword()) {
             qCDebug(YubiKeyRunnerLog) << "Device requires password:"
                                       << device->name() << device->deviceId();
-            DeviceInfo deviceInfo = device->toDeviceInfo();
-            KRunner::QueryMatch match = m_matchBuilder->buildPasswordErrorMatch(deviceInfo);
+            const DeviceInfo deviceInfo = device->toDeviceInfo();
+            const KRunner::QueryMatch match = m_matchBuilder->buildPasswordErrorMatch(deviceInfo);
             context.addMatch(match);
             // DON'T return - continue to show credentials from other devices!
         }
     }
 
     // Get credentials from ALL devices (manager aggregates them)
-    QList<YubiKeyCredentialProxy*> credentials = m_manager->getAllCredentials();
+    const QList<YubiKeyCredentialProxy*> credentials = m_manager->getAllCredentials();
     qCDebug(YubiKeyRunnerLog) << "Found" << credentials.size() << "total credentials";
 
     if (credentials.isEmpty()) {
@@ -180,13 +180,13 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
     // Build matches for matching credentials from all working devices
     int matchCount = 0;
     for (auto *credential : credentials) {
-        QString name = credential->name().toLower();
-        QString issuer = credential->issuer().toLower();
-        QString account = credential->account().toLower();
+        const QString name = credential->name().toLower();
+        const QString issuer = credential->issuer().toLower();
+        const QString account = credential->account().toLower();
 
         if (name.contains(query) || issuer.contains(query) || account.contains(query)) {
             qCDebug(YubiKeyRunnerLog) << "Creating match for credential:" << credential->name();
-            KRunner::QueryMatch match = m_matchBuilder->buildCredentialMatch(
+            const KRunner::QueryMatch match = m_matchBuilder->buildCredentialMatch(
                 credential, query, m_manager);
             context.addMatch(match);
             matchCount++;
@@ -206,7 +206,7 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         qCDebug(YubiKeyRunnerLog) << "Starting Add OATH Credential workflow via device proxy";
 
         // Get first available device (or show error if none)
-        QList<YubiKeyDeviceProxy*> devices = m_manager->devices();
+        const QList<YubiKeyDeviceProxy*> devices = m_manager->devices();
         YubiKeyDeviceProxy *targetDevice = nullptr;
 
         // Find first connected device
@@ -223,7 +223,7 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         }
 
         // Delegate to device with empty parameters to trigger interactive mode (dialog)
-        AddCredentialResult result = targetDevice->addCredential(
+        const AddCredentialResult result = targetDevice->addCredential(
             QString(),  // name - empty triggers dialog
             QString(),  // secret - empty triggers dialog
             QString(),  // type - will default to TOTP
@@ -241,21 +241,21 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         return;
     }
 
-    QStringList data = match.data().toStringList();
+    const QStringList data = match.data().toStringList();
     if (data.size() < 5) {
         qCDebug(YubiKeyRunnerLog) << "Invalid match data";
         return;
     }
 
-    QString credentialName = data.at(0);
-    QString displayName = data.at(1);
+    const QString &credentialName = data.at(0);
+    const QString &displayName = data.at(1);
     Q_UNUSED(displayName)
-    QString code = data.at(2);
+    const QString &code = data.at(2);
     Q_UNUSED(code)
-    bool requiresTouch = data.at(3) == QStringLiteral("true");
+    const bool requiresTouch = data.at(3) == QStringLiteral("true");
     Q_UNUSED(requiresTouch)
-    bool isPasswordError = data.at(4) == QStringLiteral("true");
-    QString deviceId = data.size() > 5 ? data.at(5) : QString();
+    const bool isPasswordError = data.at(4) == QStringLiteral("true");
+    const QString deviceId = data.size() > 5 ? data.at(5) : QString();
 
     qCDebug(YubiKeyRunnerLog) << "credentialName:" << credentialName
              << "deviceId:" << deviceId
@@ -274,13 +274,13 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         qCDebug(YubiKeyRunnerLog) << "Requesting password for device:" << deviceId;
 
         // Get device from manager
-        YubiKeyDeviceProxy *device = m_manager->getDevice(deviceId);
+        const YubiKeyDeviceProxy *const device = m_manager->getDevice(deviceId);
         if (!device) {
             qCWarning(YubiKeyRunnerLog) << "Device not found:" << deviceId;
             return;
         }
 
-        QString deviceName = device->name();
+        const QString deviceName = device->name();
 
         // Show password dialog (non-modal, with retry on error)
         showPasswordDialog(deviceId, deviceName);
@@ -298,7 +298,7 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
 
     // If we have deviceId, get it from that device
     if (!deviceId.isEmpty()) {
-        YubiKeyDeviceProxy *device = m_manager->getDevice(deviceId);
+        const YubiKeyDeviceProxy *const device = m_manager->getDevice(deviceId);
         if (device) {
             credential = device->getCredential(credentialName);
         }
@@ -306,7 +306,7 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
 
     // Fallback: search all credentials
     if (!credential) {
-        QList<YubiKeyCredentialProxy*> allCredentials = m_manager->getAllCredentials();
+        const QList<YubiKeyCredentialProxy*> allCredentials = m_manager->getAllCredentials();
         for (auto *cred : allCredentials) {
             if (cred->name() == credentialName) {
                 credential = cred;
@@ -321,8 +321,8 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
     }
 
     // Determine which action to execute using ActionManager
-    QString primaryAction = m_config->primaryAction();
-    QString actionId = m_actionManager->determineAction(match, primaryAction);
+    const QString primaryAction = m_config->primaryAction();
+    const QString actionId = m_actionManager->determineAction(match, primaryAction);
 
     qCDebug(YubiKeyRunnerLog) << "Action selection - primary from config:" << primaryAction
              << "determined action:" << actionId
@@ -333,7 +333,7 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         // Show confirmation dialog before deleting
         qCDebug(YubiKeyRunnerLog) << "Showing delete confirmation dialog for:" << credentialName;
 
-        QMessageBox::StandardButton reply = QMessageBox::question(
+        const QMessageBox::StandardButton reply = QMessageBox::question(
             nullptr,
             i18n("Delete Credential?"),
             i18n("Are you sure you want to delete '%1' from your YubiKey?\n\nThis action cannot be undone.", credentialName),
@@ -356,8 +356,9 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         qCDebug(YubiKeyRunnerLog) << "Scheduling asynchronous type action for KRunner to close";
 
         // Capture data needed for async execution (avoid dangling pointers)
-        QString capturedCredName = credentialName;
-        QString capturedDeviceId = deviceId;
+        // Note: Lambda capture by const reference is safe here since strings will be copied by lambda
+        const QString &capturedCredName = credentialName;
+        const QString &capturedDeviceId = deviceId;
 
         // Schedule async execution: processEvents() allows KRunner to close, then 500ms delay for safety
         QTimer::singleShot(0, this, [this, capturedCredName, capturedDeviceId]() {
@@ -387,7 +388,7 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
                 return;
             }
 
-            bool success = cred->typeCode(true);  // fallback to clipboard if typing fails
+            const bool success = cred->typeCode(true);  // fallback to clipboard if typing fails
             if (!success) {
                 qCWarning(YubiKeyRunnerLog) << "Type action failed:" << capturedCredName;
             } else {
@@ -399,7 +400,7 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         return;
     } else {  // copy - no delay needed (clipboard doesn't require closed window)
         qCDebug(YubiKeyRunnerLog) << "Executing copy action immediately via credential proxy";
-        bool success = credential->copyToClipboard();
+        const bool success = credential->copyToClipboard();
 
         if (!success) {
             qCWarning(YubiKeyRunnerLog) << "Copy action failed:" << actionId;

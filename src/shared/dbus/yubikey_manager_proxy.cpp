@@ -45,10 +45,6 @@ YubiKeyManagerProxy* YubiKeyManagerProxy::instance(QObject *parent)
 
 YubiKeyManagerProxy::YubiKeyManagerProxy(QObject *parent)
     : QObject(parent)
-    , m_managerInterface(nullptr)
-    , m_objectManagerInterface(nullptr)
-    , m_serviceWatcher(nullptr)
-    , m_daemonAvailable(false)
     , m_version(QStringLiteral("2.0.0"))
 {
     // Register D-Bus types
@@ -151,7 +147,7 @@ void YubiKeyManagerProxy::refreshManagedObjects()
     // Call GetManagedObjects()
     // Returns: a{oa{sa{sv}}} - ObjectManager signature
     // Qt returns this as QDBusArgument which needs manual demarshalling
-    QDBusMessage reply = m_objectManagerInterface->call(QStringLiteral("GetManagedObjects"));
+    QDBusMessage const reply = m_objectManagerInterface->call(QStringLiteral("GetManagedObjects"));
 
     if (reply.type() == QDBusMessage::ErrorMessage) {
         qCWarning(YubiKeyManagerProxyLog) << "GetManagedObjects failed:"
@@ -166,19 +162,19 @@ void YubiKeyManagerProxy::refreshManagedObjects()
     //   Level 2: interface name → properties map
     //   Level 3: property name → value
 
-    QDBusArgument arg = reply.arguments().at(0).value<QDBusArgument>();
+    auto const arg = reply.arguments().at(0).value<QDBusArgument>();
 
     // Use qdbus_cast with correct 3-level nested type
-    typedef QMap<QString, QVariantMap> InterfacePropertiesMap;
-    typedef QMap<QDBusObjectPath, InterfacePropertiesMap> DBusObjectMap;
-    DBusObjectMap dbusObjects = qdbus_cast<DBusObjectMap>(arg);
+    using InterfacePropertiesMap = QMap<QString, QVariantMap>;
+    using DBusObjectMap = QMap<QDBusObjectPath, InterfacePropertiesMap>;
+    auto const dbusObjects = qdbus_cast<DBusObjectMap>(arg);
 
     qCDebug(YubiKeyManagerProxyLog) << "qdbus_cast returned" << dbusObjects.size() << "objects";
 
     // Convert QDBusObjectPath keys to QString for easier handling
     QVariantMap managedObjects;
     for (auto it = dbusObjects.constBegin(); it != dbusObjects.constEnd(); ++it) {
-        QString objectPath = it.key().path();
+        QString const objectPath = it.key().path();
 
         // it.value() is InterfacePropertiesMap = QMap<QString, QVariantMap>
         // Convert to QVariantMap for storage
@@ -201,19 +197,19 @@ void YubiKeyManagerProxy::refreshManagedObjects()
     QHash<QString, QHash<QString, QVariantMap>> credentialsByDevice; // devicePath → (credPath → cred properties)
 
     for (auto it = managedObjects.constBegin(); it != managedObjects.constEnd(); ++it) {
-        QString objectPath = it.key();
-        QVariantMap interfacesAndProperties = it.value().toMap();
+        const QString &objectPath = it.key();
+        QVariantMap const interfacesAndProperties = it.value().toMap();
 
         // Check if this is a Device object
         if (interfacesAndProperties.contains(QLatin1String(DEVICE_INTERFACE))) {
-            QVariantMap deviceProps = interfacesAndProperties.value(QLatin1String(DEVICE_INTERFACE)).toMap();
+            QVariantMap const deviceProps = interfacesAndProperties.value(QLatin1String(DEVICE_INTERFACE)).toMap();
             deviceObjects.insert(objectPath, deviceProps);
             qCDebug(YubiKeyManagerProxyLog) << "Found device at" << objectPath;
         }
 
         // Check if this is a Credential object
         if (interfacesAndProperties.contains(QLatin1String(CREDENTIAL_INTERFACE))) {
-            QVariantMap credProps = interfacesAndProperties.value(QLatin1String(CREDENTIAL_INTERFACE)).toMap();
+            QVariantMap const credProps = interfacesAndProperties.value(QLatin1String(CREDENTIAL_INTERFACE)).toMap();
 
             // Extract parent device path from credential path
             // Format: /pl/jkolo/yubikey/oath/devices/<deviceId>/credentials/<credentialId>
@@ -232,9 +228,9 @@ void YubiKeyManagerProxy::refreshManagedObjects()
 
     // Second pass: create device proxies with their credentials
     for (auto it = deviceObjects.constBegin(); it != deviceObjects.constEnd(); ++it) {
-        QString devicePath = it.key();
-        QVariantMap deviceProps = it.value();
-        QHash<QString, QVariantMap> credentials = credentialsByDevice.value(devicePath);
+        const QString &devicePath = it.key();
+        const QVariantMap &deviceProps = it.value();
+        QHash<QString, QVariantMap> const credentials = credentialsByDevice.value(devicePath);
 
         addDeviceProxy(devicePath, deviceProps, credentials);
     }
@@ -275,7 +271,7 @@ int YubiKeyManagerProxy::totalCredentials() const
 {
     int total = 0;
     for (auto *device : m_devices) {
-        total += device->credentials().size();
+        total += static_cast<int>(device->credentials().size());
     }
     return total;
 }
@@ -283,7 +279,7 @@ int YubiKeyManagerProxy::totalCredentials() const
 void YubiKeyManagerProxy::onInterfacesAdded(const QDBusObjectPath &objectPath,
                                            const QVariantMap &interfacesAndProperties)
 {
-    QString path = objectPath.path();
+    QString const path = objectPath.path();
     qCDebug(YubiKeyManagerProxyLog) << "InterfacesAdded:" << path;
 
     // Debug: log all interfaces and properties
@@ -291,13 +287,13 @@ void YubiKeyManagerProxy::onInterfacesAdded(const QDBusObjectPath &objectPath,
 
     // Check if this is a Device object
     if (interfacesAndProperties.contains(QLatin1String(DEVICE_INTERFACE))) {
-        QVariantMap deviceProps = interfacesAndProperties.value(QLatin1String(DEVICE_INTERFACE)).toMap();
+        QVariantMap const deviceProps = interfacesAndProperties.value(QLatin1String(DEVICE_INTERFACE)).toMap();
 
         // Debug: log device properties
         qCDebug(YubiKeyManagerProxyLog) << "Device properties:" << deviceProps;
         qCDebug(YubiKeyManagerProxyLog) << "DeviceId property value:" << deviceProps.value(QLatin1String("DeviceId"));
 
-        QHash<QString, QVariantMap> emptyCredentials; // New device has no credentials yet
+        QHash<QString, QVariantMap> const emptyCredentials; // New device has no credentials yet
         addDeviceProxy(path, deviceProps, emptyCredentials);
     }
 
@@ -307,7 +303,7 @@ void YubiKeyManagerProxy::onInterfacesAdded(const QDBusObjectPath &objectPath,
 void YubiKeyManagerProxy::onInterfacesRemoved(const QDBusObjectPath &objectPath,
                                              const QStringList &interfaces)
 {
-    QString path = objectPath.path();
+    QString const path = objectPath.path();
     qCDebug(YubiKeyManagerProxyLog) << "InterfacesRemoved:" << path << "Interfaces:" << interfaces;
 
     // Check if Device interface was removed
@@ -350,12 +346,8 @@ void YubiKeyManagerProxy::onDBusServiceRegistered(const QString &serviceName)
     // Old interfaces become stale after daemon crash/restart and isValid() returns false
     qCDebug(YubiKeyManagerProxyLog) << "Recreating D-Bus interfaces for new daemon instance";
 
-    if (m_managerInterface) {
-        delete m_managerInterface;
-    }
-    if (m_objectManagerInterface) {
-        delete m_objectManagerInterface;
-    }
+    delete m_managerInterface;
+    delete m_objectManagerInterface;
 
     m_managerInterface = new QDBusInterface(QLatin1String(SERVICE_NAME),
                                             QLatin1String(MANAGER_PATH),
@@ -386,7 +378,7 @@ void YubiKeyManagerProxy::onDBusServiceUnregistered(const QString &serviceName)
     Q_EMIT daemonUnavailable();
 
     // Clear all device proxies
-    QStringList deviceIds = m_devices.keys();
+    QStringList const deviceIds = m_devices.keys();
     for (const QString &deviceId : deviceIds) {
         removeDeviceProxy(m_devices.value(deviceId)->objectPath());
     }
@@ -397,7 +389,7 @@ void YubiKeyManagerProxy::addDeviceProxy(const QString &devicePath,
                                         const QHash<QString, QVariantMap> &credentialObjects)
 {
     // Extract device ID from properties
-    QString deviceId = deviceProperties.value(QStringLiteral("DeviceId")).toString();
+    QString const deviceId = deviceProperties.value(QStringLiteral("DeviceId")).toString();
 
     if (deviceId.isEmpty()) {
         qCWarning(YubiKeyManagerProxyLog) << "Cannot add device proxy: deviceId is empty for path" << devicePath;

@@ -22,7 +22,7 @@ Result<QString> QrCodeParser::parse(const QString &imagePath)
     }
 
     // Load image
-    QImage image(imagePath);
+    const QImage image(imagePath);
     if (image.isNull()) {
         return Result<QString>::error(i18n("Failed to load image: %1", imagePath));
     }
@@ -46,15 +46,15 @@ Result<QString> QrCodeParser::parse(const QImage &image)
              << "format:" << image.format();
 
     // Try with RGB first (better quality)
-    QImage rgbImage = image.convertToFormat(QImage::Format_RGB888);
+    const QImage rgbImage = image.convertToFormat(QImage::Format_RGB888);
 
     // Decode QR code using ZXing-C++
-    ZXing::ImageView zxingImage{
+    const ZXing::ImageView zxingImage{
         rgbImage.bits(),
         rgbImage.width(),
         rgbImage.height(),
         ZXing::ImageFormat::RGB,
-        rgbImage.bytesPerLine()
+        static_cast<int>(rgbImage.bytesPerLine())
     };
 
     ZXing::ReaderOptions options;
@@ -69,13 +69,13 @@ Result<QString> QrCodeParser::parse(const QImage &image)
         qDebug() << "QrCodeParser: Failed with RGB, trying grayscale...";
 
         // Try again with grayscale
-        QImage grayImage = image.convertToFormat(QImage::Format_Grayscale8);
-        ZXing::ImageView grayZxingImage{
+        const QImage grayImage = image.convertToFormat(QImage::Format_Grayscale8);
+        const ZXing::ImageView grayZxingImage{
             grayImage.bits(),
             grayImage.width(),
             grayImage.height(),
             ZXing::ImageFormat::Lum,
-            grayImage.bytesPerLine()
+            static_cast<int>(grayImage.bytesPerLine())
         };
 
         result = ZXing::ReadBarcode(grayZxingImage, options);
@@ -85,7 +85,7 @@ Result<QString> QrCodeParser::parse(const QImage &image)
         }
     }
 
-    QString decodedText = QString::fromStdString(result.text());
+    const QString decodedText = QString::fromStdString(result.text());
 
     qDebug() << "QrCodeParser: Successfully decoded QR code, length:" << decodedText.length();
 

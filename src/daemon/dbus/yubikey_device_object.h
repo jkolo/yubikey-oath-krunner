@@ -58,7 +58,7 @@ public:
      */
     explicit YubiKeyDeviceObject(const QString &deviceId,
                                   YubiKeyService *service,
-                                  const QDBusConnection &connection,
+                                  QDBusConnection connection,
                                   bool isConnected,
                                   QObject *parent = nullptr);
     ~YubiKeyDeviceObject() override;

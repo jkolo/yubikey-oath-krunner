@@ -56,10 +56,10 @@ public:
      * @param connection D-Bus connection
      * @param parent Parent QObject
      */
-    explicit YubiKeyCredentialObject(const Shared::OathCredential &credential,
-                                     const QString &deviceId,
+    explicit YubiKeyCredentialObject(Shared::OathCredential credential,
+                                     QString deviceId,
                                      YubiKeyService *service,
-                                     const QDBusConnection &connection,
+                                     QDBusConnection connection,
                                      QObject *parent = nullptr);
     ~YubiKeyCredentialObject() override;
 

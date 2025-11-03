@@ -4,7 +4,9 @@
  */
 
 #include <QtTest>
+#include <QTest>
 #include <QGuiApplication>
+#include <QString>
 #include "daemon/input/modifier_key_checker.h"
 
 using namespace YubiKeyOath::Daemon;

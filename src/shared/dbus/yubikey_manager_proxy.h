@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#pragma once
+#ifndef YUBIKEY_MANAGER_PROXY_H
+#define YUBIKEY_MANAGER_PROXY_H
 
 #include <QObject>
 #include <QString>
@@ -71,7 +72,7 @@ public:
     // ========== Manager Properties ==========
 
     QString version() const { return m_version; }
-    int deviceCount() const { return m_devices.size(); }
+    int deviceCount() const { return static_cast<int>(m_devices.size()); }
     int totalCredentials() const;
 
     // ========== Device Management ==========
@@ -151,7 +152,7 @@ private Q_SLOTS:
     void onDBusServiceRegistered(const QString &serviceName);
     void onDBusServiceUnregistered(const QString &serviceName);
 
-private:
+private:  // NOLINT(readability-redundant-access-specifiers) - Required to close Q_SLOTS section for moc
     explicit YubiKeyManagerProxy(QObject *parent = nullptr);
 
     void setupServiceWatcher();
@@ -166,10 +167,10 @@ private:
     // Singleton instance
     static YubiKeyManagerProxy *s_instance;
 
-    QDBusInterface *m_managerInterface;
-    QDBusInterface *m_objectManagerInterface;
-    QDBusServiceWatcher *m_serviceWatcher;
-    bool m_daemonAvailable;
+    QDBusInterface *m_managerInterface{nullptr};
+    QDBusInterface *m_objectManagerInterface{nullptr};
+    QDBusServiceWatcher *m_serviceWatcher{nullptr};
+    bool m_daemonAvailable{false};
 
     // Manager properties
     QString m_version;
@@ -188,3 +189,5 @@ private:
 
 } // namespace Shared
 } // namespace YubiKeyOath
+
+#endif // YUBIKEY_MANAGER_PROXY_H

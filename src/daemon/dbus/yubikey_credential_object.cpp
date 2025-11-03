@@ -9,22 +9,23 @@
 
 #include <QDBusConnection>
 #include <QDBusError>
+#include <utility>
 
 namespace YubiKeyOath {
 namespace Daemon {
 
 static constexpr const char *CREDENTIAL_INTERFACE = "pl.jkolo.yubikey.oath.Credential";
 
-YubiKeyCredentialObject::YubiKeyCredentialObject(const Shared::OathCredential &credential,
-                                                 const QString &deviceId,
+YubiKeyCredentialObject::YubiKeyCredentialObject(Shared::OathCredential credential,
+                                                 QString deviceId,
                                                  YubiKeyService *service,
-                                                 const QDBusConnection &connection,
+                                                 QDBusConnection connection,
                                                  QObject *parent)
     : QObject(parent)
-    , m_credential(credential)
-    , m_deviceId(deviceId)
+    , m_credential(std::move(credential))
+    , m_deviceId(std::move(deviceId))
     , m_service(service)
-    , m_connection(connection)
+    , m_connection(std::move(connection))
     , m_registered(false)
 {
     // Object path will be set by parent (YubiKeyDeviceObject)
@@ -195,7 +196,7 @@ void YubiKeyCredentialObject::Delete()
                               << m_credential.originalName << "from device:" << m_deviceId;
 
     // Delegate to YubiKeyService for deletion
-    bool success = m_service->deleteCredential(m_deviceId, m_credential.originalName);
+    const bool success = m_service->deleteCredential(m_deviceId, m_credential.originalName);
 
     if (!success) {
         qCWarning(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Failed to delete credential:"

@@ -73,14 +73,14 @@ private:
     void updateGeometry();
 
     // UI components
-    QLabel *m_statusLabel;      // Main status text (doesn't change during animation)
-    QLabel *m_dotsLabel;        // Animated dots label
-    QGraphicsOpacityEffect *m_opacityEffect;  // Fade effect for status
-    QTimer *m_animationTimer;   // Timer for dot animation
+    QLabel *m_statusLabel = nullptr;      // Main status text (doesn't change during animation)
+    QLabel *m_dotsLabel = nullptr;        // Animated dots label
+    QGraphicsOpacityEffect *m_opacityEffect = nullptr;  // Fade effect for status
+    QTimer *m_animationTimer = nullptr;   // Timer for dot animation
 
     // Animation state
     QString m_baseStatusText;   // Base text without dots
-    int m_animationDots;        // Current dot count (0-3)
+    int m_animationDots = 0;    // Current dot count (0-3)
 };
 
 } // namespace Daemon

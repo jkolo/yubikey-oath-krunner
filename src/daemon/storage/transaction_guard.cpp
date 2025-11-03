@@ -13,9 +13,8 @@ namespace Daemon {
 
 TransactionGuard::TransactionGuard(QSqlDatabase &db)
     : m_db(db)
+    , m_transactionStarted(m_db.transaction())
 {
-    m_transactionStarted = m_db.transaction();
-
     if (!m_transactionStarted) {
         qCWarning(YubiKeyDatabaseLog) << "TransactionGuard: Failed to start transaction:"
                                       << m_db.lastError().text();

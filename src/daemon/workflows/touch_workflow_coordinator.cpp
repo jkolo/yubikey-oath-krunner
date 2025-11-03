@@ -141,9 +141,9 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
             deviceName = dbRecord->deviceName;
         }
 
-        int const connectedDeviceCount = m_deviceManager->getConnectedDeviceIds().size();
+        const int connectedDeviceCount = static_cast<int>(m_deviceManager->getConnectedDeviceIds().size());
 
-        FormatOptions options(
+        const FormatOptions options(
             m_config->showUsername(),
             false, // Don't show code in title (code is shown in notification body)
             m_config->showDeviceName(),

@@ -46,14 +46,16 @@ namespace {
     constexpr int EVDEV_KEY_RIGHTALT = 100;  // AltGr on international keyboards
 
     /**
-     * @brief Helper macro to test if a bit is set in a bit array
+     * @brief Helper function to test if a bit is set in a bit array
      * @param bit Bit number to test
      * @param array Byte array containing bits
      * @return true if bit is set
      *
      * Similar to kernel test_bit() macro. Uses same formula as X11 XQueryKeymap.
      */
-    #define test_bit(bit, array) ((array)[(bit)/8] & (1<<((bit)%8)))
+    constexpr bool test_bit(int bit, const unsigned char *array) {
+        return (array[bit / 8] & (1 << (bit % 8))) != 0;
+    }
 
     /**
      * @brief RAII wrapper for keyboard device file descriptor
@@ -94,8 +96,10 @@ namespace {
     };
 
     // Cache of opened keyboard devices
-    static std::vector<KeyboardDevice> g_keyboards;
-    static bool g_evdev_initialized = false;
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+    std::vector<KeyboardDevice> g_keyboards;
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+    bool g_evdev_initialized = false;
 
     /**
      * @brief Checks if a device is a keyboard using ioctl EVIOCGBIT
@@ -109,8 +113,8 @@ namespace {
         }
 
         // Check if device supports EV_KEY event type
-        unsigned char evtype_bits[(EV_MAX + 7) / 8];
-        std::memset(evtype_bits, 0, sizeof(evtype_bits));
+        // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays,cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+        unsigned char evtype_bits[(EV_MAX + 7) / 8] = {};
 
         if (ioctl(fd, EVIOCGBIT(0, sizeof(evtype_bits)), evtype_bits) < 0) {
             return false;
@@ -121,8 +125,7 @@ namespace {
         }
 
         // Check if device has standard letter keys (keyboards have KEY_A)
-        unsigned char key_bits[(KEY_MAX + 7) / 8];
-        std::memset(key_bits, 0, sizeof(key_bits));
+        unsigned char key_bits[(KEY_MAX + 7) / 8] = {};
 
         if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(key_bits)), key_bits) < 0) {
             return false;
@@ -137,6 +140,7 @@ namespace {
         if (ioctl(fd, EVIOCGNAME(sizeof(name)), name) >= 0) {
             qCDebug(TextInputLog) << "Identified keyboard device:" << name;
         }
+        // NOLINTEND(cppcoreguidelines-avoid-c-arrays,cppcoreguidelines-pro-bounds-array-to-pointer-decay)
 
         return true;
     }
@@ -158,7 +162,7 @@ namespace {
             QString const device_path = QStringLiteral("/dev/input/event%1").arg(i);
 
             // Try to open device (non-blocking, read-only)
-            int fd = open(device_path.toUtf8().constData(), O_RDONLY | O_NONBLOCK);
+            int const fd = open(device_path.toUtf8().constData(), O_RDONLY | O_NONBLOCK);
             if (fd < 0) {
                 // Device doesn't exist or no permission - skip silently
                 continue;
@@ -213,8 +217,8 @@ namespace {
             }
 
             // Get current key state from kernel
-            unsigned char key_states[(KEY_MAX + 7) / 8];
-            std::memset(key_states, 0, sizeof(key_states));
+            // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays,cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+            unsigned char key_states[(KEY_MAX + 7) / 8] = {};
 
             if (ioctl(kbd.fd, EVIOCGKEY(sizeof(key_states)), key_states) < 0) {
                 continue;
@@ -224,6 +228,7 @@ namespace {
             if (test_bit(keycode, key_states)) {
                 return true;
             }
+            // NOLINTEND(cppcoreguidelines-avoid-c-arrays,cppcoreguidelines-pro-bounds-array-to-pointer-decay)
         }
 
         return false;
@@ -268,13 +273,13 @@ namespace {
      */
     bool isKeyPressedX11(KeySym keysym)
     {
-        Display *display = XOpenDisplay(nullptr);
+        Display *display = XOpenDisplay(nullptr);  // NOLINT(misc-const-correctness) - needs XCloseDisplay()
         if (!display) {
             return false;
         }
 
-        char keys[32];
-        XQueryKeymap(display, keys);
+        char keys[32];  // NOLINT(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays) - X11 API requirement
+        XQueryKeymap(display, keys);  // NOLINT(cppcoreguidelines-pro-bounds-array-to-pointer-decay) - X11 API requirement
 
         KeyCode const kc = XKeysymToKeycode(display, keysym);
         bool const pressed = !!(keys[kc >> 3] & (1 << (kc & 7)));
@@ -332,7 +337,7 @@ namespace {
         }
 
         // 2. Fallback to X11 if $DISPLAY is available
-        const char* display_env = std::getenv("DISPLAY");
+        const char * const display_env = std::getenv("DISPLAY");
         if (display_env != nullptr && display_env[0] != '\0') {
             qCDebug(TextInputLog) << "Using X11 XQueryKeymap for modifier detection (evdev unavailable)";
             return getCurrentModifiersX11();
@@ -343,7 +348,7 @@ namespace {
                               << "(evdev: no keyboards found or permission denied, X11: not available)";
         return Qt::NoModifier;
     }
-}
+}  // namespace
 
 bool ModifierKeyChecker::hasModifiersPressed()
 {

@@ -34,8 +34,8 @@ public:
      * @param deviceName Friendly device name
      * @param parent Parent widget (typically nullptr for top-level)
      */
-    explicit PasswordDialog(const QString &deviceId,
-                           const QString &deviceName,
+    explicit PasswordDialog(QString deviceId,
+                           QString deviceName,
                            QWidget *parent = nullptr);
 
     ~PasswordDialog() override = default;

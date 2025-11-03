@@ -75,19 +75,19 @@ LONG SCardConnectWithTimeout(SCARDCONTEXT context,
 } // anonymous namespace
 
 YubiKeyOathDevice::YubiKeyOathDevice(const QString &deviceId,
-                                     const QString &readerName,
+                                     QString readerName,
                                      SCARDHANDLE cardHandle,
                                      DWORD protocol,
-                                     const QByteArray &challenge,
+                                     QByteArray challenge,
                                      SCARDCONTEXT context,
                                      QObject *parent)
     : QObject(parent)
     , m_deviceId(deviceId)
-    , m_readerName(readerName)
+    , m_readerName(std::move(readerName))
     , m_cardHandle(cardHandle)
     , m_protocol(protocol)
     , m_context(context)
-    , m_challenge(challenge)
+    , m_challenge(std::move(challenge))
     , m_session(std::make_unique<OathSession>(cardHandle, protocol, deviceId, this))
 {
     qCDebug(YubiKeyOathDeviceLog) << "Created for device" << m_deviceId
@@ -171,7 +171,7 @@ Result<QString> YubiKeyOathDevice::generateCode(const QString& name)
     qCDebug(YubiKeyOathDeviceLog) << "generateCode() for" << name << "on device" << m_deviceId;
 
     // Serialize card access to prevent race conditions between threads
-    QMutexLocker locker(&m_cardMutex);
+    QMutexLocker locker(&m_cardMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
     // Find credential to get its period
     int period = 30; // Default period
@@ -214,7 +214,7 @@ Result<void> YubiKeyOathDevice::authenticateWithPassword(const QString& password
     qCDebug(YubiKeyOathDeviceLog) << "authenticateWithPassword() for device" << m_deviceId;
 
     // Serialize card access to prevent race conditions between threads
-    QMutexLocker locker(&m_cardMutex);
+    QMutexLocker locker(&m_cardMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
     auto result = m_session->authenticate(password, m_deviceId);
     if (result.isSuccess()) {
@@ -230,7 +230,7 @@ Result<void> YubiKeyOathDevice::addCredential(const OathCredentialData &data)
                                    << "credential:" << data.name;
 
     // Serialize card access to prevent race conditions between threads
-    QMutexLocker locker(&m_cardMutex);
+    QMutexLocker locker(&m_cardMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
     // If device requires password and we have one, authenticate first
     if (!m_password.isEmpty()) {
@@ -260,7 +260,7 @@ Result<void> YubiKeyOathDevice::deleteCredential(const QString &name)
                                    << "credential:" << name;
 
     // Serialize card access to prevent race conditions between threads
-    QMutexLocker locker(&m_cardMutex);
+    QMutexLocker locker(&m_cardMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
     // If device requires password and we have one, authenticate first
     if (!m_password.isEmpty()) {
@@ -289,7 +289,7 @@ Result<void> YubiKeyOathDevice::changePassword(const QString &oldPassword, const
     qCDebug(YubiKeyOathDeviceLog) << "changePassword() for device" << m_deviceId;
 
     // Serialize card access to prevent race conditions between threads
-    QMutexLocker locker(&m_cardMutex);
+    QMutexLocker locker(&m_cardMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
     // Change password via session (handles authentication internally)
     auto result = m_session->changePassword(oldPassword, newPassword, m_deviceId);
@@ -318,7 +318,7 @@ QList<OathCredential> YubiKeyOathDevice::fetchCredentialsSync(const QString& pas
     qCDebug(YubiKeyOathDeviceLog) << "fetchCredentialsSync() for device" << m_deviceId;
 
     // Serialize card access to prevent race conditions between threads
-    QMutexLocker locker(&m_cardMutex);
+    QMutexLocker locker(&m_cardMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
     // Use CALCULATE ALL to get credentials with codes
     auto result = m_session->calculateAll();
@@ -328,7 +328,7 @@ QList<OathCredential> YubiKeyOathDevice::fetchCredentialsSync(const QString& pas
         if (result.error() == tr("Password required")) {
             qCDebug(YubiKeyOathDeviceLog) << "Password required for CALCULATE ALL";
 
-            QString devicePassword = password.isEmpty() ? m_password : password;
+            const QString devicePassword = password.isEmpty() ? m_password : password;
             if (!devicePassword.isEmpty()) {
                 qCDebug(YubiKeyOathDeviceLog) << "Attempting authentication";
                 auto authResult = m_session->authenticate(devicePassword, m_deviceId);
@@ -343,23 +343,23 @@ QList<OathCredential> YubiKeyOathDevice::fetchCredentialsSync(const QString& pas
                     // BUG FIX #3: Check if retry succeeded before accessing value()
                     if (result.isError()) {
                         qCWarning(YubiKeyOathDeviceLog) << "CALCULATE ALL failed after authentication:" << result.error();
-                        return QList<OathCredential>();
+                        return {};
                     }
                 } else {
                     qCDebug(YubiKeyOathDeviceLog) << "Authentication failed:" << authResult.error();
-                    return QList<OathCredential>();
+                    return {};
                 }
             } else {
                 qCDebug(YubiKeyOathDeviceLog) << "No password available";
-                return QList<OathCredential>();
+                return {};
             }
         } else {
             qCDebug(YubiKeyOathDeviceLog) << "CALCULATE ALL failed:" << result.error();
-            return QList<OathCredential>();
+            return {};
         }
     }
 
-    QList<OathCredential> credentials = result.value();
+    const QList<OathCredential> credentials = result.value();
     qCDebug(YubiKeyOathDeviceLog) << "Fetched" << credentials.size() << "credentials";
 
     return credentials;
@@ -376,13 +376,13 @@ void YubiKeyOathDevice::updateCredentialCacheAsync(const QString& password)
 
     m_updateInProgress = true;
 
-    QString passwordToUse = password.isEmpty() ? m_password : password;
+    const QString passwordToUse = password.isEmpty() ? m_password : password;
 
     // Note: We don't store the QFuture because we communicate via signals/slots.
     // The m_updateInProgress flag tracks whether an update is running.
     [[maybe_unused]] auto future = QtConcurrent::run([this, passwordToUse]() {
         qCDebug(YubiKeyOathDeviceLog) << "Background thread started for credential fetch";
-        QList<OathCredential> credentials = this->fetchCredentialsSync(passwordToUse);
+        const QList<OathCredential> credentials = this->fetchCredentialsSync(passwordToUse);
 
         qCDebug(YubiKeyOathDeviceLog) << "Fetched" << credentials.size() << "credentials in background thread";
 
@@ -395,7 +395,7 @@ void YubiKeyOathDevice::cancelPendingOperation()
     qCDebug(YubiKeyOathDeviceLog) << "cancelPendingOperation() for device" << m_deviceId;
 
     // Serialize card access to prevent race conditions between threads
-    QMutexLocker locker(&m_cardMutex);
+    QMutexLocker locker(&m_cardMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
     m_session->cancelOperation();
 }
@@ -433,7 +433,7 @@ Result<void> YubiKeyOathDevice::reconnectCardHandle(const QString &readerName)
     }
 
     // 2. Exponential backoff reconnect attempts
-    static const int delays[] = {100, 200, 400, 800, 1600, 3000};
+    static constexpr int delays[] = {100, 200, 400, 800, 1600, 3000};  // NOLINT(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
     const int maxAttempts = 6;
 
     for (int attempt = 0; attempt < maxAttempts; attempt++) {
@@ -443,9 +443,9 @@ Result<void> YubiKeyOathDevice::reconnectCardHandle(const QString &readerName)
             QThread::msleep(delays[attempt - 1]);
         }
 
-        SCARDHANDLE newHandle;
-        DWORD activeProtocol;
-        LONG result = SCardConnectWithTimeout(m_context,
+        SCARDHANDLE newHandle = 0;
+        DWORD activeProtocol = 0;
+        const LONG result = SCardConnectWithTimeout(m_context,
                                               readerName.toUtf8().constData(),
                                               SCARD_SHARE_SHARED,
                                               SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1,

@@ -145,7 +145,7 @@ bool DBusNotificationManager::isAvailable() const {
     }
 
     // Check if the service is registered
-    QDBusConnectionInterface const* iface = QDBusConnection::sessionBus().interface();
+    QDBusConnectionInterface const * const iface = QDBusConnection::sessionBus().interface();
     return iface && iface->isServiceRegistered(NOTIFICATIONS_SERVICE);
 }
 

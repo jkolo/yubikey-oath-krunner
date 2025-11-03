@@ -103,7 +103,7 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
     if (showCode) {
         // Use formatWithCode() when showCode is enabled
         // This handles both touch-required (shows 👆) and regular credentials (shows code)
-        FormatOptions options = FormatOptionsBuilder()
+        const FormatOptions options = FormatOptionsBuilder()
             .withUsername(showUsername)
             .withCode(showCode)
             .withDevice(deviceName, showDeviceName)
@@ -117,7 +117,7 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
             options);
     } else {
         // Standard formatting without code
-        FormatOptions options = FormatOptionsBuilder()
+        const FormatOptions options = FormatOptionsBuilder()
             .withUsername(showUsername)
             .withCode(false) // showCode=false to prevent showing code from credential.code field
             .withDevice(deviceName, showDeviceName)
@@ -138,10 +138,10 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
     match.setId(QStringLiteral("yubikey_") + credentialProxy->name());
 
     // Convert to CredentialInfo for relevance calculation
-    CredentialInfo credentialInfo = credentialProxy->toCredentialInfo();
+    const CredentialInfo credentialInfo = credentialProxy->toCredentialInfo();
 
     // Calculate and set relevance
-    qreal relevance = calculateRelevance(credentialInfo, query);
+    const qreal relevance = calculateRelevance(credentialInfo, query);
     qCDebug(MatchBuilderLog) << "Match relevance:" << relevance;
 
     match.setRelevance(relevance);
@@ -170,8 +170,8 @@ KRunner::QueryMatch MatchBuilder::buildPasswordErrorMatch(const DeviceInfo &devi
         shortId += QStringLiteral("...");
     }
 
-    QString displayMessage = i18n("YubiKey password required: %1", device.deviceName);
-    QString subtext = i18n("Device: %1 - Click to enter password", shortId);
+    const QString displayMessage = i18n("YubiKey password required: %1", device.deviceName);
+    const QString subtext = i18n("Device: %1 - Click to enter password", shortId);
 
     match.setData(data);
     match.setText(displayMessage);
@@ -188,10 +188,10 @@ KRunner::QueryMatch MatchBuilder::buildPasswordErrorMatch(const DeviceInfo &devi
 
 qreal MatchBuilder::calculateRelevance(const CredentialInfo &credential, const QString &query) const
 {
-    QString name = credential.name.toLower();
-    QString issuer = credential.issuer.toLower();
-    QString account = credential.account.toLower();
-    QString lowerQuery = query.toLower();
+    const QString name = credential.name.toLower();
+    const QString issuer = credential.issuer.toLower();
+    const QString account = credential.account.toLower();
+    const QString lowerQuery = query.toLower();
 
     qCDebug(MatchBuilderLog) << "Calculating relevance - name:" << name
              << "issuer:" << issuer

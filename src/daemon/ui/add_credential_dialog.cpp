@@ -37,8 +37,6 @@ AddCredentialDialog::AddCredentialDialog(const OathCredentialData &initialData,
                                         const QString &preselectedDeviceId,
                                         QWidget *parent)
     : QDialog(parent)
-    , m_screenshotCapturer(nullptr)
-    , m_secretRevealed(false)
 {
     setWindowTitle(i18n("Add OATH Credential to YubiKey"));
 
@@ -120,9 +118,7 @@ void AddCredentialDialog::setupUi(const OathCredentialData &initialData,
     m_algorithmCombo->addItem(QStringLiteral("SHA1"), QVariant::fromValue(OathAlgorithm::SHA1));
     m_algorithmCombo->addItem(QStringLiteral("SHA256"), QVariant::fromValue(OathAlgorithm::SHA256));
     m_algorithmCombo->addItem(QStringLiteral("SHA512"), QVariant::fromValue(OathAlgorithm::SHA512));
-    int const algoIndex = initialData.algorithm == OathAlgorithm::SHA256 ? 1 :
-                   initialData.algorithm == OathAlgorithm::SHA512 ? 2 : 0;
-    m_algorithmCombo->setCurrentIndex(algoIndex);
+    m_algorithmCombo->setCurrentIndex(algorithmToComboIndex(initialData.algorithm));
     formLayout->addRow(i18n("Algorithm:"), m_algorithmCombo);
 
     // Digits spinbox
@@ -344,9 +340,7 @@ void AddCredentialDialog::fillFieldsFromQrData(const OathCredentialData &data)
     m_typeCombo->setCurrentIndex(data.type == OathType::TOTP ? 0 : 1);
 
     // Set algorithm
-    int const algoIndex = data.algorithm == OathAlgorithm::SHA256 ? 1 :
-                   data.algorithm == OathAlgorithm::SHA512 ? 2 : 0;
-    m_algorithmCombo->setCurrentIndex(algoIndex);
+    m_algorithmCombo->setCurrentIndex(algorithmToComboIndex(data.algorithm));
 
     // Set numeric fields
     m_digitsSpinBox->setValue(data.digits);
@@ -465,6 +459,17 @@ void AddCredentialDialog::showMessage(const QString &text, int messageType)
     m_messageWidget->setText(text);
     m_messageWidget->setMessageType(static_cast<KMessageWidget::MessageType>(messageType));
     m_messageWidget->animatedShow();
+}
+
+int AddCredentialDialog::algorithmToComboIndex(OathAlgorithm algorithm) const
+{
+    if (algorithm == OathAlgorithm::SHA256) {
+        return 1;
+    }
+    if (algorithm == OathAlgorithm::SHA512) {
+        return 2;
+    }
+    return 0; // SHA1 or default
 }
 
 } // namespace Daemon

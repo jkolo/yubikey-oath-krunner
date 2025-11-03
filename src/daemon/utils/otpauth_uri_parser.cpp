@@ -16,7 +16,7 @@ using namespace YubiKeyOath::Shared;
 Result<OathCredentialData> OtpauthUriParser::parse(const QString &uri)
 {
     // Parse URI
-    QUrl url(uri);
+    const QUrl url(uri);
 
     if (!url.isValid()) {
         return Result<OathCredentialData>::error(i18n("Invalid URI format"));
@@ -28,7 +28,7 @@ Result<OathCredentialData> OtpauthUriParser::parse(const QString &uri)
     }
 
     // Parse type (host in URL)
-    QString type = url.host().toLower();
+    const QString type = url.host().toLower();
     if (type != QStringLiteral("totp") && type != QStringLiteral("hotp")) {
         return Result<OathCredentialData>::error(i18n("Type must be 'totp' or 'hotp'"));
     }
@@ -47,10 +47,10 @@ Result<OathCredentialData> OtpauthUriParser::parse(const QString &uri)
     }
 
     // Parse query parameters
-    QUrlQuery query(url);
+    const QUrlQuery query(url);
 
     // Extract secret (required)
-    QString secret = query.queryItemValue(QStringLiteral("secret"));
+    const QString secret = query.queryItemValue(QStringLiteral("secret"));
     if (secret.isEmpty()) {
         return Result<OathCredentialData>::error(i18n("Secret parameter is required"));
     }
@@ -62,7 +62,7 @@ Result<OathCredentialData> OtpauthUriParser::parse(const QString &uri)
 
     // Parse label into issuer and account
     // Format: "issuer:account" or just "account"
-    int colonPos = label.indexOf(QLatin1Char(':'));
+    const int colonPos = static_cast<int>(label.indexOf(QLatin1Char(':')));
     if (colonPos >= 0) {
         data.issuer = label.left(colonPos);
         data.account = label.mid(colonPos + 1);
@@ -73,7 +73,7 @@ Result<OathCredentialData> OtpauthUriParser::parse(const QString &uri)
 
     // Override issuer if explicitly provided in query
     if (query.hasQueryItem(QStringLiteral("issuer"))) {
-        QString issuerParam = query.queryItemValue(QStringLiteral("issuer"));
+        const QString issuerParam = query.queryItemValue(QStringLiteral("issuer"));
         if (!issuerParam.isEmpty()) {
             data.issuer = issuerParam;
         }
@@ -85,7 +85,7 @@ Result<OathCredentialData> OtpauthUriParser::parse(const QString &uri)
 
     // Parse algorithm (optional, default SHA1)
     if (query.hasQueryItem(QStringLiteral("algorithm"))) {
-        QString algo = query.queryItemValue(QStringLiteral("algorithm")).toUpper();
+        const QString algo = query.queryItemValue(QStringLiteral("algorithm")).toUpper();
         if (algo == QStringLiteral("SHA1")) {
             data.algorithm = OathAlgorithm::SHA1;
         } else if (algo == QStringLiteral("SHA256")) {
@@ -102,8 +102,8 @@ Result<OathCredentialData> OtpauthUriParser::parse(const QString &uri)
 
     // Parse digits (optional, default 6)
     if (query.hasQueryItem(QStringLiteral("digits"))) {
-        bool ok;
-        int digits = query.queryItemValue(QStringLiteral("digits")).toInt(&ok);
+        bool ok = false;
+        const int digits = query.queryItemValue(QStringLiteral("digits")).toInt(&ok);
         if (!ok || digits < 6 || digits > 8) {
             return Result<OathCredentialData>::error(
                 i18n("Invalid digits (must be 6, 7, or 8)"));
@@ -116,8 +116,8 @@ Result<OathCredentialData> OtpauthUriParser::parse(const QString &uri)
     // Parse period for TOTP (optional, default 30)
     if (data.type == OathType::TOTP) {
         if (query.hasQueryItem(QStringLiteral("period"))) {
-            bool ok;
-            int period = query.queryItemValue(QStringLiteral("period")).toInt(&ok);
+            bool ok = false;
+            const int period = query.queryItemValue(QStringLiteral("period")).toInt(&ok);
             if (!ok || period <= 0) {
                 return Result<OathCredentialData>::error(
                     i18n("Invalid period (must be positive integer)"));
@@ -134,8 +134,8 @@ Result<OathCredentialData> OtpauthUriParser::parse(const QString &uri)
             return Result<OathCredentialData>::error(
                 i18n("Counter parameter is required for HOTP"));
         }
-        bool ok;
-        quint32 counter = query.queryItemValue(QStringLiteral("counter")).toUInt(&ok);
+        bool ok = false;
+        const quint32 counter = query.queryItemValue(QStringLiteral("counter")).toUInt(&ok);
         if (!ok) {
             return Result<OathCredentialData>::error(
                 i18n("Invalid counter value"));
@@ -144,7 +144,7 @@ Result<OathCredentialData> OtpauthUriParser::parse(const QString &uri)
     }
 
     // Validate final data
-    QString validationError = data.validate();
+    const QString validationError = data.validate();
     if (!validationError.isEmpty()) {
         return Result<OathCredentialData>::error(validationError);
     }

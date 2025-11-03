@@ -32,12 +32,8 @@ YubiKeyCredentialProxy::YubiKeyCredentialProxy(const QString &objectPath,
                                                QObject *parent)
     : QObject(parent)
     , m_objectPath(objectPath)
-    , m_interface(nullptr)
-    , m_requiresTouch(false)
     , m_digits(6)
     , m_period(30)
-    , m_cachedCode()
-    , m_cachedValidUntil(0)
 {
     // Register D-Bus types
     registerDBusTypes();
@@ -78,17 +74,17 @@ GenerateCodeResult YubiKeyCredentialProxy::generateCode()
 {
     if (!m_interface || !m_interface->isValid()) {
         qCWarning(YubiKeyCredentialProxyLog) << "Cannot generate code: D-Bus interface invalid";
-        return GenerateCodeResult{QString(), 0};
+        return GenerateCodeResult{.code = QString(), .validUntil = 0};
     }
 
     // PERFORMANCE: Check cache before calling D-Bus
     // This eliminates N separate D-Bus calls when building KRunner matches
-    qint64 currentTime = QDateTime::currentSecsSinceEpoch();
+    qint64 const currentTime = QDateTime::currentSecsSinceEpoch();
 
     if (!m_cachedCode.isEmpty() && m_cachedValidUntil > currentTime) {
         qCDebug(YubiKeyCredentialProxyLog) << "Returning cached code for" << m_name
                                            << "Valid for" << (m_cachedValidUntil - currentTime) << "more seconds";
-        return GenerateCodeResult{m_cachedCode, m_cachedValidUntil};
+        return GenerateCodeResult{.code = m_cachedCode, .validUntil = m_cachedValidUntil};
     }
 
     // Cache miss or expired - call D-Bus
@@ -101,9 +97,9 @@ GenerateCodeResult YubiKeyCredentialProxy::generateCode()
         // Don't clear cache on error - return old cached code if available
         if (!m_cachedCode.isEmpty()) {
             qCWarning(YubiKeyCredentialProxyLog) << "Returning stale cached code due to D-Bus error";
-            return GenerateCodeResult{m_cachedCode, m_cachedValidUntil};
+            return GenerateCodeResult{.code = m_cachedCode, .validUntil = m_cachedValidUntil};
         }
-        return GenerateCodeResult{QString(), 0};
+        return GenerateCodeResult{.code = QString(), .validUntil = 0};
     }
 
     auto result = reply.value();
@@ -132,7 +128,7 @@ bool YubiKeyCredentialProxy::copyToClipboard()
         return false;
     }
 
-    bool success = reply.value();
+    bool const success = reply.value();
     qCDebug(YubiKeyCredentialProxyLog) << "CopyToClipboard for" << m_name
                                        << "Result:" << success;
     return success;
@@ -153,7 +149,7 @@ bool YubiKeyCredentialProxy::typeCode(bool fallbackToCopy)
         return false;
     }
 
-    bool success = reply.value();
+    bool const success = reply.value();
     qCDebug(YubiKeyCredentialProxyLog) << "TypeCode for" << m_name
                                        << "Result:" << success
                                        << "Fallback to copy:" << fallbackToCopy;

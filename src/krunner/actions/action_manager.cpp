@@ -17,7 +17,7 @@ QString ActionManager::determineAction(const KRunner::QueryMatch &match,
                                       const QString &primaryAction) const
 {
     // Get selected action from KRunner (set when user clicks action button)
-    KRunner::Action selectedAction = match.selectedAction();
+    const KRunner::Action selectedAction = match.selectedAction();
     QString selectedActionId = selectedAction.id();
 
     qCDebug(ActionExecutorLog) << "=========== ActionManager::determineAction() START ===========";

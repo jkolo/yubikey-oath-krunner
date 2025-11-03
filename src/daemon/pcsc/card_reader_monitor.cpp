@@ -49,7 +49,7 @@ void CardReaderMonitor::startMonitoring(SCARDCONTEXT context)
 {
     qCDebug(CardReaderMonitorLog) << "startMonitoring() called";
 
-    QMutexLocker locker(&m_mutex);
+    QMutexLocker locker(&m_mutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
     if (m_running) {
         qCDebug(CardReaderMonitorLog) << "Already running";
@@ -125,7 +125,7 @@ bool CardReaderMonitor::monitorReaderChanges()
 
     // Wait for reader change with 1 second timeout
     // (short timeout so we can check m_running frequently)
-    LONG result = SCardGetStatusChange(m_context, 1000, &readerState, 1);
+    const LONG result = SCardGetStatusChange(m_context, 1000, &readerState, 1);
 
     if (result == SCARD_E_TIMEOUT) {
         // Timeout is normal - no changes detected
@@ -162,8 +162,8 @@ bool CardReaderMonitor::monitorCardChanges()
         return false;
     }
 
-    QMutexLocker locker(&m_mutex);
-    QString readerName = m_readerName;
+    QMutexLocker locker(&m_mutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
+    const QString readerName = m_readerName;
     locker.unlock();
 
     if (readerName.isEmpty()) {
@@ -173,7 +173,7 @@ bool CardReaderMonitor::monitorCardChanges()
     SCARD_READERSTATE readerState;
     memset(&readerState, 0, sizeof(readerState));
 
-    QByteArray readerNameBytes = readerName.toUtf8();
+    const QByteArray readerNameBytes = readerName.toUtf8();
     readerState.szReader = readerNameBytes.constData();
     readerState.dwCurrentState = m_lastReaderState;
 
@@ -181,7 +181,7 @@ bool CardReaderMonitor::monitorCardChanges()
              << "last state:" << QString::number(m_lastReaderState, 16);
 
     // Wait for card change with 1 second timeout
-    LONG result = SCardGetStatusChange(m_context, 1000, &readerState, 1);
+    const LONG result = SCardGetStatusChange(m_context, 1000, &readerState, 1);
 
     if (result == SCARD_E_TIMEOUT) {
         // Timeout is normal - no changes detected
@@ -201,8 +201,8 @@ bool CardReaderMonitor::monitorCardChanges()
     }
 
     // Check if state changed
-    DWORD eventState = readerState.dwEventState;
-    DWORD currentState = m_lastReaderState;
+    const DWORD eventState = readerState.dwEventState;
+    const DWORD currentState = m_lastReaderState;
 
     qCDebug(CardReaderMonitorLog) << "State event - current:" << QString::number(currentState, 16)
              << "event:" << QString::number(eventState, 16)
@@ -289,7 +289,7 @@ bool CardReaderMonitor::monitorAllReadersForCardChanges()
     QStringList currentReaders;
     const char *ptr = readersBuffer.data();
     while (*ptr) {
-        QString readerName = QString::fromUtf8(ptr);
+        const QString readerName = QString::fromUtf8(ptr);
         currentReaders.append(readerName);
         ptr += strlen(ptr) + 1;
     }
@@ -353,9 +353,9 @@ bool CardReaderMonitor::monitorAllReadersForCardChanges()
     // Process state changes for each reader
     for (size_t i = 0; i < readerStates.size(); i++) {
         const SCARD_READERSTATE &state = readerStates[i];
-        QString readerName = currentReaders[i];
-        DWORD eventState = state.dwEventState;
-        DWORD currentState = state.dwCurrentState;
+        const QString &readerName = currentReaders[static_cast<qsizetype>(i)];
+        const DWORD eventState = state.dwEventState;
+        const DWORD currentState = state.dwCurrentState;
 
         // Check if state changed
         if (!(eventState & SCARD_STATE_CHANGED)) {

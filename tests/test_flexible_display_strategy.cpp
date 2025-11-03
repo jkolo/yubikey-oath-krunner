@@ -4,6 +4,7 @@
  */
 
 #include <QtTest>
+#include <QTest>
 #include "formatting/credential_formatter.h"
 #include "types/oath_credential.h"
 

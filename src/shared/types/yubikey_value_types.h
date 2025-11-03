@@ -3,9 +3,11 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#pragma once
+#ifndef YUBIKEY_VALUE_TYPES_H
+#define YUBIKEY_VALUE_TYPES_H
 
 #include <QString>
+#include <utility>
 #include <QMetaType>
 #include <QDBusArgument>
 
@@ -18,9 +20,9 @@ namespace Shared {
 struct DeviceInfo {
     QString deviceId;           ///< Unique device identifier (hex string)
     QString deviceName;         ///< Friendly name
-    bool isConnected;           ///< Currently connected via PC/SC
-    bool requiresPassword;      ///< Device requires password for OATH access
-    bool hasValidPassword;      ///< We have a valid password stored
+    bool isConnected{false};    ///< Currently connected via PC/SC
+    bool requiresPassword{false}; ///< Device requires password for OATH access
+    bool hasValidPassword{false}; ///< We have a valid password stored
 };
 
 /**
@@ -30,8 +32,8 @@ struct CredentialInfo {
     QString name;               ///< Full credential name (issuer:account or just account)
     QString issuer;             ///< Issuer (extracted from name)
     QString account;            ///< Account/username (extracted from name)
-    bool requiresTouch;         ///< Requires physical touch to generate code
-    qint64 validUntil;          ///< Unix timestamp when code expires (0 if touch required)
+    bool requiresTouch{false};  ///< Requires physical touch to generate code
+    qint64 validUntil{0};       ///< Unix timestamp when code expires (0 if touch required)
     QString deviceId;           ///< Device ID identifying which YubiKey has this credential
 };
 
@@ -40,7 +42,7 @@ struct CredentialInfo {
  */
 struct GenerateCodeResult {
     QString code;               ///< Generated code (6-8 digits)
-    qint64 validUntil;          ///< Unix timestamp when code expires
+    qint64 validUntil{0};       ///< Unix timestamp when code expires
 };
 
 /**
@@ -51,8 +53,8 @@ struct AddCredentialResult {
     QString message;            ///< Success/error message or empty string
 
     AddCredentialResult() = default;
-    AddCredentialResult(const QString &s, const QString &m = QString())
-        : status(s), message(m) {}
+    AddCredentialResult(QString s, QString m = QString())
+        : status(std::move(s)), message(std::move(m)) {}
 };
 
 } // namespace Shared
@@ -76,3 +78,5 @@ const QDBusArgument &operator>>(const QDBusArgument &arg, YubiKeyOath::Shared::G
 
 QDBusArgument &operator<<(QDBusArgument &arg, const YubiKeyOath::Shared::AddCredentialResult &result);
 const QDBusArgument &operator>>(const QDBusArgument &arg, YubiKeyOath::Shared::AddCredentialResult &result);
+
+#endif // YUBIKEY_VALUE_TYPES_H

@@ -24,7 +24,7 @@ using namespace YubiKeyOath::Shared;
 
 OathSession::OathSession(SCARDHANDLE cardHandle,
                          DWORD protocol,
-                         const QString &deviceId,
+                         const QString &deviceId, // NOLINT(modernize-pass-by-value) - const ref for consistency
                          QObject *parent)
     : QObject(parent)
     , m_cardHandle(cardHandle)
@@ -52,22 +52,22 @@ QByteArray OathSession::sendApdu(const QByteArray &command, int retryCount)
 
     if (m_cardHandle == 0) {
         qCDebug(YubiKeyOathDeviceLog) << "Device" << m_deviceId << "not connected (invalid handle)";
-        return QByteArray();
+        return {};
     }
 
     SCARD_IO_REQUEST pioSendPci;
     pioSendPci.dwProtocol = m_protocol;
     pioSendPci.cbPciLength = sizeof(SCARD_IO_REQUEST);
 
-    BYTE response[4096];
+    BYTE response[4096]; // NOLINT(cppcoreguidelines-avoid-c-arrays) - PC/SC API requirement
     DWORD responseLen = sizeof(response);
 
     qCDebug(YubiKeyOathDeviceLog) << "Transmitting APDU, protocol:" << m_protocol
              << "command length:" << command.length();
 
     LONG result = SCardTransmit(m_cardHandle, &pioSendPci,
-                               (BYTE*)command.constData(), command.length(),
-                               nullptr, response, &responseLen);
+                               reinterpret_cast<const BYTE*>(command.constData()), command.length(),
+                               nullptr, static_cast<BYTE*>(response), &responseLen); // NOLINT(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
 
     qCDebug(YubiKeyOathDeviceLog) << "SCardTransmit result:" << result
              << "response length:" << responseLen;
@@ -88,13 +88,13 @@ QByteArray OathSession::sendApdu(const QByteArray &command, int retryCount)
             bool reconnectSuccess = false;
 
             // Connect to signals from upper layer (YubiKeyOathDevice)
-            QMetaObject::Connection connReady = connect(this, &OathSession::reconnectReady, &loop, [&]() {
+            const QMetaObject::Connection connReady = connect(this, &OathSession::reconnectReady, &loop, [&]() {
                 qCInfo(YubiKeyOathDeviceLog) << "Received reconnectReady signal";
                 reconnectSuccess = true;
                 loop.quit();
             });
 
-            QMetaObject::Connection connFailed = connect(this, &OathSession::reconnectFailed, &loop, [&]() {
+            const QMetaObject::Connection connFailed = connect(this, &OathSession::reconnectFailed, &loop, [&]() {
                 qCWarning(YubiKeyOathDeviceLog) << "Received reconnectFailed signal";
                 reconnectSuccess = false;
                 loop.quit();
@@ -121,7 +121,7 @@ QByteArray OathSession::sendApdu(const QByteArray &command, int retryCount)
             } else {
                 qCWarning(YubiKeyOathDeviceLog) << "Reconnect failed or timeout, cannot retry APDU";
                 Q_EMIT errorOccurred(tr("Card reset and reconnect failed"));
-                return QByteArray();
+                return {};
             }
         }
 
@@ -135,10 +135,10 @@ QByteArray OathSession::sendApdu(const QByteArray &command, int retryCount)
         }
 
         Q_EMIT errorOccurred(tr("Failed to send APDU: 0x%1").arg(result, 0, 16));
-        return QByteArray();
+        return {};
     }
 
-    QByteArray responseData((char*)response, responseLen);
+    const QByteArray responseData(reinterpret_cast<const char*>(response), static_cast<qsizetype>(responseLen));
     qCDebug(YubiKeyOathDeviceLog) << "APDU response:" << responseData.toHex();
 
     // Handle chained responses (0x61XX = more data available)
@@ -146,11 +146,11 @@ QByteArray OathSession::sendApdu(const QByteArray &command, int retryCount)
     QByteArray fullData;
 
     while (responseLen >= 2) {
-        quint8 sw1 = response[responseLen - 2];
-        quint8 sw2 = response[responseLen - 1];
+        const quint8 sw1 = response[responseLen - 2];
+        const quint8 sw2 = response[responseLen - 1];
 
         // Accumulate data (without status word)
-        fullData.append((char*)response, responseLen - 2);
+        fullData.append(reinterpret_cast<const char*>(response), static_cast<qsizetype>(responseLen - 2));
 
         // Check if more data is available
         if (sw1 == 0x61) {
@@ -158,14 +158,14 @@ QByteArray OathSession::sendApdu(const QByteArray &command, int retryCount)
                      << "), sending SEND REMAINING";
 
             // Use OATH-specific SEND REMAINING (0xA5)
-            QByteArray sendRemCmd = OathProtocol::createSendRemainingCommand();
+            const QByteArray sendRemCmd = OathProtocol::createSendRemainingCommand();
 
             qCDebug(YubiKeyOathDeviceLog) << "Sending SEND REMAINING:" << sendRemCmd.toHex();
 
             responseLen = sizeof(response);
             result = SCardTransmit(m_cardHandle, &pioSendPci,
-                                 (BYTE*)sendRemCmd.constData(), sendRemCmd.length(),
-                                 nullptr, response, &responseLen);
+                                 reinterpret_cast<const BYTE*>(sendRemCmd.constData()), sendRemCmd.length(),
+                                 nullptr, static_cast<BYTE*>(response), &responseLen); // NOLINT(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
 
             if (result != SCARD_S_SUCCESS) {
                 qCDebug(YubiKeyOathDeviceLog) << "SEND REMAINING failed:" << QString::number(result, 16);
@@ -176,7 +176,7 @@ QByteArray OathSession::sendApdu(const QByteArray &command, int retryCount)
 
             // Log the response hex for debugging
             if (responseLen > 0) {
-                QByteArray sendRemData((char*)response, responseLen);
+                const QByteArray sendRemData(reinterpret_cast<const char*>(response), static_cast<qsizetype>(responseLen));
                 qCDebug(YubiKeyOathDeviceLog) << "SEND REMAINING data:" << sendRemData.toHex();
             }
         } else {
@@ -199,8 +199,8 @@ Result<void> OathSession::selectOathApplication(QByteArray &outChallenge)
 {
     qCDebug(YubiKeyOathDeviceLog) << "selectOathApplication() for device" << m_deviceId;
 
-    QByteArray command = OathProtocol::createSelectCommand();
-    QByteArray response = sendApdu(command);
+    const QByteArray command = OathProtocol::createSelectCommand();
+    const QByteArray response = sendApdu(command);
 
     if (response.isEmpty()) {
         qCDebug(YubiKeyOathDeviceLog) << "Empty response from SELECT";
@@ -244,10 +244,10 @@ Result<QString> OathSession::calculateCode(const QString &name, int period)
     // Retry loop for session loss recovery
     for (int attempt = 0; attempt < 2; ++attempt) {
         // Create challenge from current time with specified period
-        QByteArray challenge = OathProtocol::createTotpChallenge(period);
+        const QByteArray challenge = OathProtocol::createTotpChallenge(period);
 
-        QByteArray command = OathProtocol::createCalculateCommand(name, challenge);
-        QByteArray response = sendApdu(command);
+        const QByteArray command = OathProtocol::createCalculateCommand(name, challenge);
+        const QByteArray response = sendApdu(command);
 
         if (response.isEmpty()) {
             qCDebug(YubiKeyOathDeviceLog) << "Empty response from CALCULATE";
@@ -255,7 +255,7 @@ Result<QString> OathSession::calculateCode(const QString &name, int period)
         }
 
         // Check status word
-        quint16 sw = OathProtocol::getStatusWord(response);
+        const quint16 sw = OathProtocol::getStatusWord(response);
 
         // Check for session loss (applet not selected) - retry once
         if (sw == OathProtocol::SW_INS_NOT_SUPPORTED || sw == OathProtocol::SW_CLA_NOT_SUPPORTED) {
@@ -289,7 +289,7 @@ Result<QString> OathSession::calculateCode(const QString &name, int period)
         }
 
         // Parse code
-        QString code = OathProtocol::parseCode(response);
+        const QString code = OathProtocol::parseCode(response);
         if (code.isEmpty()) {
             return Result<QString>::error(tr("Failed to parse TOTP code from response"));
         }
@@ -315,10 +315,10 @@ Result<QList<OathCredential>> OathSession::calculateAll()
     // Retry loop for session loss recovery
     for (int attempt = 0; attempt < 2; ++attempt) {
         // Create challenge from current time
-        QByteArray challenge = OathProtocol::createTotpChallenge();
+        const QByteArray challenge = OathProtocol::createTotpChallenge();
 
-        QByteArray command = OathProtocol::createCalculateAllCommand(challenge);
-        QByteArray response = sendApdu(command);
+        const QByteArray command = OathProtocol::createCalculateAllCommand(challenge);
+        const QByteArray response = sendApdu(command);
 
         if (response.isEmpty()) {
             qCDebug(YubiKeyOathDeviceLog) << "Empty response from CALCULATE ALL";
@@ -326,7 +326,7 @@ Result<QList<OathCredential>> OathSession::calculateAll()
         }
 
         // Check status word
-        quint16 sw = OathProtocol::getStatusWord(response);
+        const quint16 sw = OathProtocol::getStatusWord(response);
 
         // Check for session loss (applet not selected) - retry once
         if (sw == OathProtocol::SW_INS_NOT_SUPPORTED || sw == OathProtocol::SW_CLA_NOT_SUPPORTED) {
@@ -391,8 +391,8 @@ Result<void> OathSession::authenticate(const QString &password, const QString &d
     qCDebug(YubiKeyOathDeviceLog) << "Fresh challenge from SELECT:" << freshChallenge.toHex();
 
     // STEP 2: Derive key from password using PBKDF2
-    QByteArray salt = QByteArray::fromHex(deviceId.toLatin1());
-    QByteArray key = deriveKeyPbkdf2(
+    const QByteArray salt = QByteArray::fromHex(deviceId.toLatin1());
+    const QByteArray key = deriveKeyPbkdf2(
         password.toUtf8(),
         salt,
         1000, // iterations
@@ -403,7 +403,7 @@ Result<void> OathSession::authenticate(const QString &password, const QString &d
              << "key:" << key.toHex();
 
     // STEP 3: Calculate HMAC-SHA1 response using fresh challenge
-    QByteArray hmacResponse = QMessageAuthenticationCode::hash(
+    const QByteArray hmacResponse = QMessageAuthenticationCode::hash(
         freshChallenge,
         key,
         QCryptographicHash::Sha1
@@ -419,8 +419,8 @@ Result<void> OathSession::authenticate(const QString &password, const QString &d
     }
     qCDebug(YubiKeyOathDeviceLog) << "Generated our challenge for VALIDATE:" << ourChallenge.toHex();
 
-    QByteArray command = OathProtocol::createValidateCommand(hmacResponse, ourChallenge);
-    QByteArray response = sendApdu(command);
+    const QByteArray command = OathProtocol::createValidateCommand(hmacResponse, ourChallenge);
+    const QByteArray response = sendApdu(command);
 
     if (response.isEmpty()) {
         qCDebug(YubiKeyOathDeviceLog) << "Empty response from VALIDATE";
@@ -428,7 +428,7 @@ Result<void> OathSession::authenticate(const QString &password, const QString &d
     }
 
     // STEP 5: Check status word
-    quint16 sw = OathProtocol::getStatusWord(response);
+    const quint16 sw = OathProtocol::getStatusWord(response);
 
     qCDebug(YubiKeyOathDeviceLog) << "VALIDATE status word:" << QString::number(sw, 16);
 
@@ -436,7 +436,7 @@ Result<void> OathSession::authenticate(const QString &password, const QString &d
         qCDebug(YubiKeyOathDeviceLog) << "Authentication successful";
 
         // STEP 6: Verify YubiKey's response (optional but recommended)
-        QByteArray responseTag = OathProtocol::findTlvTag(
+        const QByteArray responseTag = OathProtocol::findTlvTag(
             response.left(response.length() - 2),
             OathProtocol::TAG_RESPONSE
         );
@@ -444,7 +444,7 @@ Result<void> OathSession::authenticate(const QString &password, const QString &d
         if (!responseTag.isEmpty()) {
             qCDebug(YubiKeyOathDeviceLog) << "YubiKey response to our challenge:" << responseTag.toHex();
 
-            QByteArray expectedResponse = QMessageAuthenticationCode::hash(
+            const QByteArray expectedResponse = QMessageAuthenticationCode::hash(
                 ourChallenge,
                 key,
                 QCryptographicHash::Sha1
@@ -474,14 +474,14 @@ Result<void> OathSession::putCredential(const OathCredentialData &data)
                                    << "credential:" << data.name;
 
     // Validate credential data
-    QString validationError = data.validate();
+    const QString validationError = data.validate();
     if (!validationError.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Invalid credential data:" << validationError;
         return Result<void>::error(validationError);
     }
 
     // Create PUT command
-    QByteArray command = OathProtocol::createPutCommand(data);
+    const QByteArray command = OathProtocol::createPutCommand(data);
     if (command.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Failed to create PUT command";
         return Result<void>::error(tr("Failed to encode credential data"));
@@ -490,7 +490,7 @@ Result<void> OathSession::putCredential(const OathCredentialData &data)
     qCDebug(YubiKeyOathDeviceLog) << "Sending PUT command, length:" << command.length();
 
     // Send command
-    QByteArray response = sendApdu(command);
+    const QByteArray response = sendApdu(command);
 
     if (response.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Empty response from PUT command";
@@ -498,7 +498,7 @@ Result<void> OathSession::putCredential(const OathCredentialData &data)
     }
 
     // Check status word
-    quint16 sw = OathProtocol::getStatusWord(response);
+    const quint16 sw = OathProtocol::getStatusWord(response);
     qCDebug(YubiKeyOathDeviceLog) << "PUT status word:" << QString::number(sw, 16);
 
     if (sw == OathProtocol::SW_SUCCESS) {
@@ -539,7 +539,7 @@ Result<void> OathSession::deleteCredential(const QString &name)
     }
 
     // Create DELETE command
-    QByteArray command = OathProtocol::createDeleteCommand(name);
+    const QByteArray command = OathProtocol::createDeleteCommand(name);
     if (command.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Failed to create DELETE command";
         return Result<void>::error(tr("Failed to encode credential name"));
@@ -548,7 +548,7 @@ Result<void> OathSession::deleteCredential(const QString &name)
     qCDebug(YubiKeyOathDeviceLog) << "Sending DELETE command, length:" << command.length();
 
     // Send command
-    QByteArray response = sendApdu(command);
+    const QByteArray response = sendApdu(command);
 
     if (response.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Empty response from DELETE command";
@@ -556,7 +556,7 @@ Result<void> OathSession::deleteCredential(const QString &name)
     }
 
     // Check status word
-    quint16 sw = OathProtocol::getStatusWord(response);
+    const quint16 sw = OathProtocol::getStatusWord(response);
     qCDebug(YubiKeyOathDeviceLog) << "DELETE status word:" << QString::number(sw, 16);
 
     if (sw == OathProtocol::SW_SUCCESS) {
@@ -638,7 +638,7 @@ Result<void> OathSession::setPassword(const QString &newPassword, const QString 
     qCDebug(YubiKeyOathDeviceLog) << "Generated challenge and response for SET_CODE";
 
     // Create SET_CODE command
-    QByteArray command = OathProtocol::createSetCodeCommand(key, challenge, response);
+    const QByteArray command = OathProtocol::createSetCodeCommand(key, challenge, response);
     if (command.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Failed to create SET_CODE command";
         return Result<void>::error(tr("Failed to create SET_CODE command"));
@@ -647,7 +647,7 @@ Result<void> OathSession::setPassword(const QString &newPassword, const QString 
     qCDebug(YubiKeyOathDeviceLog) << "Sending SET_CODE command, length:" << command.length();
 
     // Send command
-    QByteArray apduResponse = sendApdu(command);
+    const QByteArray apduResponse = sendApdu(command);
 
     if (apduResponse.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Empty response from SET_CODE command";
@@ -695,12 +695,12 @@ Result<void> OathSession::removePassword()
     // Create SET_CODE command with length 0 (removes password)
     // Note: This command relies on the existing authenticated session from earlier VALIDATE
     // Do NOT call SELECT here as it would reset the authentication session
-    QByteArray command = OathProtocol::createRemoveCodeCommand();
+    const QByteArray command = OathProtocol::createRemoveCodeCommand();
 
     qCDebug(YubiKeyOathDeviceLog) << "Sending REMOVE_CODE command (SET_CODE with Lc=0)";
 
     // Send command
-    QByteArray response = sendApdu(command);
+    const QByteArray response = sendApdu(command);
 
     if (response.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Empty response from REMOVE_CODE command";
@@ -760,7 +760,7 @@ void OathSession::cancelOperation()
     qCDebug(YubiKeyOathDeviceLog) << "cancelOperation() for device" << m_deviceId;
 
     // Send SELECT command to reset device state
-    QByteArray command = OathProtocol::createSelectCommand();
+    const QByteArray command = OathProtocol::createSelectCommand();
     sendApdu(command);
 
     // PERFORMANCE: Don't reset m_sessionActive - SELECT was just executed
@@ -797,7 +797,7 @@ bool OathSession::reconnectCard()
     // Use SCardReconnect to refresh the connection after card reset
     // SCARD_LEAVE_CARD means don't do anything to the card on reconnect
     DWORD activeProtocol = 0;
-    LONG result = SCardReconnect(
+    const LONG result = SCardReconnect(
         m_cardHandle,
         SCARD_SHARE_SHARED,     // Same share mode as original connect
         SCARD_PROTOCOL_T1,      // Same protocol as original connect
@@ -851,7 +851,7 @@ QByteArray OathSession::deriveKeyPbkdf2(const QByteArray &password,
                                        int keyLength)
 {
     QByteArray derivedKey;
-    int blockCount = (keyLength + 19) / 20; // SHA1 produces 20 bytes per block
+    const int blockCount = (keyLength + 19) / 20; // SHA1 produces 20 bytes per block
 
     for (int block = 1; block <= blockCount; ++block) {
         // Create block salt: salt || INT(block)
@@ -871,7 +871,7 @@ QByteArray OathSession::deriveKeyPbkdf2(const QByteArray &password,
 
             // XOR with result
             for (int j = 0; j < U.length(); ++j) {
-                result[j] = result[j] ^ U[j];
+                result[j] = static_cast<char>(result[j] ^ U[j]);
             }
         }
 

@@ -22,7 +22,7 @@ KRunnerConfiguration::KRunnerConfiguration(QObject *parent)
     , m_fileWatcher(new QFileSystemWatcher(this))
 {
     // Get config file path
-    QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
+    const QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
                         + QStringLiteral("/yubikey-oathrc");
 
     qDebug() << "KRunnerConfiguration: Watching config file:" << configPath;

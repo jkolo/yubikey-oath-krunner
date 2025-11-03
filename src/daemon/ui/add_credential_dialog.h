@@ -95,31 +95,32 @@ private:
     void showProcessingOverlay(const QString &message);
     void hideProcessingOverlay();
     void updateOverlayStatus(const QString &message);
+    int algorithmToComboIndex(Shared::OathAlgorithm algorithm) const;
 
     // UI elements
-    QLineEdit *m_issuerField;
-    QLineEdit *m_accountField;
-    QLineEdit *m_secretField;
-    QComboBox *m_typeCombo;
-    QComboBox *m_algorithmCombo;
-    QSpinBox *m_digitsSpinBox;
-    QSpinBox *m_periodSpinBox;
-    QSpinBox *m_counterSpinBox;
-    QCheckBox *m_touchCheckBox;
-    QComboBox *m_deviceCombo;
-    QPushButton *m_revealSecretButton;
-    QPushButton *m_scanQrButton;
-    QLabel *m_errorLabel;
-    QPushButton *m_okButton;
-    KMessageWidget *m_messageWidget;
+    QLineEdit *m_issuerField = nullptr;
+    QLineEdit *m_accountField = nullptr;
+    QLineEdit *m_secretField = nullptr;
+    QComboBox *m_typeCombo = nullptr;
+    QComboBox *m_algorithmCombo = nullptr;
+    QSpinBox *m_digitsSpinBox = nullptr;
+    QSpinBox *m_periodSpinBox = nullptr;
+    QSpinBox *m_counterSpinBox = nullptr;
+    QCheckBox *m_touchCheckBox = nullptr;
+    QComboBox *m_deviceCombo = nullptr;
+    QPushButton *m_revealSecretButton = nullptr;
+    QPushButton *m_scanQrButton = nullptr;
+    QLabel *m_errorLabel = nullptr;
+    QPushButton *m_okButton = nullptr;
+    KMessageWidget *m_messageWidget = nullptr;
 
     // Processing overlay
-    ProcessingOverlay *m_processingOverlay;
+    ProcessingOverlay *m_processingOverlay = nullptr;
 
     // Screenshot capturer (UI thread)
-    class ScreenshotCapturer *m_screenshotCapturer;
+    class ScreenshotCapturer *m_screenshotCapturer = nullptr;
 
-    bool m_secretRevealed;
+    bool m_secretRevealed = false;
 };
 
 } // namespace Daemon

@@ -22,6 +22,7 @@
 #include <fcntl.h>
 #include <cstring>
 #include <utility>  // std::exchange
+#include <array>
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -77,14 +78,12 @@ ScreenshotCapturer::ScreenshotCapturer(QObject *parent)
 {
 }
 
-ScreenshotCapturer::~ScreenshotCapturer()
-{
-}
+ScreenshotCapturer::~ScreenshotCapturer() = default;
 
 ScreenshotCapturer::PipeReadResult ScreenshotCapturer::readPipeData(int fd, int timeout) noexcept
 {
     QByteArray imageData;
-    char buffer[PIPE_BUFFER_SIZE];
+    std::array<char, PIPE_BUFFER_SIZE> buffer{};
 
     QElapsedTimer timer;
     timer.start();
@@ -94,15 +93,15 @@ ScreenshotCapturer::PipeReadResult ScreenshotCapturer::readPipeData(int fd, int 
         FD_ZERO(&readfds);
         FD_SET(fd, &readfds);
 
-        struct timeval tv;
+        struct timeval tv{};
         tv.tv_sec = SELECT_TIMEOUT_SEC;
         tv.tv_usec = 0;
 
-        int selectResult = select(fd + 1, &readfds, nullptr, nullptr, &tv);
+        const int selectResult = select(fd + 1, &readfds, nullptr, nullptr, &tv);
 
         if (selectResult < 0) {
             qWarning() << "ScreenshotCapture: select() failed:" << strerror(errno);
-            return {false, QByteArray()};
+            return {.success = false, .data = QByteArray()};
         }
 
         if (selectResult == 0) {
@@ -114,7 +113,7 @@ ScreenshotCapturer::PipeReadResult ScreenshotCapturer::readPipeData(int fd, int 
             continue;
         }
 
-        ssize_t bytesRead = read(fd, buffer, PIPE_BUFFER_SIZE);
+        const ssize_t bytesRead = read(fd, buffer.data(), PIPE_BUFFER_SIZE);
 
         if (bytesRead < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -122,7 +121,7 @@ ScreenshotCapturer::PipeReadResult ScreenshotCapturer::readPipeData(int fd, int 
                 continue;
             }
             qWarning() << "ScreenshotCapture: read() failed:" << strerror(errno);
-            return {false, QByteArray()};
+            return {.success = false, .data = QByteArray()};
         }
 
         if (bytesRead == 0) {
@@ -131,16 +130,16 @@ ScreenshotCapturer::PipeReadResult ScreenshotCapturer::readPipeData(int fd, int 
             break;
         }
 
-        imageData.append(buffer, bytesRead);
+        imageData.append(buffer.data(), bytesRead);
     }
 
     if (imageData.isEmpty()) {
         qWarning() << "ScreenshotCapture: No data received from pipe (timeout or empty)";
-        return {false, QByteArray()};
+        return {.success = false, .data = QByteArray()};
     }
 
     qDebug() << "ScreenshotCapture: Received" << imageData.size() << "bytes";
-    return {true, imageData};
+    return {.success = true, .data = imageData};
 }
 
 QImage ScreenshotCapturer::imageFromData(const QByteArray& data,
@@ -154,7 +153,7 @@ QImage ScreenshotCapturer::imageFromData(const QByteArray& data,
         qWarning() << "ScreenshotCapture: Data size mismatch";
         qWarning() << "  Expected:" << expectedSize << "bytes (" << width << "x" << height << "x 4)";
         qWarning() << "  Received:" << data.size() << "bytes";
-        return QImage();
+        return {};
     }
 
     // Static map for format conversion
@@ -165,7 +164,7 @@ QImage ScreenshotCapturer::imageFromData(const QByteArray& data,
         {QStringLiteral("RGBA8888"), QImage::Format_RGBA8888}
     };
 
-    QImage::Format imageFormat = formatMap.value(format, QImage::Format_ARGB32);
+    const QImage::Format imageFormat = formatMap.value(format, QImage::Format_ARGB32);
 
     if (!formatMap.contains(format)) {
         qDebug() << "ScreenshotCapture: Unknown format" << format << ", assuming ARGB32";
@@ -175,7 +174,7 @@ QImage ScreenshotCapturer::imageFromData(const QByteArray& data,
 
     if (image.isNull()) {
         qWarning() << "ScreenshotCapture: Failed to create QImage with dimensions" << width << "x" << height;
-        return QImage();
+        return {};
     }
 
     // Copy pixel data to QImage
@@ -208,8 +207,9 @@ void ScreenshotCapturer::performCapture(int timeout)
     }
 
     // 2. Create Unix pipe for data transfer with RAII
-    int pipeFds[2];
-    if (pipe2(pipeFds, O_CLOEXEC | O_NONBLOCK) != 0) {
+    std::array<int, 2> pipeFds{};
+    // NOLINT(cppcoreguidelines-pro-bounds-array-to-pointer-decay) - POSIX pipe2() API requirement
+    if (pipe2(pipeFds.data(), O_CLOEXEC | O_NONBLOCK) != 0) {
         qWarning() << "ScreenshotCapture: Failed to create pipe:" << strerror(errno);
         Q_EMIT cancelled();
         return;
@@ -221,7 +221,7 @@ void ScreenshotCapturer::performCapture(int timeout)
     qDebug() << "ScreenshotCapture: Created pipe [read:" << readFd.get() << ", write:" << writeFd.get() << "]";
 
     // 3. Create D-Bus file descriptor (write end)
-    QDBusUnixFileDescriptor dbusWriteFd(writeFd.get());
+    const QDBusUnixFileDescriptor dbusWriteFd(writeFd.get());
     if (!dbusWriteFd.isValid()) {
         qWarning() << "ScreenshotCapture: Failed to create valid D-Bus file descriptor";
         Q_EMIT cancelled();
@@ -248,7 +248,7 @@ void ScreenshotCapturer::performCapture(int timeout)
 
     // 6. Check for D-Bus errors
     if (!reply.isValid()) {
-        const QDBusError error = reply.error();
+        const QDBusError& error = reply.error();
         qWarning() << "ScreenshotCapture: KWin CaptureWorkspace failed:"
                    << error.name() << error.message();
         Q_EMIT cancelled();
@@ -279,10 +279,10 @@ void ScreenshotCapturer::performCapture(int timeout)
     const int fd = readFd.release();
 
     // Simplified lambda using extracted methods
-    QFuture<QPair<bool, QImage>> future = QtConcurrent::run(
+    const QFuture<QPair<bool, QImage>> future = QtConcurrent::run(
         [fd, width, height, format, timeout]() -> QPair<bool, QImage>
     {
-        ScopedFileDescriptor scopedFd(fd);  // RAII ensures cleanup
+        const ScopedFileDescriptor scopedFd(fd);  // RAII ensures cleanup
 
         qDebug() << "ScreenshotCapture: Background thread reading from pipe...";
 
@@ -293,7 +293,7 @@ void ScreenshotCapturer::performCapture(int timeout)
         }
 
         // Create QImage from pixel data
-        QImage image = imageFromData(data, width, height, format);
+        const QImage image = imageFromData(data, width, height, format);
 
         return qMakePair(!image.isNull(), image);
         // scopedFd automatically closes FD on scope exit
@@ -304,7 +304,7 @@ void ScreenshotCapturer::performCapture(int timeout)
     auto *watcher = new QFutureWatcher<QPair<bool, QImage>>();
 
     // Use QPointer for safe access to 'this'
-    QPointer<ScreenshotCapturer> self(this);
+    const QPointer<ScreenshotCapturer> self(this);
 
     connect(watcher, &QFutureWatcher<QPair<bool, QImage>>::finished,
             this, [self, watcher]()

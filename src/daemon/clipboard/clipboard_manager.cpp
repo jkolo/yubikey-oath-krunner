@@ -37,7 +37,7 @@ bool ClipboardManager::copyToClipboard(const QString &text, int clearAfterSecond
 
     // Create MIME data with security hint for KDE Plasma's Klipper
     // This prevents the password/OTP from being stored in clipboard history
-    QMimeData *mimeData = new QMimeData();
+    auto *mimeData = new QMimeData();
     mimeData->setText(text);
 
     // Add x-kde-passwordManagerHint to mark this as sensitive data
@@ -49,8 +49,8 @@ bool ClipboardManager::copyToClipboard(const QString &text, int clearAfterSecond
     m_lastCopiedText = text;
 
     // Verify clipboard content was actually set
-    const QMimeData *clipboardMime = m_clipboard->mimeData(QClipboard::Clipboard);
-    QString clipboardContent = clipboardMime ? clipboardMime->text() : QString();
+    const QMimeData * const clipboardMime = m_clipboard->mimeData(QClipboard::Clipboard);
+    const QString clipboardContent = clipboardMime ? clipboardMime->text() : QString();
     if (clipboardContent == text) {
         qCDebug(YubiKeyDaemonLog) << "ClipboardManager: Text copied successfully with KSystemClipboard - VERIFIED in clipboard";
     } else {
@@ -78,7 +78,7 @@ void ClipboardManager::clearClipboard()
     }
 
     // Only clear if clipboard still contains our text
-    QString currentContent = m_clipboard->text(QClipboard::Clipboard);
+    const QString currentContent = m_clipboard->text(QClipboard::Clipboard);
     qCDebug(YubiKeyDaemonLog) << "ClipboardManager: clearClipboard() - current content:" << currentContent;
     qCDebug(YubiKeyDaemonLog) << "ClipboardManager: clearClipboard() - our last text:" << m_lastCopiedText;
     qCDebug(YubiKeyDaemonLog) << "ClipboardManager: clearClipboard() - match:" << (currentContent == m_lastCopiedText);

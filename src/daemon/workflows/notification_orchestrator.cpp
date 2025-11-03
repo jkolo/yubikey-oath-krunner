@@ -159,7 +159,7 @@ void NotificationOrchestrator::showSimpleNotification(const QString &title, cons
 
     // Use DBusNotificationManager directly (like other notifications)
     // type: 0 = info, 1 = warning/error
-    uint urgency = (type == 1) ? 2 : 1; // 1 = normal, 2 = critical
+    const uint urgency = (type == 1) ? 2 : 1; // 1 = normal, 2 = critical
     QVariantMap hints;
     hints[QStringLiteral("urgency")] = urgency;
 
@@ -187,12 +187,12 @@ uint NotificationOrchestrator::showPersistentNotification(const QString &title, 
     qCDebug(NotificationOrchestratorLog) << "Showing persistent notification:" << title << "-" << message << "type:" << type;
 
     // type: 0 = info, 1 = warning/error
-    uint urgency = (type == 1) ? 2 : 1; // 1 = normal, 2 = critical
+    const uint urgency = (type == 1) ? 2 : 1; // 1 = normal, 2 = critical
     QVariantMap hints;
     hints[QStringLiteral("urgency")] = urgency;
 
     // Show notification with NO timeout - must be closed manually
-    uint notificationId = m_notificationManager->showNotification(
+    const uint notificationId = m_notificationManager->showNotification(
         QStringLiteral("YubiKey OATH"),
         0, // replaces_id - don't replace anything
         QStringLiteral(":/icons/yubikey.svg"),

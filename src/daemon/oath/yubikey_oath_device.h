@@ -54,10 +54,10 @@ public:
      * @param parent Parent QObject
      */
     explicit YubiKeyOathDevice(const QString &deviceId,
-                               const QString &readerName,
+                               QString readerName,
                                SCARDHANDLE cardHandle,
                                DWORD protocol,
-                               const QByteArray &challenge,
+                               QByteArray challenge,
                                SCARDCONTEXT context,
                                QObject *parent = nullptr);
 

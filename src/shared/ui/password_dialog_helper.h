@@ -38,7 +38,7 @@ void showDialog(
     const QString &deviceName,
     YubiKeyManagerProxy *manager,
     QObject *parent,
-    std::function<void()> onPasswordSuccess
+    const std::function<void()> &onPasswordSuccess
 );
 
 } // namespace PasswordDialogHelper

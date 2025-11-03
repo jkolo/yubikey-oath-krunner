@@ -128,7 +128,7 @@ bool YubiKeyDeviceProxy::savePassword(const QString &password)
         return false;
     }
 
-    bool success = reply.value();
+    bool const success = reply.value();
     qCDebug(YubiKeyDeviceProxyLog) << "SavePassword for" << m_name << "Result:" << success;
     return success;
 }
@@ -157,7 +157,7 @@ bool YubiKeyDeviceProxy::changePassword(const QString &oldPassword, const QStrin
         return false;
     }
 
-    bool success = reply.value();
+    bool const success = reply.value();
     qCDebug(YubiKeyDeviceProxyLog) << "ChangePassword for" << m_name << "Result:" << success;
 
     if (!success) {
@@ -265,7 +265,7 @@ DeviceInfo YubiKeyDeviceProxy::toDeviceInfo() const
 
 void YubiKeyDeviceProxy::onCredentialAddedSignal(const QDBusObjectPath &credentialPath)
 {
-    QString path = credentialPath.path();
+    QString const path = credentialPath.path();
     qCDebug(YubiKeyDeviceProxyLog) << "CredentialAdded signal received for" << path;
 
     // Fetch credential properties via D-Bus Properties interface
@@ -290,7 +290,7 @@ void YubiKeyDeviceProxy::onCredentialAddedSignal(const QDBusObjectPath &credenti
 
 void YubiKeyDeviceProxy::onCredentialRemovedSignal(const QDBusObjectPath &credentialPath)
 {
-    QString path = credentialPath.path();
+    QString const path = credentialPath.path();
     qCDebug(YubiKeyDeviceProxyLog) << "CredentialRemoved signal received for" << path;
     removeCredentialProxy(path);
 }
@@ -332,7 +332,7 @@ void YubiKeyDeviceProxy::addCredentialProxy(const QString &objectPath,
                                            const QVariantMap &properties)
 {
     // Extract credential name from properties
-    QString credentialName = properties.value(QStringLiteral("Name")).toString();
+    QString const credentialName = properties.value(QStringLiteral("Name")).toString();
 
     if (credentialName.isEmpty()) {
         qCWarning(YubiKeyDeviceProxyLog) << "Cannot add credential proxy: name is empty";

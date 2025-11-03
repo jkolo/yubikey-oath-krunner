@@ -27,6 +27,7 @@ using namespace YubiKeyOath::Shared;
 
 YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
     : KCModule(qobject_cast<QWidget *>(parent))
+    , m_ui(new YubiKeyConfigForm(widget()))
     , m_manager(YubiKeyManagerProxy::instance(this))
 {
     // Set translation domain for i18n
@@ -35,8 +36,6 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
     // Initialize Qt resources (QML files, icons)
     qInitResources_shared();
     qInitResources_config();
-
-    m_ui = new YubiKeyConfigForm(widget());
     auto *layout = new QGridLayout(widget());
     layout->addWidget(m_ui, 0, 0);
 
@@ -72,7 +71,7 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
         qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: deviceModel exposed to QML";
 
         // Load QML file
-        QUrl qmlUrl(QStringLiteral("qrc:/qml/config/YubiKeyConfig.qml"));
+        const QUrl qmlUrl(QStringLiteral("qrc:/qml/config/YubiKeyConfig.qml"));
         qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: Loading QML from:" << qmlUrl;
         m_ui->qmlWidget->setSource(qmlUrl);
 
@@ -143,8 +142,8 @@ void YubiKeyConfig::load()
     m_ui->showDeviceNameCheckbox->setChecked(m_config.readEntry("ShowDeviceName", false));
     m_ui->showDeviceNameOnlyWhenMultipleCheckbox->setChecked(m_config.readEntry("ShowDeviceNameOnlyWhenMultiple", true));
 
-    QString primaryAction = m_config.readEntry("PrimaryAction", "copy");
-    int primaryIndex = m_ui->primaryActionCombo->findData(primaryAction);
+    const QString primaryAction = m_config.readEntry("PrimaryAction", "copy");
+    const int primaryIndex = m_ui->primaryActionCombo->findData(primaryAction);
     if (primaryIndex >= 0) {
         m_ui->primaryActionCombo->setCurrentIndex(primaryIndex);
     }
@@ -170,7 +169,7 @@ void YubiKeyConfig::save()
     m_config.writeEntry("ShowDeviceName", m_ui->showDeviceNameCheckbox->isChecked());
     m_config.writeEntry("ShowDeviceNameOnlyWhenMultiple", m_ui->showDeviceNameOnlyWhenMultipleCheckbox->isChecked());
 
-    QString primaryAction = m_ui->primaryActionCombo->itemData(m_ui->primaryActionCombo->currentIndex()).toString();
+    const QString primaryAction = m_ui->primaryActionCombo->itemData(m_ui->primaryActionCombo->currentIndex()).toString();
     qCDebug(YubiKeyConfigLog) << "Saving PrimaryAction:" << primaryAction;
     m_config.writeEntry("PrimaryAction", primaryAction);
 

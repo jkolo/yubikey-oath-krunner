@@ -124,11 +124,11 @@ bool PortalTextInput::createSession()
     }
 
     // Prepare flags for RemoteDesktop session (keyboard only)
-    XdpDeviceType devices = XDP_DEVICE_KEYBOARD;
-    XdpOutputType outputs = XDP_OUTPUT_NONE;  // No screen sharing needed
-    XdpRemoteDesktopFlags flags = XDP_REMOTE_DESKTOP_FLAG_NONE;
-    XdpCursorMode cursor_mode = XDP_CURSOR_MODE_HIDDEN;  // Hide cursor (not needed for keyboard)
-    XdpPersistMode persist_mode = XDP_PERSIST_MODE_PERSISTENT;  // Save permission permanently
+    const XdpDeviceType devices = XDP_DEVICE_KEYBOARD;
+    const XdpOutputType outputs = XDP_OUTPUT_NONE;  // No screen sharing needed
+    const XdpRemoteDesktopFlags flags = XDP_REMOTE_DESKTOP_FLAG_NONE;
+    const XdpCursorMode cursor_mode = XDP_CURSOR_MODE_HIDDEN;  // Hide cursor (not needed for keyboard)
+    const XdpPersistMode persist_mode = XDP_PERSIST_MODE_PERSISTENT;  // Save permission permanently
 
     // Set up async callback variables
     bool sessionCreated = false;
@@ -141,7 +141,7 @@ bool PortalTextInput::createSession()
         auto &[success, error, eventLoop] = *data;
 
         GError *g_error = nullptr;
-        XdpSession *session = xdp_portal_create_remote_desktop_session_finish(
+        XdpSession *session = xdp_portal_create_remote_desktop_session_finish(  // NOLINT(misc-const-correctness) - ownership transfer
             XDP_PORTAL(source_object), result, &g_error);
 
         if (session) {
@@ -180,8 +180,8 @@ bool PortalTextInput::createSession()
     }
 
     // Prepare restore token (convert QString to const char*)
-    QByteArray tokenBytes = restoreToken.toUtf8();
-    const char* restore_token = restoreToken.isEmpty() ? nullptr : tokenBytes.constData();
+    const QByteArray tokenBytes = restoreToken.toUtf8();
+    const char * const restore_token = restoreToken.isEmpty() ? nullptr : tokenBytes.constData();
 
     if (restore_token) {
         qCDebug(TextInputLog) << "PortalTextInput: Using restore token to skip permission dialog";
@@ -238,7 +238,7 @@ bool PortalTextInput::createSession()
         auto &[success, error, eventLoop] = *data;
 
         GError *g_error = nullptr;
-        gboolean started = xdp_session_start_finish(XDP_SESSION(source_object), result, &g_error);
+        const gboolean started = xdp_session_start_finish(XDP_SESSION(source_object), result, &g_error);
 
         if (started) {
             qCDebug(TextInputLog) << "PortalTextInput: Session started successfully";
@@ -286,9 +286,9 @@ bool PortalTextInput::createSession()
     }
 
     // Get restore token for future sessions (to skip permission dialog)
-    char *token = xdp_session_get_restore_token(m_session);
+    char *token = xdp_session_get_restore_token(m_session);  // NOLINT(misc-const-correctness) - needs g_free()
     if (token) {
-        QString newToken = QString::fromUtf8(token);
+        const QString newToken = QString::fromUtf8(token);
         g_free(token);  // Free GLib-allocated string
 
         // Save to KWallet for persistence across daemon restarts
@@ -327,7 +327,7 @@ bool PortalTextInput::sendKeycode(uint32_t keycode, bool pressed)
     // - keysym: FALSE = evdev keycode (not X11 keysym)
     // - key: evdev keycode value
     // - state: XDP_KEY_PRESSED (1) or XDP_KEY_RELEASED (0)
-    XdpKeyState state = pressed ? XDP_KEY_PRESSED : XDP_KEY_RELEASED;
+    const XdpKeyState state = pressed ? XDP_KEY_PRESSED : XDP_KEY_RELEASED;
 
     xdp_session_keyboard_key(m_session, FALSE, static_cast<int>(keycode), state);
 

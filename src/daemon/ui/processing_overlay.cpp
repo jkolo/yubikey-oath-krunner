@@ -18,12 +18,11 @@ namespace Daemon {
 
 ProcessingOverlay::ProcessingOverlay(QWidget *parent)
     : QWidget(parent)
-    , m_animationDots(0)
+    , m_animationTimer(new QTimer(this))
 {
     setupUi();
 
-    // Create and configure animation timer
-    m_animationTimer = new QTimer(this);
+    // Configure animation timer
     m_animationTimer->setInterval(500); // 500ms per dot
     connect(m_animationTimer, &QTimer::timeout, this, &ProcessingOverlay::onAnimationTick);
 

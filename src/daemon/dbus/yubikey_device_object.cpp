@@ -13,6 +13,7 @@
 #include <QDBusMessage>
 #include <QCryptographicHash>
 #include <QUrl>
+#include <utility>
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -21,13 +22,13 @@ static constexpr const char *DEVICE_INTERFACE = "pl.jkolo.yubikey.oath.Device";
 
 YubiKeyDeviceObject::YubiKeyDeviceObject(const QString &deviceId,
                                          YubiKeyService *service,
-                                         const QDBusConnection &connection,
+                                         QDBusConnection connection,
                                          bool isConnected,
                                          QObject *parent)
     : QObject(parent)
     , m_deviceId(deviceId)
     , m_service(service)
-    , m_connection(connection)
+    , m_connection(std::move(connection))
     , m_objectPath(QString::fromLatin1("/pl/jkolo/yubikey/oath/devices/%1").arg(deviceId))
     , m_registered(false)
     , m_isConnected(isConnected)
@@ -205,12 +206,12 @@ bool YubiKeyDeviceObject::ChangePassword(const QString &oldPassword, const QStri
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: ChangePassword for device:" << m_deviceId;
 
-    bool success = m_service->changePassword(m_deviceId, oldPassword, newPassword);
+    const bool success = m_service->changePassword(m_deviceId, oldPassword, newPassword);
 
     if (success) {
         // Update properties based on whether password was set or removed
-        bool requiresPassword = !newPassword.isEmpty();
-        bool hasValidPassword = !newPassword.isEmpty();
+        const bool requiresPassword = !newPassword.isEmpty();
+        const bool hasValidPassword = !newPassword.isEmpty();
 
         if (m_requiresPassword != requiresPassword) {
             m_requiresPassword = requiresPassword;
@@ -258,14 +259,14 @@ Shared::AddCredentialResult YubiKeyDeviceObject::AddCredential(const QString &na
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: AddCredential for device:" << m_deviceId
                               << "name:" << name;
 
-    const auto result = m_service->addCredential(m_deviceId, name, secret, type, algorithm,
-                                                 digits, period, counter, requireTouch);
+    auto result = m_service->addCredential(m_deviceId, name, secret, type, algorithm,
+                                           digits, period, counter, requireTouch);
 
     // If success, result.message contains credential name - build path
     if (result.status == QLatin1String("Success")) {
         const QString credId = encodeCredentialId(result.message);
         const QString path = credentialPath(credId);
-        return Shared::AddCredentialResult(QLatin1String("Success"), path);
+        return {QLatin1String("Success"), path};
     }
 
     return result;
@@ -321,7 +322,7 @@ void YubiKeyDeviceObject::removeCredential(const QString &credentialId)
         return;
     }
 
-    YubiKeyCredentialObject *credObj = m_credentials.value(credentialId);
+    YubiKeyCredentialObject *const credObj = m_credentials.value(credentialId);
     const QString path = credObj->objectPath();
 
     // Unregister and delete
@@ -543,7 +544,7 @@ void YubiKeyDeviceObject::emitPropertyChanged(const QString &propertyName, const
     QVariantMap changedProperties;
     changedProperties.insert(propertyName, value);
 
-    QStringList invalidatedProperties; // Empty - we provide values directly
+    const QStringList invalidatedProperties; // Empty - we provide values directly
 
     signal << QStringLiteral("pl.jkolo.yubikey.oath.Device")
            << changedProperties

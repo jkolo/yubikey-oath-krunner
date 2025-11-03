@@ -16,4 +16,5 @@ namespace Shared {
 } // namespace YubiKeyOath
 
 // Include moc-generated code
+// NOLINTNEXTLINE(bugprone-suspicious-include) - Qt moc pattern
 #include "moc_credential_update_notifier.cpp"

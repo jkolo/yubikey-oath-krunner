@@ -76,10 +76,10 @@ public:
      * @endcode
      */
     static WaitResult waitFor(
-        std::function<bool()> condition,
+        const std::function<bool()> &condition,
         int timeoutMs,
         int progressIntervalMs = 500,
-        std::function<void(int)> onProgress = nullptr
+        const std::function<void(int)> &onProgress = nullptr
     );
 };
 

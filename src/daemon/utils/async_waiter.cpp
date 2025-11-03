@@ -10,12 +10,12 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 AsyncWaiter::WaitResult AsyncWaiter::waitFor(
-    std::function<bool()> condition,
+    const std::function<bool()> &condition,
     int timeoutMs,
     int progressIntervalMs,
-    std::function<void(int)> onProgress)
+    const std::function<void(int)> &onProgress)
 {
-    WaitResult result;
+    WaitResult result{};
     result.success = false;
     result.elapsedMs = 0;
     result.timedOut = false;

@@ -54,13 +54,13 @@ ActionExecutor::ActionResult ActionExecutor::executeTypeAction(const QString &co
     }
 
     // Check for pressed modifier keys and wait for release
-    ActionResult modifierCheck = checkAndWaitForModifiers(credentialName);
+    const ActionResult modifierCheck = checkAndWaitForModifiers(credentialName);
     if (modifierCheck != ActionResult::Success) {
         qCWarning(ActionExecutorLog) << "Type action cancelled due to modifier keys for:" << credentialName;
         return modifierCheck;
     }
 
-    bool success = m_textInput->typeText(code);
+    const bool success = m_textInput->typeText(code);
 
     if (success) {
         qCDebug(ActionExecutorLog) << "Code typed successfully for:" << credentialName;
@@ -122,7 +122,7 @@ ActionExecutor::ActionResult ActionExecutor::executeCopyAction(const QString &co
     }
 
     // Calculate code expiration time for clipboard auto-clear
-    int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config);
+    const int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config);
 
     // Copy to clipboard with auto-clear timeout
     if (!m_clipboardManager->copyToClipboard(code, totalSeconds)) {
@@ -149,7 +149,7 @@ ActionExecutor::ActionResult ActionExecutor::checkAndWaitForModifiers(const QStr
     }
 
     // Get list of pressed modifiers for notifications
-    QStringList pressedModifiers = ModifierKeyChecker::getPressedModifiers();
+    const QStringList pressedModifiers = ModifierKeyChecker::getPressedModifiers();
     qCDebug(ActionExecutorLog) << "Modifier keys detected:" << pressedModifiers
                                << "- waiting for release";
 
@@ -176,7 +176,7 @@ ActionExecutor::ActionResult ActionExecutor::checkAndWaitForModifiers(const QStr
 
     // Wait for release with notification countdown
     constexpr int RELEASE_WAIT_MS = RELEASE_WAIT_SECONDS * 1000;
-    bool released = ModifierKeyChecker::waitForModifierRelease(RELEASE_WAIT_MS, POLL_INTERVAL_MS);
+    const bool released = ModifierKeyChecker::waitForModifierRelease(RELEASE_WAIT_MS, POLL_INTERVAL_MS);
 
     // Close notification
     if (m_notificationOrchestrator) {

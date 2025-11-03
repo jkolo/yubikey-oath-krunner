@@ -256,9 +256,9 @@ Result<QString> ReconnectWorkflowCoordinator::generateCodeWithNotifications(
 QString ReconnectWorkflowCoordinator::formatCredentialTitle(const OathCredential &credential)
 {
     QString const deviceName = getDeviceName(m_pendingDeviceId);
-    int const connectedDeviceCount = m_notifier->getConnectedDeviceIds().size();
+    const int connectedDeviceCount = static_cast<int>(m_notifier->getConnectedDeviceIds().size());
 
-    FormatOptions options = FormatOptionsBuilder()
+    const FormatOptions options = FormatOptionsBuilder()
         .withUsername(m_config->showUsername())
         .withCode(false) // Don't show code in title
         .withDevice(deviceName, m_config->showDeviceName())

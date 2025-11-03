@@ -31,7 +31,7 @@ NotificationHelper::TimerProgress NotificationHelper::calculateTimerProgress(
     const QDateTime &expirationTime,
     int totalSeconds)
 {
-    TimerProgress progress;
+    TimerProgress progress{};
 
     qint64 const now = QDateTime::currentSecsSinceEpoch();
     qint64 const expiration = expirationTime.toSecsSinceEpoch();

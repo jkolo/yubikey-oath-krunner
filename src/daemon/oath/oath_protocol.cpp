@@ -56,7 +56,7 @@ QByteArray OathProtocol::createCalculateCommand(const QString &name, const QByte
 
     // Data length: tag + length_byte + data for both NAME and CHALLENGE
     QByteArray const nameBytes = name.toUtf8();
-    int const dataLen = 1 + 1 + nameBytes.length() + 1 + 1 + challenge.length();
+    int const dataLen = static_cast<int>(1 + 1 + nameBytes.length() + 1 + 1 + challenge.length());
     command.append(static_cast<char>(dataLen)); // Lc
 
     // NAME tag + length + data
@@ -102,7 +102,7 @@ QByteArray OathProtocol::createValidateCommand(const QByteArray &response, const
     command.append((char)0x00);                       // P2
 
     // Data = RESPONSE tag + length + response + CHALLENGE tag + length + challenge
-    int const dataLen = 1 + 1 + response.length() + 1 + 1 + challenge.length();
+    int const dataLen = static_cast<int>(1 + 1 + response.length() + 1 + 1 + challenge.length());
     command.append(static_cast<char>(dataLen)); // Lc
 
     // RESPONSE tag
@@ -615,30 +615,18 @@ bool OathProtocol::parseSetCodeResponse(const QByteArray &response,
     quint16 const sw = getStatusWord(response);
 
     // Extract response data (excluding status word)
-    QByteArray data = response.left(response.length() - 2);
+    QByteArray const data = response.left(response.length() - 2);
 
     // Try to extract verification response (TAG_RESPONSE 0x75)
     outVerificationResponse = findTlvTag(data, TAG_RESPONSE);
 
     // Check for success
-    if (sw == SW_SUCCESS) {
-        return true;
-    }
-
-    // Log specific errors
-    switch (sw) {
-    case 0x6984:
-        // Response verification failed - wrong old password
-        return false;
-    case SW_SECURITY_STATUS_NOT_SATISFIED: // 0x6982
-        // Authentication required
-        return false;
-    case SW_WRONG_DATA: // 0x6a80
-        // Incorrect syntax
-        return false;
-    default:
-        return false;
-    }
+    // All other status codes indicate failure:
+    // - 0x6984: Response verification failed (wrong old password)
+    // - 0x6982 (SW_SECURITY_STATUS_NOT_SATISFIED): Authentication required
+    // - 0x6a80 (SW_WRONG_DATA): Incorrect syntax
+    // - Other: Unspecified error
+    return sw == SW_SUCCESS;
 }
 
 // =============================================================================
@@ -744,7 +732,7 @@ QByteArray OathProtocol::decodeBase32(const QString &base32)
     QString const cleaned = base32.toUpper().remove(QLatin1Char('='));
 
     // Base32 alphabet: A-Z (0-25), 2-7 (26-31)
-    static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    static constexpr QLatin1String alphabet("ABCDEFGHIJKLMNOPQRSTUVWXYZ234567");
 
     QByteArray result;
     quint64 buffer = 0;
@@ -752,14 +740,12 @@ QByteArray OathProtocol::decodeBase32(const QString &base32)
 
     for (const QChar &ch : cleaned) {
         // Find character position in alphabet
-        const char *pos = strchr(alphabet, ch.toLatin1());
-        if (!pos) {
+        int const value = static_cast<int>(QString(alphabet).indexOf(ch));
+        if (value < 0) {
             // Invalid character
             qWarning() << "Invalid Base32 character:" << ch;
             return {};
         }
-
-        int const value = pos - alphabet;
 
         // Accumulate bits
         buffer = (buffer << 5) | value;
@@ -797,7 +783,7 @@ void OathProtocol::parseCredentialId(const QString &credentialId,
         QStringLiteral(R"(^((\d+)/)?(([^:]+):)?(.+)$)")
     );
 
-    QRegularExpressionMatch match = CREDENTIAL_ID_PATTERN.match(credentialId);
+    QRegularExpressionMatch const match = CREDENTIAL_ID_PATTERN.match(credentialId);
     if (!match.hasMatch()) {
         // Pattern didn't match - use whole string as account
         return;
@@ -805,10 +791,10 @@ void OathProtocol::parseCredentialId(const QString &credentialId,
 
     // Extract period (group 2) - only for TOTP
     if (isTotp) {
-        QString periodStr = match.captured(2);
+        QString const periodStr = match.captured(2);
         if (!periodStr.isEmpty()) {
             bool ok = false;
-            int period = periodStr.toInt(&ok);
+            int const period = periodStr.toInt(&ok);
             if (ok && period > 0) {
                 outPeriod = period;
             }

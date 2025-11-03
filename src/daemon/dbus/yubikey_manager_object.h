@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#pragma once
+#ifndef YUBIKEY_MANAGER_OBJECT_H
+#define YUBIKEY_MANAGER_OBJECT_H
 
 #include <QObject>
 #include <QString>
@@ -15,8 +16,8 @@
 
 // Type for GetManagedObjects (must be outside namespace for Q_DECLARE_METATYPE)
 // Signature: a{oa{sa{sv}}} = QMap<ObjectPath, QMap<InterfaceName, Properties>>
-typedef QMap<QString, QVariantMap> InterfacePropertiesMap;
-typedef QMap<QDBusObjectPath, InterfacePropertiesMap> ManagedObjectMap;
+using InterfacePropertiesMap = QMap<QString, QVariantMap>;
+using ManagedObjectMap = QMap<QDBusObjectPath, InterfacePropertiesMap>;
 Q_DECLARE_METATYPE(InterfacePropertiesMap)
 Q_DECLARE_METATYPE(ManagedObjectMap)
 
@@ -72,7 +73,7 @@ public:
      * @param parent Parent QObject
      */
     explicit YubiKeyManagerObject(YubiKeyService *service,
-                                   const QDBusConnection &connection,
+                                   QDBusConnection connection,
                                    QObject *parent = nullptr);
     ~YubiKeyManagerObject() override;
 
@@ -167,13 +168,15 @@ private:
      */
     static QString devicePath(const QString &deviceId);
 
-    YubiKeyService *m_service;                          ///< Business logic service (not owned)
+    YubiKeyService *m_service{nullptr};                 ///< Business logic service (not owned)
     QDBusConnection m_connection;                       ///< D-Bus connection
     QString m_objectPath;                               ///< Our object path
-    bool m_registered;                                  ///< Registration state
+    bool m_registered{false};                           ///< Registration state
 
     QMap<QString, YubiKeyDeviceObject*> m_devices;     ///< Device ID → DeviceObject (owned)
 };
 
 } // namespace Daemon
 } // namespace YubiKeyOath
+
+#endif // YUBIKEY_MANAGER_OBJECT_H

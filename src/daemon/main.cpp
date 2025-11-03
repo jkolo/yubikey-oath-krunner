@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
     qDBusRegisterMetaType<QList<YubiKeyOath::Shared::CredentialInfo>>();
 
     // Create service
-    YubiKeyOath::Daemon::YubiKeyDBusService service;
+    const YubiKeyOath::Daemon::YubiKeyDBusService service;
 
     // Register on session bus
     QDBusConnection connection = QDBusConnection::sessionBus();

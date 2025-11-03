@@ -21,7 +21,7 @@ void showDialog(
     const QString &deviceName,
     YubiKeyManagerProxy *manager,
     QObject *parent,
-    std::function<void()> onPasswordSuccess)
+    const std::function<void()> &onPasswordSuccess)
 {
     qCDebug(YubiKeyUILog) << "Showing password dialog for device:" << deviceId;
 
@@ -35,7 +35,7 @@ void showDialog(
     QObject::connect(dlg, &PasswordDialog::deviceNameChanged, parent,
             [manager](const QString &devId, const QString &newName) {
                 qCDebug(YubiKeyUILog) << "Device name changed to:" << newName;
-                YubiKeyDeviceProxy *device = manager->getDevice(devId);
+                auto *device = manager->getDevice(devId);
                 if (device) {
                     device->setName(newName);
                 } else {
@@ -49,10 +49,10 @@ void showDialog(
     QObject::connect(dlg, &PasswordDialog::passwordEntered, parent,
             [dlg, deviceId, manager, onPasswordSuccess](const QString &devId, const QString &password) {
                 // Use QPointer to safely check if dialog still exists
-                QPointer<PasswordDialog> dialogPtr(dlg);
+                const QPointer<PasswordDialog> dialogPtr(dlg);
 
                 // Get device proxy
-                YubiKeyDeviceProxy *device = manager->getDevice(devId);
+                auto *device = manager->getDevice(devId);
                 if (!device) {
                     qCWarning(YubiKeyUILog) << "Device not found:" << devId;
                     if (dialogPtr) {
@@ -66,7 +66,7 @@ void showDialog(
                 }
 
                 // Test and save password via device proxy (blocking call)
-                bool success = device->savePassword(password);
+                const bool success = device->savePassword(password);
 
                 // Check if dialog still exists before accessing it
                 if (!dialogPtr) {

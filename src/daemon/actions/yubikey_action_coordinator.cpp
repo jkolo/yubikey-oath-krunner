@@ -97,13 +97,13 @@ ActionExecutor::ActionResult YubiKeyActionCoordinator::executeActionWithNotifica
                                 << "action:" << actionType << "credential:" << credentialName;
 
     // Execute action based on type
-    ActionExecutor::ActionResult result;
+    ActionExecutor::ActionResult result = ActionExecutor::ActionResult::Failed;
     if (actionType == QStringLiteral("copy")) {
         result = m_actionExecutor->executeCopyAction(code, credentialName);
 
         // Copy action: always show notification on success
         if (result == ActionExecutor::ActionResult::Success) {
-            int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config);
+            const int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config);
             m_notificationOrchestrator->showCodeNotification(code, credentialName, totalSeconds);
         }
     } else if (actionType == QStringLiteral("type")) {
@@ -162,7 +162,7 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
                                                      const QString &actionType)
 {
     // Get device (use first connected if deviceId empty)
-    auto device = m_deviceManager->getDeviceOrFirst(deviceId);
+    auto *device = m_deviceManager->getDeviceOrFirst(deviceId);
 
     // If device not found, try cached credential (offline device with cached credentials)
     if (!device) {
@@ -184,7 +184,7 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
 
     // Check if credential requires touch BEFORE calling generateCode() to avoid blocking
     // Also find the credential object for formatting
-    QList<OathCredential> credentials = m_deviceManager->getCredentials();
+    const QList<OathCredential> credentials = m_deviceManager->getCredentials();
     bool requiresTouch = false;
     OathCredential foundCredential;
     bool credentialFound = false;
@@ -212,9 +212,9 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
         deviceName = dbRecord->deviceName;
     }
 
-    int connectedDeviceCount = m_deviceManager->getConnectedDeviceIds().size();
+    const int connectedDeviceCount = static_cast<int>(m_deviceManager->getConnectedDeviceIds().size());
 
-    FormatOptions options = FormatOptionsBuilder()
+    const FormatOptions options = FormatOptionsBuilder()
         .withUsername(m_config->showUsername())
         .withCode(false) // Don't show code in title (code is shown in notification body)
         .withDevice(deviceName, m_config->showDeviceName())

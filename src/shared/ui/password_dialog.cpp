@@ -22,12 +22,12 @@
 namespace YubiKeyOath {
 namespace Shared {
 
-PasswordDialog::PasswordDialog(const QString &deviceId,
-                               const QString &deviceName,
+PasswordDialog::PasswordDialog(QString deviceId,
+                               QString deviceName,
                                QWidget *parent)
     : QDialog(parent)
-    , m_deviceId(deviceId)
-    , m_originalDeviceName(deviceName)
+    , m_deviceId(std::move(deviceId))
+    , m_originalDeviceName(std::move(deviceName))
     , m_deviceNameLabel(nullptr)
     , m_editNameButton(nullptr)
     , m_deviceNameField(nullptr)
@@ -41,7 +41,7 @@ PasswordDialog::PasswordDialog(const QString &deviceId,
     setWindowFlags(Qt::Dialog | Qt::WindowStaysOnTopHint);
     setModal(true);
 
-    setupUi(deviceName);
+    setupUi(m_originalDeviceName);
 }
 
 void PasswordDialog::setupUi(const QString &deviceName)
@@ -146,8 +146,8 @@ bool PasswordDialog::eventFilter(QObject *watched, QEvent *event)
     if (watched == m_deviceNameField) {
         // Intercept Enter key to prevent default button activation
         if (event->type() == QEvent::KeyPress) {
-            QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
-            if (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter) {
+            auto *keyEvent = dynamic_cast<QKeyEvent*>(event);
+            if (keyEvent && (keyEvent->key() == Qt::Key_Return || keyEvent->key() == Qt::Key_Enter)) {
                 // Manually trigger editing finished (will save name via signal)
                 onNameEditingFinished();
                 return true; // Block propagation to default button
@@ -165,14 +165,14 @@ bool PasswordDialog::eventFilter(QObject *watched, QEvent *event)
 
 void PasswordDialog::onOkClicked()
 {
-    QString password = m_passwordField->text();
+    const QString password = m_passwordField->text();
     if (!password.isEmpty()) {
         // Show spinner immediately (synchronously)
         setVerifying(true);
 
         // Use QPointer to safely check if dialog still exists when lambda executes
         // This prevents use-after-free if user closes dialog before lambda runs
-        QPointer<PasswordDialog> self(this);
+        const QPointer<PasswordDialog> self(this);
 
         // Defer signal emission to next event loop iteration
         // This allows UI to update (show spinner) before caller's blocking operations
@@ -256,7 +256,7 @@ void PasswordDialog::onNameEditingFinished()
     }
 
     // Check if name actually changed
-    bool nameChanged = (newName != m_originalDeviceName);
+    const bool nameChanged = (newName != m_originalDeviceName);
 
     // Update label with new name
     m_deviceNameLabel->setText(newName);
