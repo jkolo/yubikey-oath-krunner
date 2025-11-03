@@ -15,6 +15,7 @@
 #include "../utils/qr_code_parser.h"
 #include "../utils/otpauth_uri_parser.h"
 #include "../ui/add_credential_dialog.h"
+#include "utils/device_name_formatter.h"
 
 #include <QDateTime>
 #include <QDebug>
@@ -27,12 +28,12 @@ namespace Daemon {
 using namespace YubiKeyOath::Shared;
 
 YubiKeyService::YubiKeyService(QObject *parent)
-    : QObject(parent)
+    : ICredentialUpdateNotifier(parent)
     , m_deviceManager(std::make_unique<YubiKeyDeviceManager>(nullptr))
     , m_database(std::make_unique<YubiKeyDatabase>(nullptr))
     , m_secretStorage(std::make_unique<SecretStorage>(nullptr))
     , m_config(std::make_unique<DaemonConfiguration>(this))
-    , m_actionCoordinator(std::make_unique<YubiKeyActionCoordinator>(m_deviceManager.get(), m_database.get(), m_secretStorage.get(), m_config.get(), this))
+    , m_actionCoordinator(std::make_unique<YubiKeyActionCoordinator>(this, m_deviceManager.get(), m_database.get(), m_secretStorage.get(), m_config.get(), this))
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Initializing";
 
@@ -60,6 +61,8 @@ YubiKeyService::YubiKeyService(QObject *parent)
             this, &YubiKeyService::onReconnectStarted);
     connect(m_deviceManager.get(), &YubiKeyDeviceManager::reconnectCompleted,
             this, &YubiKeyService::onReconnectCompleted);
+    connect(m_config.get(), &DaemonConfiguration::configurationChanged,
+            this, &YubiKeyService::onConfigurationChanged);
 
     // Load passwords for already-connected devices
     const QStringList connectedDevices = m_deviceManager->getConnectedDeviceIds();
@@ -141,6 +144,28 @@ QList<DeviceInfo> YubiKeyService::listDevices()
     return devices;
 }
 
+void YubiKeyService::appendCachedCredentialsForOfflineDevice(
+    const QString &deviceId,
+    QList<OathCredential> &credentialsList)
+{
+    if (!m_config->enableCredentialsCache()) {
+        return;
+    }
+
+    // Skip if device is currently connected (already in list)
+    if (m_deviceManager->getDevice(deviceId)) {
+        return;
+    }
+
+    // Get cached credentials for this offline device
+    auto cached = m_database->getCredentials(deviceId);
+    if (!cached.isEmpty()) {
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Adding" << cached.size()
+                                  << "cached credentials for offline device:" << deviceId;
+        credentialsList.append(cached);
+    }
+}
+
 QList<OathCredential> YubiKeyService::getCredentials(const QString &deviceId)
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyService: getCredentials for device:" << deviceId;
@@ -148,18 +173,44 @@ QList<OathCredential> YubiKeyService::getCredentials(const QString &deviceId)
     QList<OathCredential> credentials;
 
     if (deviceId.isEmpty()) {
-        // Get from all devices
+        // Get from all connected devices
         credentials = m_deviceManager->getCredentials();
+
+        // Add cached credentials for all offline devices
+        auto allDevices = m_database->getAllDevices();
+        for (const auto &deviceRecord : allDevices) {
+            appendCachedCredentialsForOfflineDevice(deviceRecord.deviceId, credentials);
+        }
     } else {
         // Get from specific device
         auto *device = m_deviceManager->getDevice(deviceId);
         if (device) {
             credentials = device->credentials();
+        } else {
+            // Device offline - try cached credentials
+            appendCachedCredentialsForOfflineDevice(deviceId, credentials);
         }
     }
 
     qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Returning" << credentials.size() << "credentials";
     return credentials;
+}
+
+// ICredentialUpdateNotifier interface implementation
+QList<OathCredential> YubiKeyService::getCredentials()
+{
+    // Delegate to existing method with empty deviceId (= all devices)
+    return getCredentials(QString());
+}
+
+YubiKeyOathDevice* YubiKeyService::getDevice(const QString &deviceId)
+{
+    return m_deviceManager->getDevice(deviceId);
+}
+
+QList<QString> YubiKeyService::getConnectedDeviceIds() const
+{
+    return m_deviceManager->getConnectedDeviceIds();
 }
 
 GenerateCodeResult YubiKeyService::generateCode(const QString &deviceId,
@@ -620,6 +671,36 @@ void YubiKeyService::onCredentialCacheFetched(const QString &deviceId,
         m_database->setRequiresPassword(deviceId, false);
     }
 
+    // Save credentials to cache if enabled
+    if (m_config->enableCredentialsCache()) {
+        // Rate limiting check - prevent excessive database writes
+        qint64 now = QDateTime::currentMSecsSinceEpoch();
+        int rateLimitMs = m_config->credentialSaveRateLimit();
+
+        if (m_lastCredentialSave.contains(deviceId)) {
+            qint64 timeSinceLastSave = now - m_lastCredentialSave[deviceId];
+            if (timeSinceLastSave < rateLimitMs) {
+                qCDebug(YubiKeyDaemonLog)
+                    << "YubiKeyService: Rate limited credential save for" << deviceId
+                    << "- last save" << timeSinceLastSave << "ms ago"
+                    << "(limit:" << rateLimitMs << "ms)";
+                Q_EMIT credentialsUpdated(deviceId);
+                return;
+            }
+        }
+
+        // Save and update timestamp
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Credentials cache enabled, saving" << credentials.size() << "credentials";
+        if (!m_database->saveCredentials(deviceId, credentials)) {
+            qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Failed to save credentials to cache";
+        } else {
+            qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Credentials saved to cache successfully";
+            m_lastCredentialSave[deviceId] = now;
+        }
+    } else {
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Credentials cache disabled, NOT saving to database";
+    }
+
     Q_EMIT credentialsUpdated(deviceId);
 }
 
@@ -722,23 +803,13 @@ void YubiKeyService::clearDeviceFromMemory(const QString &deviceId)
 
 QString YubiKeyService::generateDefaultDeviceName(const QString &deviceId) const
 {
-    // Use last 8 characters of device ID for shorter, more readable default name
-    // Example: "28b5c0b54ccb10db" becomes "YubiKey (...4ccb10db)"
-    if (deviceId.length() > 8) {
-        const QString shortId = deviceId.right(8);
-        return QStringLiteral("YubiKey (...") + shortId + QStringLiteral(")");
-    }
-    return QStringLiteral("YubiKey (") + deviceId + QStringLiteral(")");
+    return DeviceNameFormatter::generateDefaultName(deviceId);
 }
 
 QString YubiKeyService::getDeviceName(const QString &deviceId) const
 {
-    // Try to get custom name from database, fallback to generated default
-    auto deviceRecord = m_database->getDevice(deviceId);
-    if (deviceRecord.has_value() && !deviceRecord->deviceName.isEmpty()) {
-        return deviceRecord->deviceName;
-    }
-    return generateDefaultDeviceName(deviceId);
+    // Delegate to DeviceNameFormatter for consistent name handling
+    return DeviceNameFormatter::getDeviceDisplayName(deviceId, m_database.get());
 }
 
 void YubiKeyService::onReconnectStarted(const QString &deviceId)
@@ -784,6 +855,21 @@ void YubiKeyService::onReconnectCompleted(const QString &deviceId, bool success)
         QString message = tr("Could not restore connection to %1. Please remove and reinsert the YubiKey.").arg(deviceName);
 
         m_actionCoordinator->showSimpleNotification(title, message, 1);
+    }
+}
+
+void YubiKeyService::onConfigurationChanged()
+{
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Configuration changed";
+
+    // Check if credentials cache was disabled
+    if (!m_config->enableCredentialsCache()) {
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Credentials cache disabled, clearing all cached credentials";
+        if (!m_database->clearAllCredentials()) {
+            qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Failed to clear cached credentials";
+        } else {
+            qCDebug(YubiKeyDaemonLog) << "YubiKeyService: All cached credentials cleared successfully";
+        }
     }
 }
 

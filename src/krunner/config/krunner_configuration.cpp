@@ -92,6 +92,11 @@ QString KRunnerConfiguration::primaryAction() const
     return readConfigEntry(ConfigKeys::PRIMARY_ACTION, QStringLiteral("copy"));
 }
 
+int KRunnerConfiguration::deviceReconnectTimeout() const
+{
+    return readConfigEntry(ConfigKeys::DEVICE_RECONNECT_TIMEOUT, 30);
+}
+
 void KRunnerConfiguration::onConfigFileChanged(const QString &path)
 {
     qDebug() << "KRunnerConfiguration: Config file changed:" << path;

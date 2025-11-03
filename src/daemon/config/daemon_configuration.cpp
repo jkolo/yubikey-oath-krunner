@@ -12,6 +12,9 @@ namespace YubiKeyOath {
 namespace Daemon {
 using namespace YubiKeyOath::Shared;
 
+// Default rate limit for credential saves (5 seconds)
+constexpr int DEFAULT_CREDENTIAL_SAVE_RATE_LIMIT_MS = 5000;
+
 DaemonConfiguration::DaemonConfiguration(QObject *parent)
     : ConfigurationProvider(parent)
     , m_config(KSharedConfig::openConfig(QStringLiteral("yubikey-oathrc")))
@@ -19,7 +22,7 @@ DaemonConfiguration::DaemonConfiguration(QObject *parent)
     , m_fileWatcher(new QFileSystemWatcher(this))
 {
     // Get config file path
-    QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
+    const QString configPath = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation)
                         + QStringLiteral("/yubikey-oathrc");
 
     qDebug() << "DaemonConfiguration: Watching config file:" << configPath;
@@ -79,6 +82,21 @@ int DaemonConfiguration::notificationExtraTime() const
 QString DaemonConfiguration::primaryAction() const
 {
     return readConfigEntry(ConfigKeys::PRIMARY_ACTION, QStringLiteral("copy"));
+}
+
+bool DaemonConfiguration::enableCredentialsCache() const
+{
+    return readConfigEntry(ConfigKeys::ENABLE_CREDENTIALS_CACHE, false);
+}
+
+int DaemonConfiguration::deviceReconnectTimeout() const
+{
+    return readConfigEntry(ConfigKeys::DEVICE_RECONNECT_TIMEOUT, 30);
+}
+
+int DaemonConfiguration::credentialSaveRateLimit() const
+{
+    return readConfigEntry(ConfigKeys::CREDENTIAL_SAVE_RATE_LIMIT_MS, DEFAULT_CREDENTIAL_SAVE_RATE_LIMIT_MS);
 }
 
 void DaemonConfiguration::onConfigFileChanged(const QString &path)

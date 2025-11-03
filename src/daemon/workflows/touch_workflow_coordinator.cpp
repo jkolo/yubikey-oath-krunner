@@ -143,8 +143,7 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
 
         int const connectedDeviceCount = m_deviceManager->getConnectedDeviceIds().size();
 
-        formattedTitle = CredentialFormatter::formatDisplayName(
-            foundCredential,
+        FormatOptions options(
             m_config->showUsername(),
             false, // Don't show code in title (code is shown in notification body)
             m_config->showDeviceName(),
@@ -152,6 +151,8 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
             connectedDeviceCount,
             m_config->showDeviceNameOnlyWhenMultiple()
         );
+
+        formattedTitle = CredentialFormatter::formatDisplayName(foundCredential, options);
     } else {
         qCWarning(TouchWorkflowCoordinatorLog) << "Credential not found for formatting:" << credentialName;
     }

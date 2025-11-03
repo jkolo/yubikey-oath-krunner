@@ -41,6 +41,11 @@ public:
     int notificationExtraTime() const override;
     QString primaryAction() const override;
 
+    // Caching settings
+    bool enableCredentialsCache() const;
+    int deviceReconnectTimeout() const override;
+    int credentialSaveRateLimit() const;
+
 private Q_SLOTS:
     void onConfigFileChanged(const QString &path);
 

@@ -1,0 +1,67 @@
+# clang-tidy configuration for test files
+# Based on main .clang-tidy but with relaxed rules appropriate for test code
+
+---
+# Inherit checks from parent configuration
+InheritParentConfig: true
+
+# Additional checks to disable for test code
+Checks: >
+  -*,
+  -bugprone-*,
+  -cert-*,
+  -cppcoreguidelines-*,
+  -modernize-*,
+  -performance-*,
+  -portability-*,
+  -readability-*,
+  -misc-*,
+  -clang-analyzer-*,
+  -llvm-*,
+
+  # Re-enable important checks
+  bugprone-*,
+  cert-*,
+  -cert-err58-cpp,
+  cppcoreguidelines-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  misc-*,
+  clang-analyzer-*,
+  llvm-namespace-comment,
+
+  # Disable checks inappropriate for tests
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -readability-function-size,
+  -readability-function-cognitive-complexity,
+  -cppcoreguidelines-avoid-do-while,
+  -modernize-use-trailing-return-type,
+  -misc-const-correctness,
+  -cppcoreguidelines-pro-type-member-init,
+  -cppcoreguidelines-use-default-member-init,
+  -modernize-use-default-member-init,
+  -readability-identifier-length,
+  -portability-avoid-pragma-once,
+
+# Test files can have warnings without failing build
+WarningsAsErrors: ''
+
+# Use project's formatting style
+FormatStyle: 'file'
+
+# Don't analyze system headers
+SystemHeaders: false
+
+CheckOptions:
+  # Increase limits for test code
+  - key: readability-function-size.LineThreshold
+    value: '500'
+  - key: readability-function-size.StatementThreshold
+    value: '200'
+  - key: readability-function-size.BranchThreshold
+    value: '50'
+  - key: readability-function-size.ParameterThreshold
+    value: '10'

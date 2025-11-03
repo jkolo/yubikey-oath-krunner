@@ -111,6 +111,10 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
             this, &YubiKeyConfig::markAsChanged);
     connect(m_ui->notificationExtraTimeSpinbox, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &YubiKeyConfig::markAsChanged);
+    connect(m_ui->enableCredentialsCacheCheckbox, &QCheckBox::toggled,
+            this, &YubiKeyConfig::markAsChanged);
+    connect(m_ui->deviceReconnectTimeoutSpinbox, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &YubiKeyConfig::markAsChanged);
 }
 
 YubiKeyConfig::~YubiKeyConfig()
@@ -147,9 +151,12 @@ void YubiKeyConfig::load()
 
     m_ui->touchTimeoutSpinbox->setValue(m_config.readEntry("TouchTimeout", 10));
     m_ui->notificationExtraTimeSpinbox->setValue(m_config.readEntry("NotificationExtraTime", 15));
+    m_ui->enableCredentialsCacheCheckbox->setChecked(m_config.readEntry("EnableCredentialsCache", false));
+    m_ui->deviceReconnectTimeoutSpinbox->setValue(m_config.readEntry("DeviceReconnectTimeout", 30));
 
-    // Set initial enabled state for dependent checkbox
+    // Set initial enabled state for dependent checkboxes/spinboxes
     m_ui->showDeviceNameOnlyWhenMultipleCheckbox->setEnabled(m_ui->showDeviceNameCheckbox->isChecked());
+    m_ui->deviceReconnectTimeoutSpinbox->setEnabled(m_ui->enableCredentialsCacheCheckbox->isChecked());
 
     setNeedsSave(false);
 }
@@ -169,6 +176,8 @@ void YubiKeyConfig::save()
 
     m_config.writeEntry("TouchTimeout", m_ui->touchTimeoutSpinbox->value());
     m_config.writeEntry("NotificationExtraTime", m_ui->notificationExtraTimeSpinbox->value());
+    m_config.writeEntry("EnableCredentialsCache", m_ui->enableCredentialsCacheCheckbox->isChecked());
+    m_config.writeEntry("DeviceReconnectTimeout", m_ui->deviceReconnectTimeoutSpinbox->value());
 
     m_config.sync();
     setNeedsSave(false);
@@ -184,9 +193,12 @@ void YubiKeyConfig::defaults()
     m_ui->primaryActionCombo->setCurrentIndex(0); // copy (first item)
     m_ui->touchTimeoutSpinbox->setValue(10);
     m_ui->notificationExtraTimeSpinbox->setValue(15);
+    m_ui->enableCredentialsCacheCheckbox->setChecked(false);
+    m_ui->deviceReconnectTimeoutSpinbox->setValue(30);
 
-    // Set initial enabled state for dependent checkbox
+    // Set initial enabled state for dependent checkboxes/spinboxes
     m_ui->showDeviceNameOnlyWhenMultipleCheckbox->setEnabled(m_ui->showDeviceNameCheckbox->isChecked());
+    m_ui->deviceReconnectTimeoutSpinbox->setEnabled(m_ui->enableCredentialsCacheCheckbox->isChecked());
 
     markAsChanged();
 }

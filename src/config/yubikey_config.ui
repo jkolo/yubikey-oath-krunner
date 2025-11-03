@@ -238,6 +238,55 @@
         </property>
        </widget>
       </item>
+      <item row="8" column="0">
+       <widget class="QLabel" name="credentialsCacheLabel">
+        <property name="text">
+         <string>Credentials cache:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="8" column="1">
+       <widget class="QCheckBox" name="enableCredentialsCacheCheckbox">
+        <property name="text">
+         <string>Keep data about available codes for searching</string>
+        </property>
+        <property name="toolTip">
+         <string>Cache credential list when YubiKey is connected, enabling search even when device is offline</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="0">
+       <widget class="QLabel" name="reconnectTimeoutLabel">
+        <property name="text">
+         <string>Reconnect timeout:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="1">
+       <widget class="QSpinBox" name="deviceReconnectTimeoutSpinbox">
+        <property name="toolTip">
+         <string>Maximum time to wait for YubiKey reconnection when generating code for cached credential</string>
+        </property>
+        <property name="suffix">
+         <string> seconds</string>
+        </property>
+        <property name="minimum">
+         <number>5</number>
+        </property>
+        <property name="maximum">
+         <number>120</number>
+        </property>
+        <property name="value">
+         <number>30</number>
+        </property>
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
@@ -269,6 +318,12 @@
    <sender>showDeviceNameCheckbox</sender>
    <signal>toggled(bool)</signal>
    <receiver>showDeviceNameOnlyWhenMultipleCheckbox</receiver>
+   <slot>setEnabled(bool)</slot>
+  </connection>
+  <connection>
+   <sender>enableCredentialsCacheCheckbox</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>deviceReconnectTimeoutSpinbox</receiver>
    <slot>setEnabled(bool)</slot>
   </connection>
  </connections>

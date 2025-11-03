@@ -28,10 +28,12 @@ NotificationOrchestrator::NotificationOrchestrator(DBusNotificationManager *noti
     , m_codeUpdateTimer(new QTimer(this))
     , m_touchUpdateTimer(new QTimer(this))
     , m_modifierUpdateTimer(new QTimer(this))
+    , m_reconnectUpdateTimer(new QTimer(this))
 {
     connect(m_codeUpdateTimer, &QTimer::timeout, this, &NotificationOrchestrator::updateCodeNotification);
     connect(m_touchUpdateTimer, &QTimer::timeout, this, &NotificationOrchestrator::updateTouchNotification);
     connect(m_modifierUpdateTimer, &QTimer::timeout, this, &NotificationOrchestrator::updateModifierNotification);
+    connect(m_reconnectUpdateTimer, &QTimer::timeout, this, &NotificationOrchestrator::updateReconnectNotification);
 
     connect(m_notificationManager, &DBusNotificationManager::actionInvoked,
             this, &NotificationOrchestrator::onNotificationActionInvoked);
@@ -292,6 +294,69 @@ void NotificationOrchestrator::showModifierCancelNotification()
     notification->sendEvent();
 }
 
+void NotificationOrchestrator::showReconnectNotification(const QString &deviceName,
+                                                         const QString &credentialName,
+                                                         int timeoutSeconds)
+{
+    if (!m_config->showNotifications() || !m_notificationManager || !m_notificationManager->isAvailable()) {
+        return;
+    }
+
+    qCDebug(NotificationOrchestratorLog) << "Showing reconnect notification for device:" << deviceName
+             << "credential:" << credentialName
+             << "timeout:" << timeoutSeconds << "seconds";
+
+    // Close any existing reconnect notification
+    if (m_reconnectNotificationId != 0) {
+        m_notificationManager->closeNotification(m_reconnectNotificationId);
+        m_reconnectNotificationId = 0;
+    }
+
+    // Store state for updates
+    m_reconnectExpirationTime = QDateTime::currentDateTime().addSecs(timeoutSeconds);
+    m_reconnectDeviceName = deviceName;
+    m_reconnectCredentialName = credentialName;
+
+    // Format message
+    QString const body = i18n("Timeout in %1s", timeoutSeconds);
+
+    // Prepare hints with progress bar (100% at start)
+    QVariantMap const hints = NotificationUtils::createNotificationHints(1, 100);
+
+    // Add Cancel action
+    QStringList actions;
+    actions << QStringLiteral("cancel_reconnect") << i18n("Cancel");
+
+    // Show notification without timeout - we'll update it manually
+    m_reconnectNotificationId = m_notificationManager->showNotification(
+        QStringLiteral("YubiKey OATH"),
+        m_reconnectNotificationId, // replaces_id
+        QStringLiteral(":/icons/yubikey.svg"),
+        i18n("Connect YubiKey '%1'", deviceName),
+        body,
+        actions,
+        hints,
+        0 // no timeout - we manage closing manually
+    );
+
+    qCDebug(NotificationOrchestratorLog) << "Reconnect notification shown with ID:" << m_reconnectNotificationId;
+
+    // Start timer to update notification every second with progress bar
+    m_reconnectUpdateTimer->start(1000);
+}
+
+void NotificationOrchestrator::closeReconnectNotification()
+{
+    if (m_reconnectNotificationId != 0 && m_notificationManager) {
+        qCDebug(NotificationOrchestratorLog) << "Closing reconnect notification ID:" << m_reconnectNotificationId;
+        m_notificationManager->closeNotification(m_reconnectNotificationId);
+        m_reconnectNotificationId = 0;
+    }
+
+    // Stop update timer
+    m_reconnectUpdateTimer->stop();
+}
+
 void NotificationOrchestrator::updateNotificationWithProgress(
     uint& notificationId,
     QTimer* updateTimer,
@@ -422,6 +487,28 @@ void NotificationOrchestrator::updateModifierNotification()
     );
 }
 
+void NotificationOrchestrator::updateReconnectNotification()
+{
+    int const totalSeconds = m_config->deviceReconnectTimeout();
+
+    // Use helper with custom body formatter
+    updateNotificationWithProgress(
+        m_reconnectNotificationId,
+        m_reconnectUpdateTimer,
+        m_reconnectExpirationTime,
+        totalSeconds,
+        i18n("Connect YubiKey '%1'", m_reconnectDeviceName),
+        [](int remainingSeconds) {
+            return i18n("Timeout in %1s", remainingSeconds);
+        },
+        [this]() {
+            // Custom expiration behavior: notification already handled by ReconnectWorkflowCoordinator
+            qCDebug(NotificationOrchestratorLog) << "Reconnect timeout reached";
+            m_reconnectUpdateTimer->stop();
+        }
+    );
+}
+
 void NotificationOrchestrator::onNotificationActionInvoked(uint id, const QString &actionKey)
 {
     qCDebug(NotificationOrchestratorLog) << "Notification action invoked - ID:" << id << "action:" << actionKey;
@@ -430,6 +517,10 @@ void NotificationOrchestrator::onNotificationActionInvoked(uint id, const QStrin
         qCDebug(NotificationOrchestratorLog) << "User cancelled touch operation via notification";
         closeTouchNotification();
         Q_EMIT touchCancelled();
+    } else if (id == m_reconnectNotificationId && actionKey == QStringLiteral("cancel_reconnect")) {
+        qCDebug(NotificationOrchestratorLog) << "User cancelled reconnect operation via notification";
+        closeReconnectNotification();
+        Q_EMIT reconnectCancelled();
     }
 }
 

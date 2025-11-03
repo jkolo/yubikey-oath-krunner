@@ -494,14 +494,50 @@ OathProtocol (static utility functions)
 
 ### Storage and Configuration
 
-**YubiKeyDatabase** (`src/storage/yubikey_database.{h,cpp}`)
+**YubiKeyDatabase** (`src/daemon/storage/yubikey_database.{h,cpp}`)
 - SQLite database for device persistence
 - Stores device metadata (name, serial, requires_password flag)
 - Path: `~/.local/share/krunner-yubikey/devices.db`
-- Tables: devices
+- **Database schema**:
+  - `devices` table: device_id (PRIMARY KEY), device_name, requires_password
+  - `credentials` table: id (PRIMARY KEY), device_id (FOREIGN KEY), original_name, issuer, account, type, algorithm, digits, period, requires_touch
+  - Foreign key constraint: `credentials.device_id` → `devices.device_id` with ON DELETE CASCADE
+- **Input validation**: Device IDs validated as 16-character hex strings before SQL operations
+- **Transaction safety**: Uses TransactionGuard for RAII-based transaction management
 - Thread-safe database operations
 
-**PasswordStorage** (`src/storage/password_storage.{h,cpp}`)
+**TransactionGuard** (`src/daemon/storage/transaction_guard.{h,cpp}`)
+- **RAII pattern** for database transaction management
+- Automatically rolls back transaction in destructor if not committed
+- Exception-safe transaction handling
+- Usage:
+  ```cpp
+  TransactionGuard guard(m_db);
+  if (!guard.isValid()) return false;
+
+  // Perform database operations
+  if (!operation1()) return false;  // Auto-rollback on early return
+  if (!operation2()) return false;  // Auto-rollback on early return
+
+  return guard.commit();  // Explicit commit
+  ```
+- Replaces manual begin/commit/rollback pattern
+- Added in v1.1.0
+
+**CredentialCacheSearcher** (`src/daemon/cache/credential_cache_searcher.{h,cpp}`)
+- **Single Responsibility**: Search database cache for credentials in offline devices
+- Extracted from YubiKeyActionCoordinator to follow SRP
+- Searches cached credentials when YubiKey is disconnected
+- Respects configuration: only searches if cache is enabled
+- Search algorithm:
+  1. Check if cache is enabled in configuration
+  2. If device hint provided, search only that device (if offline)
+  3. Otherwise, search all offline devices in database
+  4. Return first matching device ID or nullopt
+- Used by YubiKeyActionCoordinator for reconnect workflow
+- Added in v1.1.0
+
+**PasswordStorage** (`src/daemon/storage/secret_storage.{h,cpp}`)
 - Stores YubiKey passwords in KWallet
 - Per-device storage using device ID as key
 - Folder: "YubiKey OATH Application"
@@ -549,6 +585,71 @@ OathProtocol (static utility functions)
 - Uses `SCardGetStatusChange` for efficient monitoring
 
 ## Key Design Patterns
+
+### Builder Pattern - FormatOptionsBuilder
+
+**FormatOptionsBuilder** (`src/shared/formatting/credential_formatter.h`)
+- **Fluent API** for constructing FormatOptions with readable, self-documenting code
+- Replaces error-prone 6-parameter constructor
+- Added in v1.1.0
+
+**Preferred Usage:**
+```cpp
+FormatOptions options = FormatOptionsBuilder()
+    .withUsername()
+    .withDevice(deviceName)
+    .withDeviceCount(connectedDeviceCount)
+    .onlyWhenMultipleDevices()
+    .build();
+```
+
+**Legacy constructor** (deprecated but still supported for backward compatibility):
+```cpp
+FormatOptions options(showUsername, showCode, showDevice, deviceName, deviceCount, onlyMultiple);
+```
+
+**Benefits:**
+- Improved readability - each option is explicitly named
+- Self-documenting code - no need to remember parameter order
+- Easier to maintain - adding new options doesn't break existing code
+- Type-safe - compiler catches missing required parameters
+
+**Available methods:**
+- `withUsername(bool = true)` - Show username in parentheses
+- `withCode(bool = true)` - Show TOTP/HOTP code if available
+- `withDevice(QString name, bool = true)` - Show device name
+- `withDeviceCount(int count)` - Set number of connected devices
+- `onlyWhenMultipleDevices(bool = true)` - Only show device when multiple devices connected
+- `build()` - Build and return FormatOptions instance
+
+### RAII Pattern - TransactionGuard
+
+**TransactionGuard** ensures database transaction safety through RAII:
+- Constructor begins transaction
+- Destructor automatically rolls back if not committed
+- Eliminates manual rollback on error paths
+- Exception-safe by design
+
+**Usage:**
+```cpp
+TransactionGuard guard(m_db);
+if (!guard.isValid()) return false;
+
+// All early returns automatically trigger rollback
+if (!deleteOldCredentials(deviceId)) return false;
+if (!insertNewCredentials(deviceId, credentials)) return false;
+
+return guard.commit(); // Explicit commit
+```
+
+**Replaced pattern:**
+```cpp
+// Old manual pattern (error-prone):
+m_db.transaction();
+if (!op1()) { m_db.rollback(); return false; }
+if (!op2()) { m_db.rollback(); return false; }
+m_db.commit();
+```
 
 ### Notification Management
 - All notifications use `timeout = 0` (no auto-close)

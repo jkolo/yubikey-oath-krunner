@@ -153,8 +153,8 @@ namespace {
 
         qCDebug(TextInputLog) << "Initializing evdev keyboard devices...";
 
-        // Enumerate /dev/input/event0 through event31 (typical range)
-        for (int i = 0; i < 32; ++i) {
+        // Enumerate /dev/input/event0 through event1023 (supports hot-plug USB devices with high numbers)
+        for (int i = 0; i < 1024; ++i) {
             QString const device_path = QStringLiteral("/dev/input/event%1").arg(i);
 
             // Try to open device (non-blocking, read-only)

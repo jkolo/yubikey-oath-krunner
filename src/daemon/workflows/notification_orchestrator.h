@@ -216,16 +216,40 @@ public:
      */
     void showModifierCancelNotification();
 
+    /**
+     * @brief Shows reconnect notification with countdown
+     * @param deviceName Device name to display
+     * @param credentialName Credential name to display
+     * @param timeoutSeconds Timeout in seconds
+     *
+     * Shows notification with message "Connect YubiKey {deviceName} to generate code for {credentialName}"
+     * with Cancel button and countdown timer.
+     */
+    void showReconnectNotification(const QString &deviceName,
+                                   const QString &credentialName,
+                                   int timeoutSeconds);
+
+    /**
+     * @brief Closes reconnect notification if active
+     */
+    void closeReconnectNotification();
+
 Q_SIGNALS:
     /**
      * @brief Emitted when touch operation is cancelled by user
      */
     void touchCancelled();
 
+    /**
+     * @brief Emitted when reconnect operation is cancelled by user
+     */
+    void reconnectCancelled();
+
 private Q_SLOTS:
     void updateCodeNotification();
     void updateTouchNotification();
     void updateModifierNotification();
+    void updateReconnectNotification();
     void onNotificationActionInvoked(uint id, const QString &actionKey);
     void onNotificationClosed(uint id, uint reason);
 
@@ -277,6 +301,13 @@ private:
     QTimer *m_modifierUpdateTimer;
     QDateTime m_modifierExpirationTime;
     QStringList m_currentModifiers;
+
+    // Reconnect notification state
+    uint m_reconnectNotificationId = 0;
+    QTimer *m_reconnectUpdateTimer;
+    QDateTime m_reconnectExpirationTime;
+    QString m_reconnectDeviceName;
+    QString m_reconnectCredentialName;
 };
 
 } // namespace Daemon

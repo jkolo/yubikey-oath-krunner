@@ -8,10 +8,13 @@
 #include <QObject>
 #include <QString>
 #include <QList>
+#include <QHash>
+#include <QDateTime>
 #include <memory>
 #include "types/yubikey_value_types.h"
 #include "types/oath_credential.h"
 #include "types/oath_credential_data.h"
+#include "interfaces/credential_update_notifier.h"
 
 // Forward declarations
 namespace YubiKeyOath {
@@ -49,7 +52,7 @@ using namespace YubiKeyOath::Shared;
  * Components (DeviceManager, Database, SecretStorage...)
  * ```
  */
-class YubiKeyService : public QObject
+class YubiKeyService : public Shared::ICredentialUpdateNotifier
 {
     Q_OBJECT
 
@@ -76,6 +79,29 @@ public:
      * @return List of credentials
      */
     QList<OathCredential> getCredentials(const QString &deviceId);
+
+    // ICredentialUpdateNotifier interface implementation
+    /**
+     * @brief Gets all credentials from all connected devices
+     * @return List of credentials from all devices
+     * @note Implements ICredentialUpdateNotifier interface
+     */
+    QList<OathCredential> getCredentials() override;
+
+    /**
+     * @brief Gets device instance by ID
+     * @param deviceId Device ID to retrieve
+     * @return Pointer to device or nullptr if not found
+     * @note Implements ICredentialUpdateNotifier interface
+     */
+    YubiKeyOathDevice* getDevice(const QString &deviceId) override;
+
+    /**
+     * @brief Gets IDs of all currently connected devices
+     * @return List of connected device IDs
+     * @note Implements ICredentialUpdateNotifier interface
+     */
+    QList<QString> getConnectedDeviceIds() const override;
 
     /**
      * @brief Generates TOTP/HOTP code for credential
@@ -225,8 +251,20 @@ private Q_SLOTS:
                                  const QList<OathCredential> &credentials);
     void onReconnectStarted(const QString &deviceId);
     void onReconnectCompleted(const QString &deviceId, bool success);
+    void onConfigurationChanged();
 
 private:
+    /**
+     * @brief Appends cached credentials for offline device to list
+     * @param deviceId Device ID to check
+     * @param credentialsList List to append to (modified in-place)
+     *
+     * If cache is enabled and device is offline, appends cached credentials.
+     * Skips if device is currently connected (already in list).
+     */
+    void appendCachedCredentialsForOfflineDevice(const QString &deviceId,
+                                                  QList<OathCredential> &credentialsList);
+
     /**
      * @brief Generates default device name
      * @param deviceId Device ID
@@ -261,6 +299,9 @@ private:
 
     // Reconnect notification state
     uint m_reconnectNotificationId = 0;
+
+    // Rate limiting for credential saves (per device)
+    QHash<QString, qint64> m_lastCredentialSave;
 
     std::unique_ptr<YubiKeyDeviceManager> m_deviceManager;
     std::unique_ptr<YubiKeyDatabase> m_database;

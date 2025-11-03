@@ -32,6 +32,11 @@ constexpr const char *SHOW_DEVICE_NAME_ONLY_WHEN_MULTIPLE = "ShowDeviceNameOnlyW
 constexpr const char *TOUCH_TIMEOUT = "TouchTimeout";
 constexpr const char *PRIMARY_ACTION = "PrimaryAction";
 
+// Caching settings
+constexpr const char *ENABLE_CREDENTIALS_CACHE = "EnableCredentialsCache";
+constexpr const char *DEVICE_RECONNECT_TIMEOUT = "DeviceReconnectTimeout";
+constexpr const char *CREDENTIAL_SAVE_RATE_LIMIT_MS = "CredentialSaveRateLimit";
+
 } // namespace ConfigKeys
 } // namespace Shared
 } // namespace YubiKeyOath

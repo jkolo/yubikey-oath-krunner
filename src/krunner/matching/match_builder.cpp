@@ -42,10 +42,10 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
     KRunner::QueryMatch match(m_runner);
 
     // Get display preferences from config
-    bool showUsername = m_config->showUsername();
-    bool showCode = m_config->showCode();
-    bool showDeviceName = m_config->showDeviceName();
-    bool showDeviceOnlyWhenMultiple = m_config->showDeviceNameOnlyWhenMultiple();
+    const bool showUsername = m_config->showUsername();
+    const bool showCode = m_config->showCode();
+    const bool showDeviceName = m_config->showDeviceName();
+    const bool showDeviceOnlyWhenMultiple = m_config->showDeviceNameOnlyWhenMultiple();
 
     qCDebug(MatchBuilderLog) << "Display preferences - username:" << showUsername
              << "code:" << showCode
@@ -53,7 +53,7 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
              << "onlyWhenMultiple:" << showDeviceOnlyWhenMultiple;
 
     // Get device information from manager
-    QList<YubiKeyDeviceProxy*> devices = manager->devices();
+    const QList<YubiKeyDeviceProxy*> devices = manager->devices();
     QMap<QString, QString> deviceIdToName;
     int connectedDeviceCount = 0;
 
@@ -69,17 +69,17 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
 
     // Prepare match data
     QStringList data;
-    QString credentialName = credentialProxy->name();
+    const QString credentialName = credentialProxy->name();
     QString displayName;
     QString code;
-    QString requiresTouch = credentialProxy->requiresTouch() ? QStringLiteral("true") : QStringLiteral("false");
-    QString isPasswordError = QStringLiteral("false");
+    const QString requiresTouch = credentialProxy->requiresTouch() ? QStringLiteral("true") : QStringLiteral("false");
+    const QString isPasswordError = QStringLiteral("false");
 
     // Generate code if requested and credential doesn't require touch
     if (showCode && !credentialProxy->requiresTouch()) {
         qCDebug(MatchBuilderLog) << "Generating code for non-touch credential:" << credentialProxy->name()
                  << "on device:" << credentialProxy->deviceId();
-        GenerateCodeResult codeResult = credentialProxy->generateCode();
+        const GenerateCodeResult codeResult = credentialProxy->generateCode();
         if (!codeResult.code.isEmpty()) {
             code = codeResult.code;
             qCDebug(MatchBuilderLog) << "Generated code:" << code;
@@ -89,7 +89,7 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
     }
 
     // Get device name for this credential
-    QString deviceName = deviceIdToName.value(credentialProxy->deviceId(), QString());
+    const QString deviceName = deviceIdToName.value(credentialProxy->deviceId(), QString());
     qCDebug(MatchBuilderLog) << "Device name for credential:" << deviceName;
 
     // Prepare OathCredential for formatting
@@ -103,26 +103,28 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
     if (showCode) {
         // Use formatWithCode() when showCode is enabled
         // This handles both touch-required (shows 👆) and regular credentials (shows code)
+        FormatOptions options = FormatOptionsBuilder()
+            .withUsername(showUsername)
+            .withCode(showCode)
+            .withDevice(deviceName, showDeviceName)
+            .withDeviceCount(connectedDeviceCount)
+            .onlyWhenMultipleDevices(showDeviceOnlyWhenMultiple)
+            .build();
         displayName = CredentialFormatter::formatWithCode(
             tempCred,
             code,
             credentialProxy->requiresTouch(),
-            showUsername,
-            showCode,
-            showDeviceName,
-            deviceName,
-            connectedDeviceCount,
-            showDeviceOnlyWhenMultiple);
+            options);
     } else {
         // Standard formatting without code
-        displayName = CredentialFormatter::formatDisplayName(
-            tempCred,
-            showUsername,
-            false, // showCode=false to prevent showing code from credential.code field
-            showDeviceName,
-            deviceName,
-            connectedDeviceCount,
-            showDeviceOnlyWhenMultiple);
+        FormatOptions options = FormatOptionsBuilder()
+            .withUsername(showUsername)
+            .withCode(false) // showCode=false to prevent showing code from credential.code field
+            .withDevice(deviceName, showDeviceName)
+            .withDeviceCount(connectedDeviceCount)
+            .onlyWhenMultipleDevices(showDeviceOnlyWhenMultiple)
+            .build();
+        displayName = CredentialFormatter::formatDisplayName(tempCred, options);
     }
 
     qCDebug(MatchBuilderLog) << "Formatted displayName:" << displayName;

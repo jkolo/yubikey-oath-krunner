@@ -41,6 +41,7 @@ public:
         , m_touchTimeout(15)
         , m_notificationExtraTime(5)
         , m_primaryAction(QStringLiteral("copy"))
+        , m_deviceReconnectTimeout(30)
     {
     }
 
@@ -79,6 +80,10 @@ public:
 
     QString primaryAction() const override {
         return m_primaryAction;
+    }
+
+    int deviceReconnectTimeout() const override {
+        return m_deviceReconnectTimeout;
     }
 
     // Test control methods
@@ -122,6 +127,11 @@ public:
         Q_EMIT configurationChanged();
     }
 
+    void setDeviceReconnectTimeout(int value) {
+        m_deviceReconnectTimeout = value;
+        Q_EMIT configurationChanged();
+    }
+
     // Helper: Reset to default values
     void reset() {
         m_showNotifications = true;
@@ -132,6 +142,7 @@ public:
         m_touchTimeout = 15;
         m_notificationExtraTime = 5;
         m_primaryAction = QStringLiteral("copy");
+        m_deviceReconnectTimeout = 30;
         Q_EMIT configurationChanged();
     }
 
@@ -144,6 +155,7 @@ private:
     int m_touchTimeout;
     int m_notificationExtraTime;
     QString m_primaryAction;
+    int m_deviceReconnectTimeout;
 };
 
 } // namespace Shared

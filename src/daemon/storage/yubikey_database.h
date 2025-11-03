@@ -11,9 +11,11 @@
 #include <QList>
 #include <QSqlDatabase>
 #include <optional>
+#include "types/oath_credential.h"
 
 namespace YubiKeyOath {
 namespace Daemon {
+using namespace YubiKeyOath::Shared;
 
 /**
  * @brief Manages YubiKey device database using SQLite
@@ -134,6 +136,41 @@ public:
      */
     bool hasDevice(const QString &deviceId);
 
+    /**
+     * @brief Saves/updates credentials for device in cache
+     * @param deviceId Device ID
+     * @param credentials List of credentials to save
+     * @return true if successful
+     *
+     * Replaces all existing credentials for this device.
+     * Used when credential cache is enabled.
+     */
+    bool saveCredentials(const QString &deviceId, const QList<Shared::OathCredential> &credentials);
+
+    /**
+     * @brief Gets cached credentials for device
+     * @param deviceId Device ID
+     * @return List of cached credentials (empty if none found)
+     *
+     * Returns credentials from cache, useful when device is offline.
+     */
+    QList<Shared::OathCredential> getCredentials(const QString &deviceId);
+
+    /**
+     * @brief Clears all cached credentials from database
+     * @return true if successful
+     *
+     * Called when credential cache is disabled in settings.
+     */
+    bool clearAllCredentials();
+
+    /**
+     * @brief Clears cached credentials for specific device
+     * @param deviceId Device ID
+     * @return true if successful
+     */
+    bool clearDeviceCredentials(const QString &deviceId);
+
 private:
     QSqlDatabase m_db;
 
@@ -156,6 +193,34 @@ private:
      * @return true if directory exists or was created successfully
      */
     bool ensureDirectoryExists() const;
+
+    // Helper methods for saveCredentials()
+    /**
+     * @brief Deletes old credentials for device
+     * @param deviceId Device ID
+     * @return true if successful
+     */
+    bool deleteOldCredentials(const QString &deviceId);
+
+    /**
+     * @brief Inserts new credentials for device
+     * @param deviceId Device ID
+     * @param credentials Credentials to insert
+     * @return true if all credentials inserted successfully
+     */
+    bool insertNewCredentials(const QString &deviceId, const QList<Shared::OathCredential> &credentials);
+
+    /**
+     * @brief Validates device ID format
+     * @param deviceId Device ID to validate
+     * @return true if deviceId is valid hex string (16 characters)
+     *
+     * Device IDs must be 16-character hexadecimal strings from YubiKey OATH.
+     * This prevents SQL injection and data corruption.
+     *
+     * @note Thread-safe: static method with no state
+     */
+    static bool isValidDeviceId(const QString &deviceId);
 };
 
 } // namespace Daemon

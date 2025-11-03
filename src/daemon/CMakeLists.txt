@@ -33,6 +33,8 @@ add_executable(yubikey-oath-daemon
     yubikey_dbus_service.cpp
     ../shared/types/yubikey_value_types.cpp
     ../shared/config/configuration_provider.cpp
+    ../shared/interfaces/credential_update_notifier.cpp
+    ../shared/utils/device_name_formatter.cpp
     ${DBUS_ADAPTOR_SRCS}
     ${DAEMON_RESOURCES}
 
@@ -50,6 +52,7 @@ add_executable(yubikey-oath-daemon
     # Storage components
     storage/yubikey_database.cpp
     storage/secret_storage.cpp
+    storage/transaction_guard.cpp
 
     # PC/SC monitoring
     pcsc/card_reader_monitor.cpp
@@ -63,6 +66,9 @@ add_executable(yubikey-oath-daemon
     # Actions
     actions/action_executor.cpp
     actions/yubikey_action_coordinator.cpp
+
+    # Cache
+    cache/credential_cache_searcher.cpp
 
     # Clipboard
     clipboard/clipboard_manager.cpp
@@ -81,6 +87,7 @@ add_executable(yubikey-oath-daemon
     workflows/notification_orchestrator.cpp
     workflows/touch_handler.cpp
     workflows/touch_workflow_coordinator.cpp
+    workflows/reconnect_workflow_coordinator.cpp
     workflows/notification_helper.cpp
     workflows/notification_utils.cpp
 

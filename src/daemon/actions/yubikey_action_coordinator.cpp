@@ -5,6 +5,7 @@
 
 #include "yubikey_action_coordinator.h"
 #include "action_executor.h"
+#include "../services/yubikey_service.h"
 #include "../clipboard/clipboard_manager.h"
 #include "../input/text_input_factory.h"
 #include "../notification/dbus_notification_manager.h"
@@ -12,6 +13,8 @@
 #include "../workflows/notification_helper.h"
 #include "../workflows/touch_handler.h"
 #include "../workflows/touch_workflow_coordinator.h"
+#include "../workflows/reconnect_workflow_coordinator.h"
+#include "../cache/credential_cache_searcher.h"
 #include "../oath/yubikey_device_manager.h"
 #include "../storage/yubikey_database.h"
 #include "../config/daemon_configuration.h"
@@ -24,7 +27,8 @@ namespace YubiKeyOath {
 namespace Daemon {
 using namespace YubiKeyOath::Shared;
 
-YubiKeyActionCoordinator::YubiKeyActionCoordinator(YubiKeyDeviceManager *deviceManager,
+YubiKeyActionCoordinator::YubiKeyActionCoordinator(YubiKeyService *service,
+                                         YubiKeyDeviceManager *deviceManager,
                                          YubiKeyDatabase *database,
                                          SecretStorage *secretStorage,
                                          DaemonConfiguration *config,
@@ -56,8 +60,19 @@ YubiKeyActionCoordinator::YubiKeyActionCoordinator(YubiKeyDeviceManager *deviceM
         m_notificationOrchestrator.get(),
         config,
         this))
+    , m_reconnectWorkflowCoordinator(std::make_unique<ReconnectWorkflowCoordinator>(
+        service,  // Pass service (ICredentialUpdateNotifier) for signals and device access
+        database,
+        this, // Pass action coordinator for unified action execution
+        m_notificationOrchestrator.get(),
+        config,
+        this))
+    , m_cacheSearcher(std::make_unique<CredentialCacheSearcher>(
+        deviceManager,
+        database,
+        config))
 {
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyActionCoordinator: Initialized with touch workflow support";
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyActionCoordinator: Initialized with touch and reconnect workflow support";
 }
 
 YubiKeyActionCoordinator::~YubiKeyActionCoordinator() = default;
@@ -125,14 +140,42 @@ void YubiKeyActionCoordinator::closeNotification(uint notificationId)
     m_notificationOrchestrator->closeNotification(notificationId);
 }
 
+bool YubiKeyActionCoordinator::tryStartReconnectWorkflow(
+    const QString &deviceId,
+    const QString &credentialName,
+    const QString &actionType)
+{
+    qCDebug(YubiKeyActionCoordinatorLog)
+        << "YubiKeyActionCoordinator: Starting reconnect workflow for cached credential";
+
+    m_reconnectWorkflowCoordinator->startReconnectWorkflow(
+        deviceId,
+        credentialName,
+        actionType
+    );
+
+    return true; // Workflow started successfully
+}
+
 bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
                                                      const QString &credentialName,
                                                      const QString &actionType)
 {
     // Get device (use first connected if deviceId empty)
     auto device = m_deviceManager->getDeviceOrFirst(deviceId);
+
+    // If device not found, try cached credential (offline device with cached credentials)
     if (!device) {
-        qCWarning(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Device not found";
+        qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Device not connected, checking cache";
+
+        auto cachedDeviceId = m_cacheSearcher->findCachedCredentialDevice(credentialName, deviceId);
+        if (cachedDeviceId.has_value()) {
+            return tryStartReconnectWorkflow(*cachedDeviceId, credentialName, actionType);
+        }
+
+        // Not found in cache
+        qCWarning(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Device not found"
+                                                << (m_config->enableCredentialsCache() ? "and not in cache" : "(cache disabled)");
         return false;
     }
 
@@ -171,15 +214,15 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
 
     int connectedDeviceCount = m_deviceManager->getConnectedDeviceIds().size();
 
-    QString formattedTitle = CredentialFormatter::formatDisplayName(
-        foundCredential,
-        m_config->showUsername(),
-        false, // Don't show code in title (code is shown in notification body)
-        m_config->showDeviceName(),
-        deviceName,
-        connectedDeviceCount,
-        m_config->showDeviceNameOnlyWhenMultiple()
-    );
+    FormatOptions options = FormatOptionsBuilder()
+        .withUsername(m_config->showUsername())
+        .withCode(false) // Don't show code in title (code is shown in notification body)
+        .withDevice(deviceName, m_config->showDeviceName())
+        .withDeviceCount(connectedDeviceCount)
+        .onlyWhenMultipleDevices(m_config->showDeviceNameOnlyWhenMultiple())
+        .build();
+
+    const QString formattedTitle = CredentialFormatter::formatDisplayName(foundCredential, options);
 
     // If touch required, start async touch workflow to avoid blocking
     if (requiresTouch) {
@@ -198,7 +241,7 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
     const QString code = codeResult.value();
 
     // Use unified action execution with notification handling (pass formatted title)
-    ActionExecutor::ActionResult result = executeActionWithNotification(code, formattedTitle, actionType);
+    const ActionExecutor::ActionResult result = executeActionWithNotification(code, formattedTitle, actionType);
     return result == ActionExecutor::ActionResult::Success;
 }
 

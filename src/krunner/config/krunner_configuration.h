@@ -40,6 +40,7 @@ public:
     int touchTimeout() const override;
     int notificationExtraTime() const override;
     QString primaryAction() const override;
+    int deviceReconnectTimeout() const override;
 
 private Q_SLOTS:
     void onConfigFileChanged(const QString &path);

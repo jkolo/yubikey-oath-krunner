@@ -80,6 +80,12 @@ public:
      */
     virtual QString primaryAction() const = 0;
 
+    /**
+     * @brief Gets device reconnect timeout setting
+     * @return Timeout in seconds for waiting for device reconnection
+     */
+    virtual int deviceReconnectTimeout() const = 0;
+
 Q_SIGNALS:
     /**
      * @brief Emitted when configuration has been reloaded

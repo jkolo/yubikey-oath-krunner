@@ -70,15 +70,13 @@ void TestCredentialFormatter::testFormat_OnlyIssuer()
     cred.requiresTouch = false;
 
     // All flags disabled - should show only issuer
-    QString result = CredentialFormatter::formatDisplayName(
-        cred,
-        false, // showUsername
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, // showUsername
         false, // showCode
         false, // showDeviceName
         QString(), // deviceName
         1, // connectedDeviceCount
         false // showDeviceOnlyWhenMultiple
-    );
+    ));
 
     QCOMPARE(result, QString("Google"));
 }
@@ -89,11 +87,8 @@ void TestCredentialFormatter::testFormat_IssuerWithUsername()
     cred.issuer = "Google";
     cred.account = "user@example.com";
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred,
-        true, // showUsername
-        false, false, QString(), 1, false
-    );
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(true, // showUsername
+        false, false, QString(), 1, false));
 
     QCOMPARE(result, QString("Google (user@example.com)"));
 }
@@ -106,12 +101,9 @@ void TestCredentialFormatter::testFormat_IssuerWithCode()
     cred.code = "123456";
     cred.requiresTouch = false;
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred,
-        false, // showUsername
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, // showUsername
         true, // showCode
-        false, QString(), 1, false
-    );
+        false, QString(), 1, false));
 
     QCOMPARE(result, QString("Google - 123456"));
 }
@@ -121,14 +113,12 @@ void TestCredentialFormatter::testFormat_IssuerWithDeviceName()
     OathCredential cred;
     cred.issuer = "Google";
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred,
-        false, false,
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, false,
         true, // showDeviceName
         QString("YubiKey 5"), // deviceName
         2, // connectedDeviceCount
         false // showDeviceOnlyWhenMultiple
-    );
+    ));
 
     QCOMPARE(result, QString("Google @ YubiKey 5"));
 }
@@ -141,15 +131,13 @@ void TestCredentialFormatter::testFormat_AllOptions()
     cred.code = "123456";
     cred.requiresTouch = false;
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred,
-        true, // showUsername
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(true, // showUsername
         true, // showCode
         true, // showDeviceName
         QString("YubiKey 5"), // deviceName
         2, // connectedDeviceCount
         false // showDeviceOnlyWhenMultiple
-    );
+    ));
 
     QCOMPARE(result, QString("Google (user@example.com) - 123456 @ YubiKey 5"));
 }
@@ -162,9 +150,7 @@ void TestCredentialFormatter::testFormat_Username_Enabled()
     cred.issuer = "GitHub";
     cred.account = "developer";
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, true, false, false, QString(), 1, false
-    );
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(true, false, false, QString(), 1, false));
 
     QCOMPARE(result, QString("GitHub (developer)"));
 }
@@ -175,9 +161,7 @@ void TestCredentialFormatter::testFormat_Username_Disabled()
     cred.issuer = "GitHub";
     cred.account = "developer";
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, false, false, false, QString(), 1, false
-    );
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, false, false, QString(), 1, false));
 
     QCOMPARE(result, QString("GitHub"));
 }
@@ -188,9 +172,7 @@ void TestCredentialFormatter::testFormat_Username_EmptyUsername()
     cred.issuer = "GitHub";
     cred.account = "";
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, true, false, false, QString(), 1, false
-    );
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(true, false, false, QString(), 1, false));
 
     // Should not append parentheses if username is empty
     QCOMPARE(result, QString("GitHub"));
@@ -205,9 +187,7 @@ void TestCredentialFormatter::testFormat_Code_Enabled_NoTouch()
     cred.code = "654321";
     cred.requiresTouch = false;
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, false, true, false, QString(), 1, false
-    );
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, true, false, QString(), 1, false));
 
     QCOMPARE(result, QString("Amazon - 654321"));
 }
@@ -219,9 +199,7 @@ void TestCredentialFormatter::testFormat_Code_Enabled_RequiresTouch()
     cred.code = "654321";
     cred.requiresTouch = true;
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, false, true, false, QString(), 1, false
-    );
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, true, false, QString(), 1, false));
 
     // Should not show code if touch is required
     QCOMPARE(result, QString("Amazon"));
@@ -234,9 +212,7 @@ void TestCredentialFormatter::testFormat_Code_Disabled()
     cred.code = "654321";
     cred.requiresTouch = false;
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, false, false, false, QString(), 1, false
-    );
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, false, false, QString(), 1, false));
 
     // Should not show code if flag disabled
     QCOMPARE(result, QString("Amazon"));
@@ -249,9 +225,7 @@ void TestCredentialFormatter::testFormat_Code_EmptyCode()
     cred.code = "";
     cred.requiresTouch = false;
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, false, true, false, QString(), 1, false
-    );
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, true, false, QString(), 1, false));
 
     // Should not append code if it's empty
     QCOMPARE(result, QString("Amazon"));
@@ -264,13 +238,12 @@ void TestCredentialFormatter::testFormat_DeviceName_Enabled_SingleDevice()
     OathCredential cred;
     cred.issuer = "Microsoft";
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, false, false,
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, false,
         true, // showDeviceName
         QString("YubiKey 5C"), // deviceName
         1, // connectedDeviceCount
         false // showDeviceOnlyWhenMultiple
-    );
+    ));
 
     // Should show device name even with single device
     QCOMPARE(result, QString("Microsoft @ YubiKey 5C"));
@@ -281,13 +254,12 @@ void TestCredentialFormatter::testFormat_DeviceName_Enabled_MultipleDevices()
     OathCredential cred;
     cred.issuer = "Microsoft";
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, false, false,
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, false,
         true, // showDeviceName
         QString("YubiKey 5C"), // deviceName
         3, // connectedDeviceCount
         false // showDeviceOnlyWhenMultiple
-    );
+    ));
 
     QCOMPARE(result, QString("Microsoft @ YubiKey 5C"));
 }
@@ -297,13 +269,12 @@ void TestCredentialFormatter::testFormat_DeviceName_Disabled()
     OathCredential cred;
     cred.issuer = "Microsoft";
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, false, false,
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, false,
         false, // showDeviceName
         QString("YubiKey 5C"), // deviceName
         2, // connectedDeviceCount
         false // showDeviceOnlyWhenMultiple
-    );
+    ));
 
     // Should not show device name if flag disabled
     QCOMPARE(result, QString("Microsoft"));
@@ -314,13 +285,12 @@ void TestCredentialFormatter::testFormat_DeviceName_OnlyWhenMultiple_SingleDevic
     OathCredential cred;
     cred.issuer = "Microsoft";
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, false, false,
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, false,
         true, // showDeviceName
         QString("YubiKey 5C"), // deviceName
         1, // connectedDeviceCount
         true // showDeviceOnlyWhenMultiple
-    );
+    ));
 
     // Should NOT show device name with single device
     QCOMPARE(result, QString("Microsoft"));
@@ -331,13 +301,12 @@ void TestCredentialFormatter::testFormat_DeviceName_OnlyWhenMultiple_MultipleDev
     OathCredential cred;
     cred.issuer = "Microsoft";
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, false, false,
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, false,
         true, // showDeviceName
         QString("YubiKey 5C"), // deviceName
         2, // connectedDeviceCount
         true // showDeviceOnlyWhenMultiple
-    );
+    ));
 
     // Should show device name with multiple devices
     QCOMPARE(result, QString("Microsoft @ YubiKey 5C"));
@@ -348,13 +317,12 @@ void TestCredentialFormatter::testFormat_DeviceName_EmptyDeviceName()
     OathCredential cred;
     cred.issuer = "Microsoft";
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, false, false,
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, false,
         true, // showDeviceName
         QString(), // empty deviceName
         2, // connectedDeviceCount
         false // showDeviceOnlyWhenMultiple
-    );
+    ));
 
     // Should not append device section if name is empty
     QCOMPARE(result, QString("Microsoft"));
@@ -369,10 +337,7 @@ void TestCredentialFormatter::testFormatWithCode_WithCode()
     cred.account = "user";
     cred.requiresTouch = false;
 
-    QString result = CredentialFormatter::formatWithCode(
-        cred,
-        QString("789012"), // code
-        false, // requiresTouch
+    FormatOptions options(
         true, // showUsername
         true, // showCode
         false, // showDeviceName
@@ -380,6 +345,8 @@ void TestCredentialFormatter::testFormatWithCode_WithCode()
         1, // connectedDeviceCount
         false // showDeviceOnlyWhenMultiple
     );
+
+    QString result = CredentialFormatter::formatWithCode(cred, QString("789012"), false, options);
 
     QCOMPARE(result, QString("Dropbox (user) - 789012"));
 }
@@ -391,10 +358,7 @@ void TestCredentialFormatter::testFormatWithCode_RequiresTouch()
     cred.account = "user";
     cred.requiresTouch = true;
 
-    QString result = CredentialFormatter::formatWithCode(
-        cred,
-        QString("789012"), // code
-        true, // requiresTouch
+    FormatOptions options(
         true, // showUsername
         true, // showCode
         false, // showDeviceName
@@ -402,6 +366,8 @@ void TestCredentialFormatter::testFormatWithCode_RequiresTouch()
         1, // connectedDeviceCount
         false // showDeviceOnlyWhenMultiple
     );
+
+    QString result = CredentialFormatter::formatWithCode(cred, QString("789012"), true, options);
 
     // Should show touch indicator emoji instead of code
     QCOMPARE(result, QString("Dropbox (user) 👆"));
@@ -414,10 +380,7 @@ void TestCredentialFormatter::testFormatWithCode_AllOptions()
     cred.account = "user";
     cred.requiresTouch = false;
 
-    QString result = CredentialFormatter::formatWithCode(
-        cred,
-        QString("789012"), // code
-        false, // requiresTouch
+    FormatOptions options(
         true, // showUsername
         true, // showCode
         true, // showDeviceName
@@ -425,6 +388,8 @@ void TestCredentialFormatter::testFormatWithCode_AllOptions()
         2, // connectedDeviceCount
         false // showDeviceOnlyWhenMultiple
     );
+
+    QString result = CredentialFormatter::formatWithCode(cred, QString("789012"), false, options);
 
     QCOMPARE(result, QString("Dropbox (user) - 789012 @ YubiKey 5"));
 }
@@ -438,9 +403,7 @@ void TestCredentialFormatter::testFormat_EmptyIssuer_UsesName()
     cred.issuer = "";
     cred.account = "user";
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, false, false, false, QString(), 1, false
-    );
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, false, false, QString(), 1, false));
 
     // Should fall back to name when issuer is empty
     QCOMPARE(result, QString("MyAccount"));
@@ -453,9 +416,7 @@ void TestCredentialFormatter::testFormat_EmptyIssuerAndName()
     cred.issuer = "";
     cred.account = "user";
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, false, false, false, QString(), 1, false
-    );
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, false, false, QString(), 1, false));
 
     // Should return empty string
     QCOMPARE(result, QString(""));
@@ -468,9 +429,7 @@ void TestCredentialFormatter::testFormat_AllEmpty()
     cred.issuer = "";
     cred.account = "";
 
-    QString result = CredentialFormatter::formatDisplayName(
-        cred, true, false, false, QString(), 1, false
-    );
+    QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(true, false, false, QString(), 1, false));
 
     // Should return empty string
     QCOMPARE(result, QString(""));
@@ -488,10 +447,8 @@ void TestCredentialFormatter::testRealWorldScenarios()
         cred.code = "123456";
         cred.requiresTouch = false;
 
-        QString result = CredentialFormatter::formatDisplayName(
-            cred, true, true, true,
-            QString("YubiKey 5"), 2, false
-        );
+        QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(true, true, true,
+            QString("YubiKey 5"), 2, false));
 
         QCOMPARE(result, QString("Google (user@gmail.com) - 123456 @ YubiKey 5"));
     }
@@ -503,10 +460,8 @@ void TestCredentialFormatter::testRealWorldScenarios()
         cred.account = "developer";
         cred.requiresTouch = true;
 
-        QString result = CredentialFormatter::formatDisplayName(
-            cred, true, true, false,
-            QString(), 1, false
-        );
+        QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(true, true, false,
+            QString(), 1, false));
 
         // Should not show code due to touch requirement
         QCOMPARE(result, QString("GitHub (developer)"));
@@ -518,10 +473,8 @@ void TestCredentialFormatter::testRealWorldScenarios()
         cred.issuer = "AWS";
         cred.account = "admin";
 
-        QString result = CredentialFormatter::formatDisplayName(
-            cred, false, false, false,
-            QString(), 1, false
-        );
+        QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, false, false,
+            QString(), 1, false));
 
         QCOMPARE(result, QString("AWS"));
     }
@@ -532,10 +485,8 @@ void TestCredentialFormatter::testRealWorldScenarios()
         cred.issuer = "Slack";
         cred.account = "team@company.com";
 
-        QString result = CredentialFormatter::formatDisplayName(
-            cred, true, false, true,
-            QString("YubiKey 5C NFC"), 3, true
-        );
+        QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(true, false, true,
+            QString("YubiKey 5C NFC"), 3, true));
 
         QCOMPARE(result, QString("Slack (team@company.com) @ YubiKey 5C NFC"));
     }
@@ -546,10 +497,8 @@ void TestCredentialFormatter::testRealWorldScenarios()
         cred.issuer = "Slack";
         cred.account = "team@company.com";
 
-        QString result = CredentialFormatter::formatDisplayName(
-            cred, true, false, true,
-            QString("YubiKey 5C NFC"), 1, true
-        );
+        QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(true, false, true,
+            QString("YubiKey 5C NFC"), 1, true));
 
         // Device name should be hidden with single device
         QCOMPARE(result, QString("Slack (team@company.com)"));

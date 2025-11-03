@@ -9,12 +9,14 @@
 #include <QString>
 #include <QVariantMap>
 #include <memory>
+#include <optional>
 #include "action_executor.h"  // Required for ActionExecutor::ActionResult
 
 namespace YubiKeyOath {
 namespace Daemon {
 
 // Forward declarations
+class YubiKeyService;
 class ClipboardManager;
 class TextInputProvider;
 class DBusNotificationManager;
@@ -25,16 +27,19 @@ class YubiKeyDatabase;
 class SecretStorage;
 class TouchHandler;
 class TouchWorkflowCoordinator;
+class ReconnectWorkflowCoordinator;
+class CredentialCacheSearcher;
 
 /**
  * @brief Coordinates YubiKey actions: copy, type, add credential
  *
  * Single Responsibility: Coordinate YubiKey actions by checking touch requirements
- * and delegating to appropriate components (ActionExecutor, TouchWorkflowCoordinator).
+ * and delegating to appropriate components (ActionExecutor, TouchWorkflowCoordinator,
+ * ReconnectWorkflowCoordinator, CredentialCacheSearcher).
  *
  * This class aggregates all action-related components and provides
  * high-level methods for D-Bus service to call. It handles the decision logic
- * of whether to start a touch workflow or execute the action directly.
+ * of whether to start a touch workflow, reconnect workflow, or execute the action directly.
  */
 class YubiKeyActionCoordinator : public QObject
 {
@@ -43,13 +48,15 @@ class YubiKeyActionCoordinator : public QObject
 public:
     /**
      * @brief Constructs YubiKey action coordinator
+     * @param service YubiKey service (for reconnect workflow)
      * @param deviceManager YubiKey device manager for operations
      * @param database YubiKey database for device information
      * @param secretStorage Secret storage for KWallet operations
      * @param config Daemon configuration
      * @param parent Parent QObject
      */
-    explicit YubiKeyActionCoordinator(YubiKeyDeviceManager *deviceManager,
+    explicit YubiKeyActionCoordinator(YubiKeyService *service,
+                                     YubiKeyDeviceManager *deviceManager,
                                      YubiKeyDatabase *database,
                                      SecretStorage *secretStorage,
                                      DaemonConfiguration *config,
@@ -142,6 +149,17 @@ private:
                               const QString &credentialName,
                               const QString &actionType);
 
+    /**
+     * @brief Starts reconnect workflow for offline device
+     * @param deviceId Device ID to reconnect
+     * @param credentialName Credential name
+     * @param actionType Action to execute after reconnect
+     * @return true (workflow started)
+     */
+    bool tryStartReconnectWorkflow(const QString &deviceId,
+                                    const QString &credentialName,
+                                    const QString &actionType);
+
     YubiKeyDeviceManager *m_deviceManager;
     YubiKeyDatabase *m_database;
     SecretStorage *m_secretStorage;
@@ -154,6 +172,8 @@ private:
     std::unique_ptr<ActionExecutor> m_actionExecutor;
     std::unique_ptr<TouchHandler> m_touchHandler;
     std::unique_ptr<TouchWorkflowCoordinator> m_touchWorkflowCoordinator;
+    std::unique_ptr<ReconnectWorkflowCoordinator> m_reconnectWorkflowCoordinator;
+    std::unique_ptr<CredentialCacheSearcher> m_cacheSearcher;
 };
 
 } // namespace Daemon
