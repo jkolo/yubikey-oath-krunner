@@ -1,14 +1,14 @@
 # SOME DESCRIPTIVE TITLE.
 # Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the yubikey_oath package.
+# This file is distributed under the same license as the yubikey-oath package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: yubikey_oath\n"
-"Report-Msgid-Bugs-To: https://github.com/jkolo/krunner-yubikey\n"
-"POT-Creation-Date: 2025-11-02 13:43+0100\n"
+"Project-Id-Version: yubikey-oath\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-11-05 12:24+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,120 +17,120 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/daemon/ui/add_credential_dialog.cpp:43 src/krunner/yubikeyrunner.cpp:145
+#: src/daemon/ui/add_credential_dialog.cpp:41 src/krunner/yubikeyrunner.cpp:145
 msgid "Add OATH Credential to YubiKey"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:81
+#: src/daemon/ui/add_credential_dialog.cpp:79
 msgid "Scan QR Code from Screen"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:82
+#: src/daemon/ui/add_credential_dialog.cpp:80
 msgid "Capture screenshot and scan QR code"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:91
+#: src/daemon/ui/add_credential_dialog.cpp:89
 msgid "e.g., Google, GitHub"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:92
+#: src/daemon/ui/add_credential_dialog.cpp:90
 msgid "Issuer:"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:96
+#: src/daemon/ui/add_credential_dialog.cpp:94
 msgid "e.g., user@example.com"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:97
+#: src/daemon/ui/add_credential_dialog.cpp:95
 msgid "Account:"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:103
+#: src/daemon/ui/add_credential_dialog.cpp:101
 msgid "Base32 encoded secret"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:105
+#: src/daemon/ui/add_credential_dialog.cpp:103
 msgid "Show/hide secret"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:109
+#: src/daemon/ui/add_credential_dialog.cpp:107
 msgid "Secret:"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:113
+#: src/daemon/ui/add_credential_dialog.cpp:111
 msgid "TOTP (Time-based)"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:114
+#: src/daemon/ui/add_credential_dialog.cpp:112
 msgid "HOTP (Counter-based)"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:116
+#: src/daemon/ui/add_credential_dialog.cpp:114
 msgid "Type:"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:126
+#: src/daemon/ui/add_credential_dialog.cpp:122
 msgid "Algorithm:"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:132
+#: src/daemon/ui/add_credential_dialog.cpp:128
 msgid "Digits:"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:138
+#: src/daemon/ui/add_credential_dialog.cpp:134
 msgid " seconds"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:139
+#: src/daemon/ui/add_credential_dialog.cpp:135
 msgid "Period:"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:145
+#: src/daemon/ui/add_credential_dialog.cpp:141
 msgid "Initial Counter:"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:148
+#: src/daemon/ui/add_credential_dialog.cpp:144
 msgid "Require physical touch to generate code"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:155
+#: src/daemon/ui/add_credential_dialog.cpp:151
 msgid "No devices available"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:168
+#: src/daemon/ui/add_credential_dialog.cpp:164
 msgid "Target Device:"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:185
+#: src/daemon/ui/add_credential_dialog.cpp:181
 msgid "Add to YubiKey"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:249
+#: src/daemon/ui/add_credential_dialog.cpp:245
 msgid "Issuer is required"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:258
+#: src/daemon/ui/add_credential_dialog.cpp:254
 msgid "Account is required"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:267
+#: src/daemon/ui/add_credential_dialog.cpp:263
 #: src/shared/types/oath_credential_data.h:61
 msgid "Secret is required"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:316
+#: src/daemon/ui/add_credential_dialog.cpp:312
 msgid "Scanning screen"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:373
+#: src/daemon/ui/add_credential_dialog.cpp:367
 msgid "Processing QR code"
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:384
+#: src/daemon/ui/add_credential_dialog.cpp:378
 msgid "No QR code found in the screenshot. Please try again."
 msgstr ""
 
-#: src/daemon/ui/add_credential_dialog.cpp:425
+#: src/daemon/ui/add_credential_dialog.cpp:419
 msgid "QR code scanned successfully. Please review the information below."
 msgstr ""
 
@@ -138,18 +138,16 @@ msgstr ""
 msgid "Failed to generate code"
 msgstr ""
 
-#: src/daemon/workflows/touch_workflow_coordinator.cpp:219
-#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:237
+#: src/daemon/workflows/touch_workflow_coordinator.cpp:220
+#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:177
 msgid "Cancelled"
 msgstr ""
 
-#: src/daemon/workflows/touch_workflow_coordinator.cpp:220
+#: src/daemon/workflows/touch_workflow_coordinator.cpp:221
 msgid "Touch operation cancelled for '%1'"
 msgstr ""
 
-#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:117
-#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:130
-#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:173
+#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:138
 #: src/daemon/actions/action_executor.cpp:42
 #: src/daemon/actions/action_executor.cpp:50
 #: src/daemon/actions/action_executor.cpp:110
@@ -158,27 +156,19 @@ msgstr ""
 msgid "Error"
 msgstr ""
 
-#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:118
-msgid "Device reconnected but is no longer available"
+#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:139
+msgid "Failed to execute action after reconnect"
 msgstr ""
 
-#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:131
-msgid "Authentication required. Please unlock the device first."
-msgstr ""
-
-#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:174
-msgid "Failed to generate code: %1"
-msgstr ""
-
-#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:222
+#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:162
 msgid "Timeout"
 msgstr ""
 
-#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:223
+#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:163
 msgid "YubiKey '%1' was not reconnected in time"
 msgstr ""
 
-#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:238
+#: src/daemon/workflows/reconnect_workflow_coordinator.cpp:178
 msgid "Reconnect to '%1' cancelled"
 msgstr ""
 
@@ -238,19 +228,19 @@ msgstr ""
 msgid "Touch Timeout"
 msgstr ""
 
-#: src/daemon/input/modifier_key_checker.cpp:402
+#: src/daemon/input/modifier_key_checker.cpp:407
 msgid "Shift"
 msgstr ""
 
-#: src/daemon/input/modifier_key_checker.cpp:405
+#: src/daemon/input/modifier_key_checker.cpp:410
 msgid "Ctrl"
 msgstr ""
 
-#: src/daemon/input/modifier_key_checker.cpp:408
+#: src/daemon/input/modifier_key_checker.cpp:413
 msgid "Alt"
 msgstr ""
 
-#: src/daemon/input/modifier_key_checker.cpp:411
+#: src/daemon/input/modifier_key_checker.cpp:416
 msgid "AltGr"
 msgstr ""
 
@@ -290,26 +280,26 @@ msgstr ""
 msgid "Failed to copy to clipboard"
 msgstr ""
 
-#: src/daemon/services/yubikey_service.cpp:446
+#: src/daemon/services/yubikey_service.cpp:473
 msgid "No YubiKey devices connected"
 msgstr ""
 
-#: src/daemon/services/yubikey_service.cpp:454
+#: src/daemon/services/yubikey_service.cpp:481
 msgid "Showing credential dialog"
 msgstr ""
 
-#: src/daemon/services/yubikey_service.cpp:464
+#: src/daemon/services/yubikey_service.cpp:491
 #: src/shared/ui/password_dialog_helper.cpp:61
 #: src/shared/ui/change_password_dialog_helper.cpp:52
 #: src/config/yubikey_device_model.cpp:148
 msgid "Device not found"
 msgstr ""
 
-#: src/daemon/services/yubikey_service.cpp:480
+#: src/daemon/services/yubikey_service.cpp:507
 msgid "Invalid credential type (must be TOTP or HOTP)"
 msgstr ""
 
-#: src/daemon/services/yubikey_service.cpp:527
+#: src/daemon/services/yubikey_service.cpp:554
 msgid "Credential added successfully"
 msgstr ""
 
@@ -544,7 +534,7 @@ msgid ""
 "This action cannot be undone."
 msgstr ""
 
-#: src/krunner/yubikeyrunner.cpp:439
+#: src/krunner/yubikeyrunner.cpp:440
 msgctxt "search keyword"
 msgid "add"
 msgstr ""
@@ -553,14 +543,14 @@ msgstr ""
 msgid "Unknown action"
 msgstr ""
 
-#: src/krunner/matching/match_builder.cpp:134
+#: src/krunner/matching/match_builder.cpp:136
 msgid "YubiKey OATH TOTP/HOTP"
 msgstr ""
 
-#: src/krunner/matching/match_builder.cpp:171
+#: src/krunner/matching/match_builder.cpp:173
 msgid "YubiKey password required: %1"
 msgstr ""
 
-#: src/krunner/matching/match_builder.cpp:172
+#: src/krunner/matching/match_builder.cpp:174
 msgid "Device: %1 - Click to enter password"
 msgstr ""

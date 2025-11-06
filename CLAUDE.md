@@ -14,7 +14,27 @@ The project consists of two main components:
 
 ### Building Daemon and Plugin
 
-The project builds both the daemon and KRunner plugin:
+**PREFERRED METHOD: Using CMake Presets**
+
+The project includes CMake presets for consistent builds (see `CMakePresets.json`):
+
+```bash
+# Configure and build with clang-debug preset
+cmake --preset clang-debug
+cmake --build build-clang-debug -j$(nproc)
+run0 cmake --install build-clang-debug
+
+# Or use clang-release preset for optimized builds
+cmake --preset clang-release
+cmake --build build-clang-release -j$(nproc)
+run0 cmake --install build-clang-release
+```
+
+**Available presets:**
+- `clang-debug` - Debug build with Clang (recommended for development)
+- `clang-release` - Release build with Clang (optimized)
+
+**Legacy method (manual configuration):**
 
 ```bash
 # From project root
@@ -39,6 +59,19 @@ ls -la /usr/lib/qt6/plugins/kcm_krunner_yubikey.so
 
 ### Development Build
 
+**With CMake presets (recommended):**
+
+CMake presets automatically use Debug build type. For local installation:
+
+```bash
+# Configure with local install prefix
+cmake --preset clang-debug -DCMAKE_INSTALL_PREFIX=$HOME/.local
+cmake --build build-clang-debug -j$(nproc)
+cmake --install build-clang-debug
+```
+
+**Legacy method:**
+
 ```bash
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=$HOME/.local
@@ -47,6 +80,18 @@ cmake --install .
 ```
 
 ### Quick Rebuild After Changes
+
+**With CMake presets (recommended):**
+
+```bash
+# Rebuild and install (debug build)
+cmake --build build-clang-debug -j$(nproc) && run0 cmake --install build-clang-debug
+
+# Or for release build
+cmake --build build-clang-release -j$(nproc) && run0 cmake --install build-clang-release
+```
+
+**Legacy method:**
 
 ```bash
 cd build
@@ -402,6 +447,9 @@ The client side now uses an object-oriented proxy architecture instead of a flat
 - Static response parsing methods (parseSelectResponse, etc.)
 - Helper functions (TLV parsing, TOTP counter calculation)
 - No state, no I/O - pure functions only
+- **IMPORTANT**: TAG_PROPERTY (0x78) uses Tag-Value format (NOT Tag-Length-Value)
+  - Correct: `78 02` (tag + value, 2 bytes)
+  - Wrong: `78 01 02` (tag + length + value, 3 bytes causes 0x6a80 error)
 
 **OATH Protocol Architecture**:
 ```
@@ -779,6 +827,28 @@ The project has comprehensive unit tests:
 - `mocks/mock_configuration_provider.cpp` - Mock for configuration testing
 
 ### Running Tests
+
+**With CMake presets (recommended):**
+
+```bash
+# Run all tests using preset
+ctest --preset clang-debug --output-on-failure
+
+# Or manually with build directory
+cd build-clang-debug
+ctest --output-on-failure
+
+# Run individual test suites
+./bin/test_result              # Result<T> tests
+./bin/test_oath_protocol       # OATH protocol tests
+./bin/test_action_manager      # Action manager tests
+./bin/test_flexible_display_strategy  # Display strategies tests
+./bin/test_code_validator      # Validation tests
+./bin/test_credential_formatter # Formatting tests
+./bin/test_match_builder       # Match building tests
+```
+
+**Legacy method:**
 
 ```bash
 # Build and run all tests
