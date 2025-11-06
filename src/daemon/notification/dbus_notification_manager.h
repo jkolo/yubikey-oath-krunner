@@ -37,7 +37,7 @@ public:
      * @param expireTimeout Timeout in milliseconds (-1 for server default, 0 for never)
      * @return Notification ID (0 on error)
      */
-    uint showNotification(
+    virtual uint showNotification(
         const QString& appName,
         uint replacesId,
         const QString& appIcon,
@@ -53,7 +53,7 @@ public:
      *
      * This is a convenience method that calls showNotification with a non-zero replacesId
      */
-    uint updateNotification(
+    virtual uint updateNotification(
         uint notificationId,
         const QString& summary,
         const QString& body,
@@ -66,14 +66,14 @@ public:
      *
      * @param notificationId ID of the notification to close
      */
-    void closeNotification(uint notificationId);
+    virtual void closeNotification(uint notificationId);
 
     /**
      * @brief Check if the notification service is available
      *
      * @return true if org.freedesktop.Notifications is available
      */
-    bool isAvailable() const;
+    virtual bool isAvailable() const;
 
 Q_SIGNALS:
     /**

@@ -19,12 +19,12 @@
 namespace YubiKeyOath {
 namespace Shared {
 
-ChangePasswordDialog::ChangePasswordDialog(const QString &deviceId,
+ChangePasswordDialog::ChangePasswordDialog(QString deviceId,
                                            const QString &deviceName,
                                            bool requiresPassword,
                                            QWidget *parent)
     : QDialog(parent)
-    , m_deviceId(deviceId)
+    , m_deviceId(std::move(deviceId))
     , m_requiresPassword(requiresPassword)
     , m_deviceNameLabel(nullptr)
     , m_oldPasswordField(nullptr)
@@ -143,19 +143,19 @@ void ChangePasswordDialog::setupUi(const QString &deviceName)
 
     // Enable OK button based on input state and password requirement
     auto updateOkButton = [this]() {
-        bool hasOldPassword = !m_oldPasswordField->text().isEmpty();
-        bool removeMode = m_removePasswordCheckbox->isChecked();
-        bool hasNewPasswords = !m_newPasswordField->text().isEmpty() &&
+        const bool hasOldPassword = !m_oldPasswordField->text().isEmpty();
+        const bool removeMode = m_removePasswordCheckbox->isChecked();
+        const bool hasNewPasswords = !m_newPasswordField->text().isEmpty() &&
                                !m_confirmPasswordField->text().isEmpty();
-        bool passwordsAreMatching = passwordsMatch();
+        const bool passwordsAreMatching = passwordsMatch();
 
         // Old password required if device has password (always, regardless of operation)
-        bool needsOldPassword = m_requiresPassword;
+        const bool needsOldPassword = m_requiresPassword;
 
         // Enable OK button when:
         // - Remove mode: checkbox checked AND (no password required OR has old password)
         // - Set/Change mode: new passwords filled AND passwords match AND (no password required OR has old password)
-        bool canProceed = removeMode
+        const bool canProceed = removeMode
             ? (!needsOldPassword || hasOldPassword)
             : (hasNewPasswords && passwordsAreMatching && (!needsOldPassword || hasOldPassword));
 
@@ -214,7 +214,7 @@ bool ChangePasswordDialog::passwordsMatch() const
 bool ChangePasswordDialog::validateInput(QString &errorMessage)
 {
     // If removing password, no further validation needed beyond old password check below
-    bool removeMode = m_removePasswordCheckbox->isChecked();
+    const bool removeMode = m_removePasswordCheckbox->isChecked();
 
     // Check if old password is provided (only required if device has password AND not removing)
     if (m_oldPasswordField->text().isEmpty() && m_requiresPassword && !removeMode) {
@@ -261,8 +261,8 @@ void ChangePasswordDialog::onOkClicked()
     setVerifying(true);
 
     // Emit signal with old and new passwords
-    QString oldPassword = m_oldPasswordField->text();
-    QString newPassword = m_removePasswordCheckbox->isChecked() ?
+    const QString oldPassword = m_oldPasswordField->text();
+    const QString newPassword = m_removePasswordCheckbox->isChecked() ?
                           QString() : m_newPasswordField->text();
 
     Q_EMIT passwordChangeRequested(m_deviceId, oldPassword, newPassword);

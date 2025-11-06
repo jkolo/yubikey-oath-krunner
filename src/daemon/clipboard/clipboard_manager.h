@@ -37,12 +37,12 @@ public:
      * @param clearAfterSeconds Auto-clear timeout in seconds (0 = no auto-clear)
      * @return true if successful
      */
-    bool copyToClipboard(const QString &text, int clearAfterSeconds = 0);
+    virtual bool copyToClipboard(const QString &text, int clearAfterSeconds = 0);
 
     /**
      * @brief Manually clears clipboard if it contains our copied text
      */
-    void clearClipboard();
+    virtual void clearClipboard();
 
 private Q_SLOTS:
     void onClearTimerTimeout();

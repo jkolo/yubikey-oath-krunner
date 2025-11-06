@@ -22,7 +22,7 @@ void showDialog(
     bool requiresPassword,
     YubiKeyManagerProxy *manager,
     QObject *parent,
-    std::function<void()> onPasswordChangeSuccess)
+    const std::function<void()> &onPasswordChangeSuccess)
 {
     qCDebug(YubiKeyUILog) << "Showing change password dialog for device:" << deviceId
                           << "requiresPassword:" << requiresPassword;
@@ -40,7 +40,7 @@ void showDialog(
                 const QString &oldPassword,
                 const QString &newPassword) {
                 // Use QPointer to safely check if dialog still exists
-                QPointer<ChangePasswordDialog> dialogPtr(dlg);
+                const QPointer<ChangePasswordDialog> dialogPtr(dlg);
 
                 // Get device proxy
                 YubiKeyDeviceProxy *device = manager->getDevice(devId);
@@ -58,7 +58,7 @@ void showDialog(
 
                 // Change password via device proxy (blocking call) - get detailed error message
                 QString errorMessage;
-                bool success = device->changePassword(oldPassword, newPassword, errorMessage);
+                const bool success = device->changePassword(oldPassword, newPassword, errorMessage);
 
                 // Check if dialog still exists before accessing it
                 if (!dialogPtr) {
@@ -89,7 +89,7 @@ void showDialog(
                     QMetaObject::invokeMethod(dialogPtr.data(), [dialogPtr, errorMessage]() {
                         if (dialogPtr) {
                             // Use detailed error message if available, otherwise use generic message
-                            QString displayError = errorMessage.isEmpty()
+                            const QString displayError = errorMessage.isEmpty()
                                 ? i18n("Failed to change password.\n"
                                        "The current password may be incorrect, or the YubiKey may not be accessible.")
                                 : errorMessage;

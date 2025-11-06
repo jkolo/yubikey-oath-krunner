@@ -39,7 +39,7 @@ public:
      * @param requiresPassword Whether device currently requires password
      * @param parent Parent widget (typically nullptr for top-level)
      */
-    explicit ChangePasswordDialog(const QString &deviceId,
+    explicit ChangePasswordDialog(QString deviceId,
                                    const QString &deviceName,
                                    bool requiresPassword,
                                    QWidget *parent = nullptr);

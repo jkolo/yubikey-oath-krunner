@@ -41,7 +41,7 @@ void showDialog(
     bool requiresPassword,
     YubiKeyManagerProxy *manager,
     QObject *parent,
-    std::function<void()> onPasswordChangeSuccess
+    const std::function<void()> &onPasswordChangeSuccess
 );
 
 } // namespace ChangePasswordDialogHelper

@@ -4,6 +4,7 @@
  */
 
 #include "qr_code_parser.h"
+#include "../logging_categories.h"
 #include <QFile>
 #include <QImage>
 #include <QDebug>
@@ -27,7 +28,7 @@ Result<QString> QrCodeParser::parse(const QString &imagePath)
         return Result<QString>::error(i18n("Failed to load image: %1", imagePath));
     }
 
-    qDebug() << "QrCodeParser: Processing image from file" << imagePath
+    qCDebug(QrCodeParserLog) << "Processing image from file" << imagePath
              << "size:" << image.width() << "x" << image.height();
 
     // Delegate to in-memory parsing
@@ -41,7 +42,7 @@ Result<QString> QrCodeParser::parse(const QImage &image)
         return Result<QString>::error(i18n("Image is null or invalid"));
     }
 
-    qDebug() << "QrCodeParser: Processing in-memory image"
+    qCDebug(QrCodeParserLog) << "Processing in-memory image"
              << "size:" << image.width() << "x" << image.height()
              << "format:" << image.format();
 
@@ -66,7 +67,7 @@ Result<QString> QrCodeParser::parse(const QImage &image)
     auto result = ZXing::ReadBarcode(zxingImage, options);
 
     if (!result.isValid()) {
-        qDebug() << "QrCodeParser: Failed with RGB, trying grayscale...";
+        qCDebug(QrCodeParserLog) << "Failed with RGB, trying grayscale...";
 
         // Try again with grayscale
         const QImage grayImage = image.convertToFormat(QImage::Format_Grayscale8);
@@ -87,7 +88,7 @@ Result<QString> QrCodeParser::parse(const QImage &image)
 
     const QString decodedText = QString::fromStdString(result.text());
 
-    qDebug() << "QrCodeParser: Successfully decoded QR code, length:" << decodedText.length();
+    qCDebug(QrCodeParserLog) << "Successfully decoded QR code, length:" << decodedText.length();
 
     return Result<QString>::success(decodedText);
 }
