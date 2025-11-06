@@ -11,6 +11,7 @@
 #include <KSharedConfig>
 #include <KConfigGroup>
 #include <QFileSystemWatcher>
+#include <QObject>
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -18,9 +19,11 @@ namespace Daemon {
 /**
  * @brief Configuration reader for daemon
  *
- * Reads settings from krunnerrc file for daemon operations
+ * Reads settings from yubikey-oathrc file for daemon operations
+ *
+ * @note Inherits from both QObject (for signals) and ConfigurationProvider (pure interface)
  */
-class DaemonConfiguration : public Shared::ConfigurationProvider
+class DaemonConfiguration : public QObject, public Shared::ConfigurationProvider
 {
     Q_OBJECT
 
@@ -45,6 +48,15 @@ public:
     bool enableCredentialsCache() const;
     int deviceReconnectTimeout() const override;
     int credentialSaveRateLimit() const;
+
+Q_SIGNALS:
+    /**
+     * @brief Emitted when configuration has been reloaded
+     *
+     * Components can connect to this signal to refresh their cached configuration values
+     * or update active operations (e.g., adjust timer timeouts).
+     */
+    void configurationChanged();
 
 private Q_SLOTS:
     void onConfigFileChanged(const QString &path);

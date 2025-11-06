@@ -5,25 +5,24 @@
 
 #pragma once
 
-#include <QObject>
 #include <QString>
 
 namespace YubiKeyOath {
 namespace Daemon {
 
 /**
- * @brief Interface for text input providers
+ * @brief Pure interface for text input providers
  *
  * Interface Segregation Principle: Dedicated interface for text typing
  * Open/Closed Principle: New input methods can be added without modification
+ *
+ * @note This is a pure C++ interface (no QObject inheritance)
+ * @note Concrete implementations may inherit from QObject if they need Qt features
  */
-class TextInputProvider : public QObject
+class TextInputProvider
 {
-    Q_OBJECT
-
 public:
-    explicit TextInputProvider(QObject *parent = nullptr);
-    ~TextInputProvider() override;
+    virtual ~TextInputProvider() = default;
 
     /**
      * @brief Types text into active window

@@ -25,7 +25,6 @@ class YubiKeyDeviceProxy;
 }
 
 // Local includes - runner components
-#include "config/configuration_provider.h"
 #include "config/krunner_configuration.h"
 #include "actions/action_manager.h"
 #include "matching/match_builder.h"
@@ -86,7 +85,7 @@ private:
     Shared::YubiKeyManagerProxy *m_manager; // Singleton - not owned
 
     // Runner components - thin client for match building
-    std::unique_ptr<ConfigurationProvider> m_config;
+    std::unique_ptr<KRunnerConfiguration> m_config;
     std::unique_ptr<ActionManager> m_actionManager;
     std::unique_ptr<MatchBuilder> m_matchBuilder;
 

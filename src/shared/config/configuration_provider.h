@@ -5,27 +5,27 @@
 
 #pragma once
 
-#include <QObject>
 #include <QString>
 
 namespace YubiKeyOath {
 namespace Shared {
 
 /**
- * @brief Interface for accessing plugin configuration with reactive updates
+ * @brief Pure interface for accessing plugin configuration
  *
- * Single Responsibility: Provide access to configuration settings and notify on changes
+ * Single Responsibility: Provide read-only access to configuration settings
  * Interface Segregation: Clients depend only on configuration access, not implementation
- * Dependency Inversion: YubiKeyRunner depends on abstraction, not concrete KConfig
- * Observer Pattern: Emits configurationChanged() signal for reactive updates
+ * Dependency Inversion: Components depend on abstraction, not concrete KConfig
+ *
+ * @note This is a pure C++ interface (no QObject inheritance)
+ * @note Concrete implementations (KRunnerConfiguration, DaemonConfiguration)
+ *       inherit from both QObject and ConfigurationProvider to provide
+ *       Qt signal support for configuration change notifications
  */
-class ConfigurationProvider : public QObject
+class ConfigurationProvider
 {
-    Q_OBJECT
-
 public:
-    explicit ConfigurationProvider(QObject *parent = nullptr) : QObject(parent) {}
-    virtual ~ConfigurationProvider();
+    virtual ~ConfigurationProvider() = default;
 
     /**
      * @brief Reloads configuration from storage
@@ -85,15 +85,6 @@ public:
      * @return Timeout in seconds for waiting for device reconnection
      */
     virtual int deviceReconnectTimeout() const = 0;
-
-Q_SIGNALS:
-    /**
-     * @brief Emitted when configuration has been reloaded
-     *
-     * Components can connect to this signal to refresh their cached configuration values
-     * or update active operations (e.g., adjust timer timeouts).
-     */
-    void configurationChanged();
 };
 
 } // namespace Shared

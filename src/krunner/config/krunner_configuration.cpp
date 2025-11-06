@@ -16,7 +16,7 @@ namespace Runner {
 using namespace YubiKeyOath::Shared;
 
 KRunnerConfiguration::KRunnerConfiguration(QObject *parent)
-    : ConfigurationProvider(parent)
+    : QObject(parent)
     , m_config(KSharedConfig::openConfig(QStringLiteral("yubikey-oathrc")))
     , m_configGroup(m_config->group(QStringLiteral("General")))
     , m_fileWatcher(new QFileSystemWatcher(this))

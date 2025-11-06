@@ -25,7 +25,7 @@ namespace Daemon {
 // =============================================================================
 
 PortalTextInput::PortalTextInput(SecretStorage *secretStorage, QObject *parent)
-    : TextInputProvider(parent)
+    : QObject(parent)
     , m_secretStorage(secretStorage)
 {
     qCDebug(TextInputLog) << "PortalTextInput: Constructor";

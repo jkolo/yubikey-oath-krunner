@@ -61,7 +61,7 @@ YubiKeyRunner::YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData)
 
     // Connect configuration change signal - setupActions only, no reload
     // (reload is called automatically by QFileSystemWatcher in config)
-    connect(m_config.get(), &ConfigurationProvider::configurationChanged,
+    connect(m_config.get(), &KRunnerConfiguration::configurationChanged,
             this, &YubiKeyRunner::setupActions);
 
     qCDebug(YubiKeyRunnerLog) << "Constructor finished";

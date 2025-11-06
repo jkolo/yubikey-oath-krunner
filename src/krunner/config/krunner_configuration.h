@@ -10,6 +10,7 @@
 #include <KSharedConfig>
 #include <KConfigGroup>
 #include <QFileSystemWatcher>
+#include <QObject>
 
 namespace YubiKeyOath {
 namespace Runner {
@@ -20,9 +21,13 @@ using Shared::ConfigurationProvider;
  *
  * Single Responsibility: Reads settings from yubikey-oathrc file for KRunner operations
  * Note: Uses same config file as daemon (yubikey-oathrc) for consistency
+ *
+ * @note Inherits from both QObject (for signals) and ConfigurationProvider (pure interface)
  */
-class KRunnerConfiguration : public ConfigurationProvider
+class KRunnerConfiguration : public QObject, public ConfigurationProvider
 {
+    Q_OBJECT
+
 public:
     /**
      * @brief Constructs configuration provider
@@ -41,6 +46,15 @@ public:
     int notificationExtraTime() const override;
     QString primaryAction() const override;
     int deviceReconnectTimeout() const override;
+
+Q_SIGNALS:
+    /**
+     * @brief Emitted when configuration has been reloaded
+     *
+     * Components can connect to this signal to refresh their cached configuration values
+     * or update active operations (e.g., adjust timer timeouts).
+     */
+    void configurationChanged();
 
 private Q_SLOTS:
     void onConfigFileChanged(const QString &path);

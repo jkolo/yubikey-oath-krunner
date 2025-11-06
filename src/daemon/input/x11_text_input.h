@@ -6,6 +6,7 @@
 #pragma once
 
 #include "text_input_provider.h"
+#include <QObject>
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -16,7 +17,7 @@ class SecretStorage;
 /**
  * @brief X11-specific text input implementation
  */
-class X11TextInput : public TextInputProvider
+class X11TextInput : public QObject, public TextInputProvider
 {
     Q_OBJECT
 

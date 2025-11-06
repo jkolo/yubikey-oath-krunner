@@ -16,7 +16,7 @@ using namespace YubiKeyOath::Shared;
 constexpr int DEFAULT_CREDENTIAL_SAVE_RATE_LIMIT_MS = 5000;
 
 DaemonConfiguration::DaemonConfiguration(QObject *parent)
-    : ConfigurationProvider(parent)
+    : QObject(parent)
     , m_config(KSharedConfig::openConfig(QStringLiteral("yubikey-oathrc")))
     , m_configGroup(m_config->group(QStringLiteral("General")))
     , m_fileWatcher(new QFileSystemWatcher(this))

@@ -14,7 +14,7 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 X11TextInput::X11TextInput(SecretStorage * /*secretStorage*/, QObject *parent)
-    : TextInputProvider(parent)
+    : QObject(parent)
 {
     // Note: X11TextInput doesn't need SecretStorage (no token persistence required),
     // but accepts it for API consistency with other TextInputProvider implementations

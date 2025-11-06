@@ -37,7 +37,7 @@ class SecretStorage;
  *
  * Replaces previous libei + liboeffis implementation with cleaner, simpler API.
  */
-class PortalTextInput : public TextInputProvider
+class PortalTextInput : public QObject, public TextInputProvider
 {
     Q_OBJECT
 
