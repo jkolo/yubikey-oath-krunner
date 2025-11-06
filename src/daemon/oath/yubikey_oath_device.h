@@ -8,6 +8,7 @@
 #include "types/oath_credential.h"
 #include "oath_session.h"
 #include "common/result.h"
+#include "shared/types/yubikey_model.h"
 
 #include <QByteArray>
 #include <QList>
@@ -78,6 +79,18 @@ public:
      * @return Reader name
      */
     QString readerName() const { return m_readerName; }
+
+    /**
+     * @brief Gets firmware version
+     * @return Firmware version from TAG_VERSION (0x79)
+     */
+    Version firmwareVersion() const { return m_firmwareVersion; }
+
+    /**
+     * @brief Gets device model
+     * @return Device model as encoded uint32 (0xSSVVPPFF)
+     */
+    YubiKeyModel deviceModel() const { return m_deviceModel; }
 
     /**
      * @brief Gets cached credentials
@@ -245,6 +258,8 @@ private:
     DWORD m_protocol;
     SCARDCONTEXT m_context;  // Not owned
     QByteArray m_challenge;
+    Version m_firmwareVersion;  ///< YubiKey firmware version from TAG_VERSION
+    YubiKeyModel m_deviceModel{0x00000000};  ///< YubiKey model (0xSSVVPPFF)
     QList<OathCredential> m_credentials;
     QString m_password;
     bool m_updateInProgress = false;

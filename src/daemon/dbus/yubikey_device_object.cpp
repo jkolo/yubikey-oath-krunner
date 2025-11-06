@@ -46,6 +46,8 @@ YubiKeyDeviceObject::YubiKeyDeviceObject(const QString &deviceId,
             m_name = devInfo.deviceName;
             m_requiresPassword = devInfo.requiresPassword;
             m_hasValidPassword = devInfo.hasValidPassword;
+            m_firmwareVersion = devInfo.firmwareVersion;
+            m_deviceModel = devInfo.deviceModel;
             break;
         }
     }
@@ -137,6 +139,16 @@ bool YubiKeyDeviceObject::requiresPassword() const
 bool YubiKeyDeviceObject::hasValidPassword() const
 {
     return m_hasValidPassword;
+}
+
+QString YubiKeyDeviceObject::firmwareVersionString() const
+{
+    return m_firmwareVersion.toString();
+}
+
+quint32 YubiKeyDeviceObject::deviceModel() const
+{
+    return m_deviceModel;
 }
 
 void YubiKeyDeviceObject::setName(const QString &name)

@@ -10,6 +10,7 @@
 #include <QList>
 #include "types/oath_credential.h"
 #include "types/oath_credential_data.h"
+#include "shared/utils/version.h"
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -65,6 +66,7 @@ public:
     static constexpr quint8 TAG_TOTP_RESPONSE = 0x76;
     static constexpr quint8 TAG_HOTP = 0x77;
     static constexpr quint8 TAG_PROPERTY = 0x78;
+    static constexpr quint8 TAG_VERSION = 0x79;
     static constexpr quint8 TAG_IMF = 0x7a;
     static constexpr quint8 TAG_TOUCH = 0x7c;
 
@@ -169,15 +171,17 @@ public:
 
     // Response parsing
     /**
-     * @brief Parses SELECT response to extract device ID and challenge
+     * @brief Parses SELECT response to extract device ID, challenge, and firmware version
      * @param response Response data from SELECT command
      * @param outDeviceId Output parameter for device ID (hex string)
      * @param outChallenge Output parameter for challenge bytes
+     * @param outFirmwareVersion Output parameter for firmware version (from TAG_VERSION)
      * @return true on success, false on parse error
      */
     static bool parseSelectResponse(const QByteArray &response,
                                    QString &outDeviceId,
-                                   QByteArray &outChallenge);
+                                   QByteArray &outChallenge,
+                                   Version &outFirmwareVersion);
 
     /**
      * @brief Parses LIST response to extract credential names

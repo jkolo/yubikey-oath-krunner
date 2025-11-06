@@ -49,6 +49,15 @@ YubiKeyDeviceProxy::YubiKeyDeviceProxy(const QString &objectPath,
     m_requiresPassword = deviceProperties.value(QStringLiteral("RequiresPassword")).toBool();
     m_hasValidPassword = deviceProperties.value(QStringLiteral("HasValidPassword")).toBool();
 
+    // Extract firmware version (FirmwareVersion property is QString)
+    QString const firmwareVersionStr = deviceProperties.value(QStringLiteral("FirmwareVersion")).toString();
+    if (!firmwareVersionStr.isEmpty()) {
+        m_firmwareVersion = Version::fromString(firmwareVersionStr);
+    }
+
+    // Extract device model (DeviceModel property is quint32)
+    m_deviceModel = deviceProperties.value(QStringLiteral("DeviceModel")).toUInt();
+
     qCDebug(YubiKeyDeviceProxyLog) << "Created device proxy for" << m_name
                                     << "DeviceId:" << m_deviceId
                                     << "at" << objectPath;
@@ -257,6 +266,8 @@ DeviceInfo YubiKeyDeviceProxy::toDeviceInfo() const
     DeviceInfo info;
     info.deviceId = m_deviceId;
     info.deviceName = m_name;
+    info.firmwareVersion = m_firmwareVersion;
+    info.deviceModel = m_deviceModel;
     info.isConnected = m_isConnected;
     info.requiresPassword = m_requiresPassword;
     info.hasValidPassword = m_hasValidPassword;

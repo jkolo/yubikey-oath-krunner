@@ -187,11 +187,12 @@ QString YubiKeyDeviceManager::connectToDevice(const QString &readerName) {
     // Select OATH application to get device ID using OathSession
     QByteArray challenge;
     QString deviceId;
+    Version firmwareVersion;  // Firmware version from SELECT response
 
     {
         // Create temporary OathSession for initial SELECT
         OathSession tempSession(cardHandle, protocol, QString(), this);
-        const auto selectResult = tempSession.selectOathApplication(challenge);
+        const auto selectResult = tempSession.selectOathApplication(challenge, firmwareVersion);
 
         if (selectResult.isError()) {
             qCDebug(YubiKeyDeviceManagerLog) << "Failed to select OATH application:" << selectResult.error();

@@ -10,6 +10,8 @@
 #include <utility>
 #include <QMetaType>
 #include <QDBusArgument>
+#include "../utils/version.h"
+#include "yubikey_model.h"
 
 namespace YubiKeyOath {
 namespace Shared {
@@ -20,6 +22,8 @@ namespace Shared {
 struct DeviceInfo {
     QString deviceId;           ///< Unique device identifier (hex string)
     QString deviceName;         ///< Friendly name
+    Version firmwareVersion;    ///< Firmware version (e.g., 5.4.3 or 3.4.0)
+    YubiKeyModel deviceModel{0x00000000}; ///< Detected model (encoded as 0xSSVVPPFF)
     bool isConnected{false};    ///< Currently connected via PC/SC
     bool requiresPassword{false}; ///< Device requires password for OATH access
     bool hasValidPassword{false}; ///< We have a valid password stored

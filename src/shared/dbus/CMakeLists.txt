@@ -8,6 +8,8 @@ add_library(yubikey_dbus_client STATIC
     yubikey_device_proxy.cpp
     yubikey_manager_proxy.cpp
     ../types/yubikey_value_types.cpp
+    ../types/yubikey_model.cpp
+    ../utils/version.cpp
     ../formatting/credential_formatter.cpp
 )
 

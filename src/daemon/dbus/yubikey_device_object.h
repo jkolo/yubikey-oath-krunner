@@ -13,6 +13,8 @@
 #include <QVariant>
 #include "types/oath_credential.h"
 #include "types/yubikey_value_types.h"
+#include "shared/types/yubikey_model.h"
+#include "shared/utils/version.h"
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -45,6 +47,8 @@ class YubiKeyDeviceObject : public QObject
     Q_PROPERTY(bool IsConnected READ isConnected NOTIFY isConnectedChanged)
     Q_PROPERTY(bool RequiresPassword READ requiresPassword NOTIFY requiresPasswordChanged)
     Q_PROPERTY(bool HasValidPassword READ hasValidPassword NOTIFY hasValidPasswordChanged)
+    Q_PROPERTY(QString FirmwareVersion READ firmwareVersionString CONSTANT)
+    Q_PROPERTY(quint32 DeviceModel READ deviceModel CONSTANT)
     // Note: CredentialCount and Credentials properties removed - use Manager's GetManagedObjects() instead
 
 public:
@@ -86,6 +90,8 @@ public:
     bool isConnected() const;
     bool requiresPassword() const;
     bool hasValidPassword() const;
+    QString firmwareVersionString() const;
+    quint32 deviceModel() const;
 
     // Property setters
     void setName(const QString &name);
@@ -239,6 +245,8 @@ private:
     bool m_isConnected;
     bool m_requiresPassword;
     bool m_hasValidPassword;
+    Shared::Version m_firmwareVersion;
+    Shared::YubiKeyModel m_deviceModel{0x00000000};
 };
 
 } // namespace Daemon

@@ -65,6 +65,14 @@
       <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
     </property>
 
+    <property name="FirmwareVersion" type="s" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="const"/>
+    </property>
+
+    <property name="DeviceModel" type="u" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="const"/>
+    </property>
+
     <!-- Note: CredentialCount and Credentials properties removed following D-Bus best practices.
          Clients should use parent Manager's GetManagedObjects() for credential discovery.
          This interface only provides CredentialAdded/CredentialRemoved signals for real-time updates. -->

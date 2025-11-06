@@ -209,6 +209,8 @@ private:  // NOLINT(readability-redundant-access-specifiers) - Required to close
     // Cached properties
     QString m_deviceId; // const
     QString m_name; // writable
+    Version m_firmwareVersion; // const
+    YubiKeyModel m_deviceModel{0x00000000}; // const
     bool m_isConnected;
     bool m_requiresPassword;
     bool m_hasValidPassword;

@@ -186,10 +186,10 @@ QByteArray OathProtocol::createPutCommand(const OathCredentialData &data)
     tlvData.append(keyTagData);
 
     // TAG_PROPERTY (0x78): 0x02 if requireTouch
+    // Note: TAG_PROPERTY uses Tag-Value format (not Tag-Length-Value)
     if (data.requireTouch) {
         tlvData.append(static_cast<char>(TAG_PROPERTY));
-        tlvData.append((char)0x01);  // Length = 1
-        tlvData.append((char)0x02);  // Value = 0x02 (require touch)
+        tlvData.append((char)0x02);  // Value = 0x02 (require touch) - NO length byte!
     }
 
     // TAG_IMF (0x7a): 4-byte counter (HOTP only)
@@ -329,7 +329,8 @@ QByteArray OathProtocol::createRemoveCodeCommand()
 
 bool OathProtocol::parseSelectResponse(const QByteArray &response,
                                        QString &outDeviceId,
-                                       QByteArray &outChallenge)
+                                       QByteArray &outChallenge,
+                                       Version &outFirmwareVersion)
 {
     if (response.length() < 2) {
         return false;
@@ -344,7 +345,7 @@ bool OathProtocol::parseSelectResponse(const QByteArray &response,
     // Parse TLV data (excluding status word)
     QByteArray data = response.left(response.length() - 2);
 
-    // Look for TAG_NAME_SALT (0x71) and TAG_CHALLENGE (0x74)
+    // Look for TAG_NAME_SALT (0x71), TAG_CHALLENGE (0x74), and TAG_VERSION (0x79)
     int pos = 0;
     while (pos < data.length() - 1) {
         if (pos + 2 > data.length()) { break;
@@ -363,6 +364,14 @@ bool OathProtocol::parseSelectResponse(const QByteArray &response,
         } else if (tag == TAG_CHALLENGE) {
             // Extract challenge
             outChallenge = data.mid(pos + 2, len);
+        } else if (tag == TAG_VERSION) {
+            // Extract firmware version (3 bytes: major, minor, patch)
+            if (len == 3) {
+                int const major = static_cast<quint8>(data[pos + 2]);
+                int const minor = static_cast<quint8>(data[pos + 3]);
+                int const patch = static_cast<quint8>(data[pos + 4]);
+                outFirmwareVersion = Version(major, minor, patch);
+            }
         }
 
         pos += 2 + len;

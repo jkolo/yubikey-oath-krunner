@@ -195,7 +195,7 @@ QByteArray OathSession::sendApdu(const QByteArray &command, int retryCount)
 // High-level OATH Operations
 // =============================================================================
 
-Result<void> OathSession::selectOathApplication(QByteArray &outChallenge)
+Result<void> OathSession::selectOathApplication(QByteArray &outChallenge, Version &outFirmwareVersion)
 {
     qCDebug(YubiKeyOathDeviceLog) << "selectOathApplication() for device" << m_deviceId;
 
@@ -208,9 +208,9 @@ Result<void> OathSession::selectOathApplication(QByteArray &outChallenge)
         return Result<void>::error(tr("Failed to select OATH application"));
     }
 
-    // Parse response to get device ID and challenge
+    // Parse response to get device ID, challenge, and firmware version
     QString deviceId;
-    if (!OathProtocol::parseSelectResponse(response, deviceId, outChallenge)) {
+    if (!OathProtocol::parseSelectResponse(response, deviceId, outChallenge, outFirmwareVersion)) {
         qCDebug(YubiKeyOathDeviceLog) << "Failed to parse SELECT response";
         m_sessionActive = false;  // Mark session as inactive on error
         return Result<void>::error(tr("Failed to parse SELECT response"));
@@ -222,6 +222,7 @@ Result<void> OathSession::selectOathApplication(QByteArray &outChallenge)
     }
 
     qCDebug(YubiKeyOathDeviceLog) << "SELECT successful, device ID:" << m_deviceId
+             << "firmware:" << outFirmwareVersion.toString()
              << "challenge:" << outChallenge.toHex();
 
     // Mark session as active after successful SELECT
@@ -377,7 +378,8 @@ Result<void> OathSession::authenticate(const QString &password, const QString &d
     qCDebug(YubiKeyOathDeviceLog) << "Executing SELECT to obtain fresh challenge";
 
     QByteArray freshChallenge;
-    auto selectResult = selectOathApplication(freshChallenge);
+    Version firmwareVersion;  // Not used in authentication flow
+    auto selectResult = selectOathApplication(freshChallenge, firmwareVersion);
     if (selectResult.isError()) {
         qCDebug(YubiKeyOathDeviceLog) << "SELECT failed:" << selectResult.error();
         return selectResult;
@@ -603,7 +605,8 @@ Result<void> OathSession::setPassword(const QString &newPassword, const QString 
     // Execute SELECT to ensure OATH application is selected before SET_CODE
     qCDebug(YubiKeyOathDeviceLog) << "Executing SELECT before SET_CODE";
     QByteArray selectChallenge;
-    auto selectResult = selectOathApplication(selectChallenge);
+    Version firmwareVersion;  // Not used in password change flow
+    auto selectResult = selectOathApplication(selectChallenge, firmwareVersion);
     if (selectResult.isError()) {
         qCWarning(YubiKeyOathDeviceLog) << "Failed to SELECT OATH application:" << selectResult.error();
         return Result<void>::error(tr("Failed to select OATH application: %1").arg(selectResult.error()));
@@ -834,7 +837,8 @@ Result<void> OathSession::ensureSessionActive()
 
     // Execute SELECT to reactivate OATH applet
     QByteArray challenge;
-    auto result = selectOathApplication(challenge);
+    Version firmwareVersion;  // Not used in session reactivation
+    auto result = selectOathApplication(challenge, firmwareVersion);
 
     if (result.isError()) {
         qCWarning(YubiKeyOathDeviceLog) << "Failed to reactivate session:" << result.error();

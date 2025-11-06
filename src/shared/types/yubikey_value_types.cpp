@@ -11,6 +11,8 @@ QDBusArgument &operator<<(QDBusArgument &arg, const YubiKeyOath::Shared::DeviceI
     arg.beginStructure();
     arg << device.deviceId
         << device.deviceName
+        << device.firmwareVersion
+        << static_cast<quint32>(device.deviceModel)
         << device.isConnected
         << device.requiresPassword
         << device.hasValidPassword;
@@ -20,13 +22,17 @@ QDBusArgument &operator<<(QDBusArgument &arg, const YubiKeyOath::Shared::DeviceI
 
 const QDBusArgument &operator>>(const QDBusArgument &arg, YubiKeyOath::Shared::DeviceInfo &device)
 {
+    quint32 modelValue = 0;
     arg.beginStructure();
     arg >> device.deviceId
         >> device.deviceName
+        >> device.firmwareVersion
+        >> modelValue
         >> device.isConnected
         >> device.requiresPassword
         >> device.hasValidPassword;
     arg.endStructure();
+    device.deviceModel = modelValue;
     return arg;
 }
 

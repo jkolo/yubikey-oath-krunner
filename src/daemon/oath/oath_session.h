@@ -75,12 +75,13 @@ public:
     /**
      * @brief Selects OATH application on YubiKey
      * @param outChallenge Output parameter for challenge from YubiKey
+     * @param outFirmwareVersion Output parameter for firmware version from YubiKey
      * @return Result with success or error message
      *
      * This is the first command sent to YubiKey to establish OATH session.
      * Returns device ID via device() and challenge for authentication.
      */
-    Result<void> selectOathApplication(QByteArray &outChallenge);
+    Result<void> selectOathApplication(QByteArray &outChallenge, Version &outFirmwareVersion);
 
     /**
      * @brief Calculates TOTP code for single credential
