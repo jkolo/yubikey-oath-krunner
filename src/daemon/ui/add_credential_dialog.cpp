@@ -22,6 +22,7 @@
 #include <KMessageWidget>
 #include <QtConcurrent/QtConcurrent>
 #include <QFutureWatcher>
+#include <QTimer>
 #include <QIcon>
 #include <KLocalizedString>
 
@@ -33,10 +34,11 @@ using Shared::OathType;
 using Shared::Result;
 
 AddCredentialDialog::AddCredentialDialog(const OathCredentialData &initialData,
-                                        const QMap<QString, QString> &availableDevices,
+                                        const QList<Shared::DeviceInfo> &availableDevices,
                                         const QString &preselectedDeviceId,
                                         QWidget *parent)
     : QDialog(parent)
+    , m_availableDevices(availableDevices)
 {
     setWindowTitle(i18n("Add OATH Credential to YubiKey"));
 
@@ -64,7 +66,7 @@ AddCredentialDialog::AddCredentialDialog(const OathCredentialData &initialData,
 }
 
 void AddCredentialDialog::setupUi(const OathCredentialData &initialData,
-                                  const QMap<QString, QString> &devices)
+                                  const QList<Shared::DeviceInfo> &devices)
 {
     auto *mainLayout = new QVBoxLayout(this);
 
@@ -151,15 +153,26 @@ void AddCredentialDialog::setupUi(const OathCredentialData &initialData,
         m_deviceCombo->addItem(i18n("No devices available"));
         m_deviceCombo->setEnabled(false);
     } else {
-        qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Received devices map:" << devices;
-        for (auto it = devices.constBegin(); it != devices.constEnd(); ++it) {
-            const QString &deviceId = it.key();
-            const QString &deviceName = it.value();
-            qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Adding item - text:"
-                                      << deviceName << "data:" << deviceId;
+        qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Received devices list:" << devices.size();
+        for (const auto &deviceInfo : devices) {
+            QString const displayName = deviceInfo.deviceName.isEmpty()
+                ? i18n("YubiKey (%1)", deviceInfo.deviceId.left(8))
+                : deviceInfo.deviceName;
+
+            qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Adding device - name:"
+                                      << displayName << "id:" << deviceInfo.deviceId
+                                      << "firmware:" << deviceInfo.firmwareVersion.toString();
+
             // Show device name, store device ID as data
-            m_deviceCombo->addItem(deviceName, deviceId);
+            m_deviceCombo->addItem(displayName, deviceInfo.deviceId);
         }
+
+        // Connect device change signal for firmware validation
+        connect(m_deviceCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                this, &AddCredentialDialog::onDeviceChanged);
+
+        // Trigger initial validation
+        onDeviceChanged(0);
     }
     formLayout->addRow(i18n("Target Device:"), m_deviceCombo);
 
@@ -203,6 +216,55 @@ void AddCredentialDialog::onTypeChanged(int index)
     updateFieldsForType();
 }
 
+void AddCredentialDialog::onDeviceChanged(int index)
+{
+    // Validate firmware version for "Require Touch" feature
+    if (index < 0 || index >= m_availableDevices.size()) {
+        qCWarning(YubiKeyDaemonLog) << "AddCredentialDialog: Invalid device index:" << index;
+        return;
+    }
+
+    const auto &deviceInfo = m_availableDevices.at(index);
+    constexpr int requiredMajor = 4;
+    constexpr int requiredMinor = 2;
+    constexpr int requiredPatch = 4;
+
+    // Check firmware version: TAG_PROPERTY requires firmware >= 4.2.4
+    bool const firmwareSupportsTouch = deviceInfo.firmwareVersion.isValid()
+        && (deviceInfo.firmwareVersion.major() > requiredMajor
+            || (deviceInfo.firmwareVersion.major() == requiredMajor
+                && deviceInfo.firmwareVersion.minor() > requiredMinor)
+            || (deviceInfo.firmwareVersion.major() == requiredMajor
+                && deviceInfo.firmwareVersion.minor() == requiredMinor
+                && deviceInfo.firmwareVersion.patch() >= requiredPatch));
+
+    qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Device firmware:"
+                              << deviceInfo.firmwareVersion.toString()
+                              << "- Touch support:" << firmwareSupportsTouch;
+
+    // Enable/disable touch checkbox based on firmware
+    m_touchCheckBox->setEnabled(firmwareSupportsTouch);
+
+    if (!firmwareSupportsTouch) {
+        // Disable checkbox and uncheck it
+        m_touchCheckBox->setChecked(false);
+
+        // Build model name for tooltip
+        QString const modelName = Shared::modelToString(deviceInfo.deviceModel);
+
+        // Set tooltip explaining why it's disabled
+        m_touchCheckBox->setToolTip(
+            i18n("Require Touch feature requires firmware version 4.2.4 or later.\n"
+                 "Current version on %1: %2",
+                 modelName,
+                 deviceInfo.firmwareVersion.toString())
+        );
+    } else {
+        // Clear tooltip when enabled
+        m_touchCheckBox->setToolTip(QString());
+    }
+}
+
 void AddCredentialDialog::updateFieldsForType()
 {
     bool const isTotp = m_typeCombo->currentData().value<OathType>() == OathType::TOTP;
@@ -230,7 +292,13 @@ void AddCredentialDialog::onRevealSecretClicked()
 void AddCredentialDialog::onOkClicked()
 {
     if (validateAndBuildData()) {
-        accept();
+        // Show overlay with saving message
+        showProcessingOverlay(i18n("Saving credential to YubiKey..."));
+
+        // Emit signal for async save in background thread
+        // Service will use QtConcurrent::run() to avoid blocking UI
+        qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Emitting credentialReadyToSave signal";
+        Q_EMIT credentialReadyToSave(getCredentialData(), getSelectedDeviceId());
     }
 }
 
@@ -430,7 +498,7 @@ void AddCredentialDialog::onCaptured(const QImage &image)
 
 void AddCredentialDialog::onCancelled()
 {
-    qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Screenshot cancelled by user";
+    qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Screenshot cancelled";
 
     // Hide overlay
     hideProcessingOverlay();
@@ -440,6 +508,15 @@ void AddCredentialDialog::onCancelled()
         delete m_screenshotCapturer;
         m_screenshotCapturer = nullptr;
     }
+
+    // Show user-visible error message
+    showMessage(
+        i18n("Screenshot capture failed. Please ensure:\n"
+             "• KDE/KWin compositor is running\n"
+             "• No other screenshot tools are active\n"
+             "• Daemon has proper D-Bus permissions"),
+        KMessageWidget::Error
+    );
 }
 
 void AddCredentialDialog::hideProcessingOverlay()
@@ -470,6 +547,27 @@ int AddCredentialDialog::algorithmToComboIndex(OathAlgorithm algorithm) const
         return 2;
     }
     return 0; // SHA1 or default
+}
+
+void AddCredentialDialog::showSaveResult(bool success, const QString &errorMessage)
+{
+    qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: showSaveResult -"
+                              << "success:" << success
+                              << "error:" << errorMessage;
+
+    // Hide processing overlay
+    hideProcessingOverlay();
+
+    if (success) {
+        // Success - close dialog
+        qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Credential saved successfully, closing dialog";
+        accept();
+        deleteLater();
+    } else {
+        // Error - show message and keep dialog open
+        qCWarning(YubiKeyDaemonLog) << "AddCredentialDialog: Failed to save credential:" << errorMessage;
+        showMessage(errorMessage, KMessageWidget::Error);
+    }
 }
 
 } // namespace Daemon

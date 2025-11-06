@@ -15,22 +15,20 @@
 namespace YubiKeyOath {
 namespace Shared {
 class ConfigurationProvider;
-class ICredentialUpdateNotifier;
 struct OathCredential;  // Forward declaration
 template<typename T> class Result;  // Forward declaration
 }
 
 namespace Daemon {
 using Shared::ConfigurationProvider;
-using Shared::ICredentialUpdateNotifier;
 using Shared::OathCredential;
 using Shared::Result;
 
 // Forward declarations
+class YubiKeyService;
 class YubiKeyDatabase;
 class YubiKeyActionCoordinator;
 class NotificationOrchestrator;
-class YubiKeyOathDevice;
 
 /**
  * @brief Coordinates the workflow for reconnecting to offline YubiKeys
@@ -75,17 +73,16 @@ public:
     /**
      * @brief Constructs reconnect workflow coordinator
      *
-     * @param notifier Credential update notifier (usually YubiKeyService)
+     * @param service YubiKey service for device access and signals
      * @param database Database for device information
      * @param actionCoordinator Action coordinator for unified action execution
      * @param notificationOrchestrator Notification orchestrator for UI feedback
      * @param config Configuration provider for timeout settings
      * @param parent Parent QObject for automatic cleanup
      *
-     * @note Automatically connects to credentialsUpdated signal from notifier
-     * @note Notifier provides device access through ICredentialUpdateNotifier interface
+     * @note Automatically connects to device authentication signals from service
      */
-    explicit ReconnectWorkflowCoordinator(ICredentialUpdateNotifier *notifier,
+    explicit ReconnectWorkflowCoordinator(YubiKeyService *service,
                                           YubiKeyDatabase *database,
                                           YubiKeyActionCoordinator *actionCoordinator,
                                           NotificationOrchestrator *notificationOrchestrator,
@@ -129,7 +126,7 @@ public:
     QString waitingDeviceId() const { return m_pendingDeviceId; }
 
 private Q_SLOTS:
-    void onDeviceConnected(const QString &deviceId);
+    void onDeviceAuthenticationSuccess(const QString &deviceId);
     void onReconnectTimeout();
     void onReconnectCancelled();
 
@@ -153,50 +150,7 @@ private:
      */
     void cleanupReconnectWorkflow();
 
-    /**
-     * @brief Gets device name for display in notifications
-     * @param deviceId Device ID
-     * @return Custom name from database or generated default
-     */
-    QString getDeviceName(const QString &deviceId) const;
-
-    // Helper methods for onDeviceConnected() workflow
-    /**
-     * @brief Finds credential object from current device credentials
-     * @return Optional credential if found
-     */
-    std::optional<OathCredential> findCredentialForReconnect();
-
-    /**
-     * @brief Shows touch notification if credential requires physical touch
-     * @param credential Credential to check
-     */
-    void showTouchNotificationIfRequired(const OathCredential &credential);
-
-    /**
-     * @brief Generates code and manages touch notification lifecycle
-     * @param device Device to generate code from
-     * @param credentialName Credential name
-     * @return Result with code or error
-     */
-    Result<QString> generateCodeWithNotifications(YubiKeyOathDevice *device,
-                                                   const QString &credentialName);
-
-    /**
-     * @brief Formats credential title for notifications
-     * @param credential Credential to format
-     * @return Formatted display name
-     */
-    QString formatCredentialTitle(const OathCredential &credential);
-
-    /**
-     * @brief Executes action after successful reconnect
-     * @param code Generated TOTP/HOTP code
-     * @param title Formatted credential title
-     */
-    void executeActionAfterReconnect(const QString &code, const QString &title);
-
-    ICredentialUpdateNotifier *m_notifier;
+    YubiKeyService *m_service;
     YubiKeyDatabase *m_database;
     YubiKeyActionCoordinator *m_actionCoordinator;
     NotificationOrchestrator *m_notificationOrchestrator;
@@ -204,7 +158,6 @@ private:
 
     // Workflow state
     bool m_waitingForReconnect = false;
-    bool m_touchNotificationShown = false;  // Track if touch notification was shown
     QString m_pendingDeviceId;       // Device ID waiting for reconnection
     QString m_pendingCredentialName; // Credential name to generate after reconnect
     QString m_pendingActionId;       // Action to execute after reconnect ("copy" or "type")

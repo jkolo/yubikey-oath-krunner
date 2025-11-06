@@ -131,23 +131,27 @@ public:
      */
     void closeNotification(uint notificationId);
 
-private:
     /**
-     * @brief Helper method to execute an action (copy or type)
+     * @brief Executes an action (copy or type) with full workflow support
      * @param deviceId Device ID
      * @param credentialName Credential name
      * @param actionType "copy" or "type"
      * @return true on success, false on failure
      *
-     * This method handles the common logic for both copy and type actions:
-     * - Device lookup
+     * This method handles the complete action workflow:
+     * - Device lookup and validation
+     * - Credential lookup
      * - Touch requirement checking
-     * - Touch workflow coordination OR direct code generation
-     * - Action execution via ActionExecutor
+     * - Touch workflow coordination (async) OR direct code generation
+     * - Action execution via ActionExecutor with notifications
+     *
+     * Used by both direct action execution and reconnect workflow.
      */
     bool executeActionInternal(const QString &deviceId,
                               const QString &credentialName,
                               const QString &actionType);
+
+private:
 
     /**
      * @brief Starts reconnect workflow for offline device

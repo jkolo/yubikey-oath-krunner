@@ -8,6 +8,7 @@
 #include <QDialog>
 #include <QString>
 #include "types/oath_credential_data.h"
+#include "shared/types/yubikey_value_types.h"
 
 // Forward declarations
 class QLineEdit;
@@ -47,12 +48,12 @@ public:
     /**
      * @brief Constructs credential dialog
      * @param initialData Initial credential data (from QR code parser)
-     * @param availableDevices Map of device ID → device name for selection
+     * @param availableDevices List of DeviceInfo for device selection
      * @param preselectedDeviceId Optional device ID to preselect in combo
      * @param parent Parent widget
      */
     explicit AddCredentialDialog(const OathCredentialData &initialData,
-                                const QMap<QString, QString> &availableDevices,
+                                const QList<Shared::DeviceInfo> &availableDevices,
                                 const QString &preselectedDeviceId = QString(),
                                 QWidget *parent = nullptr);
 
@@ -70,6 +71,13 @@ public:
      */
     QString getSelectedDeviceId() const;
 
+    /**
+     * @brief Shows save result (success or error)
+     * @param success True if save succeeded, false otherwise
+     * @param errorMessage Error message to display (empty if success)
+     */
+    void showSaveResult(bool success, const QString &errorMessage);
+
 Q_SIGNALS:
     /**
      * @brief Emitted when user accepts dialog with valid data
@@ -78,8 +86,16 @@ Q_SIGNALS:
      */
     void credentialAccepted(const OathCredentialData &data, const QString &deviceId);
 
+    /**
+     * @brief Emitted when credential is ready to be saved to YubiKey
+     * @param data Validated credential data
+     * @param deviceId Target device ID
+     */
+    void credentialReadyToSave(const Shared::OathCredentialData &data, const QString &deviceId);
+
 private Q_SLOTS:
     void onTypeChanged(int index);
+    void onDeviceChanged(int index);
     void onOkClicked();
     void onRevealSecretClicked();
     void onScanQrClicked();
@@ -87,7 +103,7 @@ private Q_SLOTS:
     void onCancelled();
 
 private:
-    void setupUi(const OathCredentialData &initialData, const QMap<QString, QString> &devices);
+    void setupUi(const OathCredentialData &initialData, const QList<Shared::DeviceInfo> &devices);
     void updateFieldsForType();
     bool validateAndBuildData();
     void fillFieldsFromQrData(const OathCredentialData &data);
@@ -121,6 +137,9 @@ private:
     class ScreenshotCapturer *m_screenshotCapturer = nullptr;
 
     bool m_secretRevealed = false;
+
+    // Device list for firmware validation
+    QList<Shared::DeviceInfo> m_availableDevices;
 };
 
 } // namespace Daemon

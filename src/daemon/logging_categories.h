@@ -37,5 +37,9 @@ Q_DECLARE_LOGGING_CATEGORY(TouchWorkflowCoordinatorLog)
 Q_DECLARE_LOGGING_CATEGORY(TextInputLog)
 Q_DECLARE_LOGGING_CATEGORY(DBusNotificationLog)
 
+// Utility components
+Q_DECLARE_LOGGING_CATEGORY(ScreenshotCaptureLog)
+Q_DECLARE_LOGGING_CATEGORY(QrCodeParserLog)
+
 } // namespace Daemon
 } // namespace YubiKeyOath

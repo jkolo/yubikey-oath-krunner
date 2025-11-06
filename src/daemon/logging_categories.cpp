@@ -28,5 +28,9 @@ Q_LOGGING_CATEGORY(TouchWorkflowCoordinatorLog, "pl.jkolo.yubikey.oath.daemon.to
 Q_LOGGING_CATEGORY(TextInputLog, "pl.jkolo.yubikey.oath.daemon.input", QtWarningMsg)
 Q_LOGGING_CATEGORY(DBusNotificationLog, "pl.jkolo.yubikey.oath.daemon.dbus", QtWarningMsg)
 
+// Utility components
+Q_LOGGING_CATEGORY(ScreenshotCaptureLog, "pl.jkolo.yubikey.oath.daemon.screenshot", QtWarningMsg)
+Q_LOGGING_CATEGORY(QrCodeParserLog, "pl.jkolo.yubikey.oath.daemon.qr", QtWarningMsg)
+
 } // namespace Daemon
 } // namespace YubiKeyOath

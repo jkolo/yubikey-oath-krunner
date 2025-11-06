@@ -61,7 +61,7 @@ YubiKeyActionCoordinator::YubiKeyActionCoordinator(YubiKeyService *service,
         config,
         this))
     , m_reconnectWorkflowCoordinator(std::make_unique<ReconnectWorkflowCoordinator>(
-        service,  // Pass service (ICredentialUpdateNotifier) for signals and device access
+        service,  // Pass service for signals and device access
         database,
         this, // Pass action coordinator for unified action execution
         m_notificationOrchestrator.get(),

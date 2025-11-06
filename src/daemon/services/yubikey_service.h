@@ -14,7 +14,6 @@
 #include "types/yubikey_value_types.h"
 #include "types/oath_credential.h"
 #include "types/oath_credential_data.h"
-#include "interfaces/credential_update_notifier.h"
 
 // Forward declarations
 namespace YubiKeyOath {
@@ -24,6 +23,7 @@ namespace Daemon {
     class SecretStorage;
     class DaemonConfiguration;
     class YubiKeyActionCoordinator;
+    class YubiKeyOathDevice;
 }
 }
 
@@ -52,7 +52,7 @@ using namespace YubiKeyOath::Shared;
  * Components (DeviceManager, Database, SecretStorage...)
  * ```
  */
-class YubiKeyService : public Shared::ICredentialUpdateNotifier
+class YubiKeyService : public QObject
 {
     Q_OBJECT
 
@@ -80,28 +80,24 @@ public:
      */
     QList<OathCredential> getCredentials(const QString &deviceId);
 
-    // ICredentialUpdateNotifier interface implementation
     /**
      * @brief Gets all credentials from all connected devices
      * @return List of credentials from all devices
-     * @note Implements ICredentialUpdateNotifier interface
      */
-    QList<OathCredential> getCredentials() override;
+    QList<OathCredential> getCredentials();
 
     /**
      * @brief Gets device instance by ID
      * @param deviceId Device ID to retrieve
      * @return Pointer to device or nullptr if not found
-     * @note Implements ICredentialUpdateNotifier interface
      */
-    YubiKeyOathDevice* getDevice(const QString &deviceId) override;
+    YubiKeyOathDevice* getDevice(const QString &deviceId);
 
     /**
      * @brief Gets IDs of all currently connected devices
      * @return List of connected device IDs
-     * @note Implements ICredentialUpdateNotifier interface
      */
-    QList<QString> getConnectedDeviceIds() const override;
+    QList<QString> getConnectedDeviceIds() const;
 
     /**
      * @brief Generates TOTP/HOTP code for credential
@@ -216,11 +212,43 @@ public:
     bool typeCode(const QString &deviceId, const QString &credentialName);
 
 Q_SIGNALS:
+    // ========================================================================
+    // INTERFACE SIGNALS (must be in same order as ICredentialUpdateNotifier)
+    // ========================================================================
+
+    /**
+     * @brief Emitted when credentials are updated for a device
+     * @param deviceId Device ID
+     */
+    void credentialsUpdated(const QString &deviceId);
+
     /**
      * @brief Emitted when a device is connected
      * @param deviceId Device ID
      */
     void deviceConnected(const QString &deviceId);
+
+    /**
+     * @brief Emitted when device connected and successfully authenticated
+     * @param deviceId Device ID that was authenticated
+     *
+     * This signal is emitted AFTER successful authentication AND credential fetch.
+     * Guarantees device is ready with valid credentials.
+     */
+    void deviceConnectedAndAuthenticated(const QString &deviceId);
+
+    /**
+     * @brief Emitted when device connected but authentication failed
+     * @param deviceId Device ID that failed authentication
+     * @param error Error message describing authentication failure
+     *
+     * This signal is emitted when authentication fails (wrong password or no password available).
+     */
+    void deviceConnectedAuthenticationFailed(const QString &deviceId, const QString &error);
+
+    // ========================================================================
+    // IMPLEMENTATION-SPECIFIC SIGNALS (not in interface)
+    // ========================================================================
 
     /**
      * @brief Emitted when a device is disconnected (physically removed)
@@ -237,12 +265,6 @@ Q_SIGNALS:
      * Device object should be completely removed from D-Bus
      */
     void deviceForgotten(const QString &deviceId);
-
-    /**
-     * @brief Emitted when credentials are updated for a device
-     * @param deviceId Device ID
-     */
-    void credentialsUpdated(const QString &deviceId);
 
 private Q_SLOTS:
     void onDeviceConnectedInternal(const QString &deviceId);

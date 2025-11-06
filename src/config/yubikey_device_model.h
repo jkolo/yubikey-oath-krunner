@@ -176,6 +176,7 @@ private:
      * @return Pointer to DeviceInfo or nullptr if not found
      */
     DeviceInfo* findDevice(const QString &deviceId);
+    const DeviceInfo* findDevice(const QString &deviceId) const;
 
     /**
      * @brief Finds device index by ID

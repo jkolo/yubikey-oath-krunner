@@ -21,6 +21,8 @@
 #include <QDebug>
 #include <QVariantMap>
 #include <QTimer>
+#include <QtConcurrent/QtConcurrent>
+#include <QFutureWatcher>
 #include <KLocalizedString>
 
 namespace YubiKeyOath {
@@ -28,7 +30,7 @@ namespace Daemon {
 using namespace YubiKeyOath::Shared;
 
 YubiKeyService::YubiKeyService(QObject *parent)
-    : ICredentialUpdateNotifier(parent)
+    : QObject(parent)
     , m_deviceManager(std::make_unique<YubiKeyDeviceManager>(nullptr))
     , m_database(std::make_unique<YubiKeyDatabase>(nullptr))
     , m_secretStorage(std::make_unique<SecretStorage>(nullptr))
@@ -109,6 +111,14 @@ QList<DeviceInfo> YubiKeyService::listDevices()
         DeviceInfo info;
         info.deviceId = deviceId;
         info.isConnected = connectedDeviceIds.contains(deviceId);
+
+        // Get firmware version and device model from connected device
+        if (info.isConnected) {
+            if (auto *device = m_deviceManager->getDevice(deviceId)) {
+                info.firmwareVersion = device->firmwareVersion();
+                info.deviceModel = device->deviceModel();
+            }
+        }
 
         // Get from database
         auto dbRecord = m_database->getDevice(deviceId);
@@ -617,16 +627,23 @@ void YubiKeyService::onDeviceConnectedInternal(const QString &deviceId)
         const QString password = m_secretStorage->loadPasswordSync(deviceId);
 
         if (!password.isEmpty()) {
-            qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Password loaded successfully, saving in device and fetching credentials";
+            qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Password loaded successfully (length:" << password.length() << "), saving in device and fetching credentials";
 
             // Save password in device for future use
             auto *device = m_deviceManager->getDevice(deviceId);
             if (device) {
+                qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Calling setPassword() for device:" << deviceId;
                 device->setPassword(password);
+                qCDebug(YubiKeyDaemonLog) << "YubiKeyService: setPassword() completed, now calling updateCredentialCacheAsync()";
+            } else {
+                qCWarning(YubiKeyDaemonLog) << "YubiKeyService: ERROR - device pointer is null for:" << deviceId;
             }
 
             // Trigger credential cache update with password
-            device->updateCredentialCacheAsync(password);
+            if (device) {
+                qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Starting async credential fetch with password for device:" << deviceId;
+                device->updateCredentialCacheAsync(password);
+            }
         } else {
             qCDebug(YubiKeyDaemonLog) << "YubiKeyService: No password in KWallet for device:" << deviceId;
             // Try without password
@@ -658,21 +675,67 @@ void YubiKeyService::onCredentialCacheFetched(const QString &deviceId,
     qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Credentials updated for device:" << deviceId
                               << "count:" << credentials.size();
 
-    // Only emit if credentials were actually fetched
-    if (credentials.isEmpty()) {
-        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Empty credentials, likely auth failure - NOT emitting credentialsUpdated";
+    // Log credential names for debugging
+    if (!credentials.isEmpty()) {
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Credentials list:";
+        for (const auto &cred : credentials) {
+            qCDebug(YubiKeyDaemonLog) << "  - " << cred.originalName;
+        }
+    } else {
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Credentials list is EMPTY";
+    }
+
+    // Get device instance to check authentication state
+    auto *device = m_deviceManager->getDevice(deviceId);
+    if (!device) {
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Device disappeared during credential fetch:" << deviceId;
         return;
     }
 
+    // Check if device requires password from database
+    bool requiresPassword = false;
+    auto dbRecord = m_database->getDevice(deviceId);
+    if (dbRecord.has_value()) {
+        requiresPassword = dbRecord->requiresPassword;
+    }
+
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Authentication state check:";
+    qCDebug(YubiKeyDaemonLog) << "  - credentials.isEmpty():" << credentials.isEmpty();
+    qCDebug(YubiKeyDaemonLog) << "  - requiresPassword:" << requiresPassword;
+    qCDebug(YubiKeyDaemonLog) << "  - device->hasPassword():" << device->hasPassword();
+
+    // AUTHENTICATION DETECTION LOGIC:
+    // Empty credentials + requires password + has password = authentication failed (wrong password)
+    // Empty credentials + requires password + no password = authentication failed (no password available)
+    // Empty credentials + !requires password = device has no credentials (success)
+    // Non-empty credentials = authentication succeeded (or not required)
+
+    bool authenticationFailed = false;
+    QString authError;
+
+    if (credentials.isEmpty() && requiresPassword) {
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Empty credentials for password-protected device - authentication failed";
+        authenticationFailed = true;
+
+        if (device->hasPassword()) {
+            qCWarning(YubiKeyDaemonLog) << "YubiKeyService: MARKING AS WRONG PASSWORD - device has password but returned empty credentials";
+            authError = tr("Wrong password");
+        } else {
+            qCWarning(YubiKeyDaemonLog) << "YubiKeyService: MARKING AS NO PASSWORD - device requires password but none available";
+            authError = tr("Password required but not available");
+        }
+    } else {
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Authentication check passed - proceeding";
+    }
+
     // AUTO-DETECT: If credentials were fetched successfully without password, device doesn't require password
-    auto *device = m_deviceManager->getDevice(deviceId);
-    if (device && !device->hasPassword()) {
+    if (!authenticationFailed && !device->hasPassword() && !credentials.isEmpty()) {
         qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Auto-detected - device doesn't require password";
         m_database->setRequiresPassword(deviceId, false);
     }
 
-    // Save credentials to cache if enabled
-    if (m_config->enableCredentialsCache()) {
+    // Save credentials to cache if enabled and authentication succeeded
+    if (!authenticationFailed && m_config->enableCredentialsCache()) {
         // Rate limiting check - prevent excessive database writes
         const qint64 now = QDateTime::currentMSecsSinceEpoch();
         const int rateLimitMs = m_config->credentialSaveRateLimit();
@@ -684,7 +747,10 @@ void YubiKeyService::onCredentialCacheFetched(const QString &deviceId,
                     << "YubiKeyService: Rate limited credential save for" << deviceId
                     << "- last save" << timeSinceLastSave << "ms ago"
                     << "(limit:" << rateLimitMs << "ms)";
+
+                // Emit appropriate signals based on authentication status
                 Q_EMIT credentialsUpdated(deviceId);
+                Q_EMIT deviceConnectedAndAuthenticated(deviceId);
                 return;
             }
         }
@@ -697,11 +763,31 @@ void YubiKeyService::onCredentialCacheFetched(const QString &deviceId,
             qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Credentials saved to cache successfully";
             m_lastCredentialSave[deviceId] = now;
         }
-    } else {
+    } else if (!authenticationFailed) {
         qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Credentials cache disabled, NOT saving to database";
     }
 
-    Q_EMIT credentialsUpdated(deviceId);
+    // EMIT APPROPRIATE SIGNALS based on authentication result
+    if (authenticationFailed) {
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Authentication failed for device:" << deviceId
+                                     << "error:" << authError;
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyService: >>> EMITTING deviceConnectedAuthenticationFailed signal";
+
+        // DO NOT emit credentialsUpdated for auth failures
+        // Emit authentication failure signal instead
+        Q_EMIT deviceConnectedAuthenticationFailed(deviceId, authError);
+    } else {
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Authentication successful for device:" << deviceId;
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: >>> EMITTING credentialsUpdated and deviceConnectedAndAuthenticated signals";
+
+        // Emit both signals: credentialsUpdated (for backward compat) and deviceConnectedAndAuthenticated (new)
+        Q_EMIT credentialsUpdated(deviceId);
+
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: this=" << this << "thread=" << QThread::currentThreadId()
+                                  << "about to emit deviceConnectedAndAuthenticated for device:" << deviceId;
+        Q_EMIT deviceConnectedAndAuthenticated(deviceId);
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: deviceConnectedAndAuthenticated signal emitted successfully";
+    }
 }
 
 void YubiKeyService::showAddCredentialDialogAsync(const QString &deviceId,
@@ -709,77 +795,135 @@ void YubiKeyService::showAddCredentialDialogAsync(const QString &deviceId,
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Showing add credential dialog asynchronously";
 
-    // Get available devices with their names
-    const QStringList deviceIds = m_deviceManager->getConnectedDeviceIds();
-    QMap<QString, QString> availableDevices;
-    for (const QString &id : deviceIds) {
-        // Get device name from database
-        auto deviceRecord = m_database->getDevice(id);
-        const QString displayName = deviceRecord.has_value() ? deviceRecord->deviceName : id;
+    // Get available devices (only connected)
+    const QList<DeviceInfo> allDevices = listDevices();
+    QList<DeviceInfo> availableDevices;
 
-        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Device" << id
-                                  << "has name:" << displayName
-                                  << "(from DB:" << (deviceRecord.has_value() ? "yes" : "no") << ")";
+    for (const auto &deviceInfo : allDevices) {
+        // Only include connected devices
+        if (deviceInfo.isConnected) {
+            availableDevices.append(deviceInfo);
 
-        availableDevices.insert(id, displayName);
+            qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Available device -"
+                                      << "id:" << deviceInfo.deviceId
+                                      << "name:" << deviceInfo.deviceName
+                                      << "firmware:" << deviceInfo.firmwareVersion.toString()
+                                      << "model:" << QString::number(deviceInfo.deviceModel, 16);
+        }
     }
 
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Available devices map:" << availableDevices;
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Total available devices:" << availableDevices.size();
 
-    // Create dialog on heap (will be deleted automatically when closed)
+    // Create dialog on heap (will be deleted by showSaveResult on success, or manually on cancel)
     auto *dialog = new AddCredentialDialog(initialData, availableDevices, deviceId);
 
-    // Connect accepted signal to add credential
-    connect(dialog, &QDialog::accepted, this, [this, dialog]() {
-        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Dialog accepted, adding credential";
+    // Connect credentialReadyToSave signal to handle async save
+    connect(dialog, &AddCredentialDialog::credentialReadyToSave,
+            this, [this, dialog](const OathCredentialData &data, const QString &selectedDeviceId) {
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Credential ready to save -"
+                                  << "name:" << data.name
+                                  << "issuer:" << data.issuer
+                                  << "account:" << data.account
+                                  << "type:" << (data.type == OathType::TOTP ? "TOTP" : "HOTP")
+                                  << "algorithm:" << static_cast<int>(data.algorithm)
+                                  << "digits:" << data.digits
+                                  << "period:" << data.period
+                                  << "requireTouch:" << data.requireTouch
+                                  << "secret length:" << data.secret.length()
+                                  << "device:" << selectedDeviceId;
 
-        // Get data from dialog
-        OathCredentialData dialogData = dialog->getCredentialData();
-        const QString selectedDeviceId = dialog->getSelectedDeviceId();
+        // === SYNCHRONOUS VALIDATION (UI thread - fast) ===
 
+        // Check device exists
         if (selectedDeviceId.isEmpty()) {
             qCWarning(YubiKeyDaemonLog) << "YubiKeyService: No device selected";
-            dialog->deleteLater();
+            dialog->showSaveResult(false, i18n("No device selected"));
             return;
         }
 
-        // Get device instance
         auto *device = m_deviceManager->getDevice(selectedDeviceId);
         if (!device) {
             qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Device" << selectedDeviceId << "not found";
-            dialog->deleteLater();
+            dialog->showSaveResult(false, i18n("Device not found"));
             return;
+        }
+
+        // Check for duplicate credential
+        auto existingCredentials = device->credentials();
+        for (const auto &cred : existingCredentials) {
+            if (cred.originalName == data.name) {
+                qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Credential already exists:" << data.name;
+                dialog->showSaveResult(false, i18n("Credential with this name already exists on the YubiKey"));
+                return;
+            }
         }
 
         // Validate data
-        const QString validationError = dialogData.validate();
+        const QString validationError = data.validate();
         if (!validationError.isEmpty()) {
             qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Validation failed:" << validationError;
-            dialog->deleteLater();
+            dialog->showSaveResult(false, validationError);
             return;
         }
 
-        // Encode period in credential name for TOTP (ykman-compatible format: [period/]issuer:account)
-        // Only prepend period if it's non-standard (not 30 seconds)
-        if (dialogData.type == OathType::TOTP && dialogData.period != 30) {
-            dialogData.name = QString::number(dialogData.period) + QStringLiteral("/") + dialogData.name;
-            qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Encoded period in dialog data name:" << dialogData.name;
-        }
+        // === ASYNCHRONOUS PC/SC OPERATION (background thread) ===
 
-        // Add credential to device
-        auto result = device->addCredential(dialogData);
-        if (result.isError()) {
-            qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Failed to add credential:" << result.error();
-            dialog->deleteLater();
-            return;
-        }
+        // Run addCredential in background thread to avoid blocking UI
+        // This is especially important for:
+        // - PC/SC communication (100-500ms)
+        // - Touch-required credentials (user interaction time)
+        QFuture<Result<void>> const future = QtConcurrent::run([device, data]() -> Result<void> {
+            qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Background thread - starting addCredential";
 
-        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Credential added successfully via async dialog";
+            // Make copy for modification
+            OathCredentialData dialogData = data;
 
-        // Trigger credential refresh (no password needed for refresh after adding)
-        device->updateCredentialCacheAsync();
+            // Encode period in credential name for TOTP (ykman-compatible format: [period/]issuer:account)
+            // Only prepend period if it's non-standard (not 30 seconds)
+            if (dialogData.type == OathType::TOTP && dialogData.period != 30) {
+                dialogData.name = QString::number(dialogData.period) + QStringLiteral("/") + dialogData.name;
+                qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Encoded period in name:" << dialogData.name;
+            }
 
-        dialog->deleteLater();
+            // PC/SC operation in background thread - this may take 100-500ms
+            return device->addCredential(dialogData);
+        });
+
+        // Watch future and handle result in UI thread
+        auto *watcher = new QFutureWatcher<Result<void>>(this);
+        connect(watcher, &QFutureWatcher<Result<void>>::finished,
+                this, [this, watcher, dialog, device]() {
+            qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Background thread finished";
+
+            auto result = watcher->result();
+
+            if (result.isSuccess()) {
+                qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Credential added successfully";
+
+                // Trigger credential refresh (no password needed for refresh after adding)
+                device->updateCredentialCacheAsync();
+
+                // Show success notification if enabled
+                if (m_config->showNotifications()) {
+                    // TODO: Implement success notification
+                    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Would show success notification here";
+                }
+
+                // Notify dialog of success (will close and delete itself)
+                dialog->showSaveResult(true, QString());
+            } else {
+                qCWarning(YubiKeyDaemonLog) << "YubiKeyService: Failed to add credential:" << result.error();
+
+                // Show error, keep dialog open for corrections
+                dialog->showSaveResult(false, result.error());
+            }
+
+            // Clean up watcher
+            watcher->deleteLater();
+        });
+
+        // Start watching the future
+        watcher->setFuture(future);
     });
 
     // Connect rejected signal to cleanup

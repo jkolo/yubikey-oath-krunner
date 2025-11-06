@@ -40,13 +40,13 @@ int YubiKeyDeviceModel::rowCount(const QModelIndex &parent) const
     if (parent.isValid()) {
         return 0;
     }
-    return m_devices.size();
+    return static_cast<int>(m_devices.size());
 }
 
 QVariant YubiKeyDeviceModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || index.row() >= m_devices.size()) {
-        return QVariant();
+        return {};
     }
 
     const DeviceInfo &device = m_devices.at(index.row());
@@ -66,7 +66,7 @@ QVariant YubiKeyDeviceModel::data(const QModelIndex &index, int role) const
         // Show "Authorize" button if device is connected, requires password, and we don't have valid password
         return device.isConnected && device.requiresPassword && !device.hasValidPassword;
     default:
-        return QVariant();
+        return {};
     }
 }
 
@@ -90,7 +90,7 @@ void YubiKeyDeviceModel::refreshDevices()
 
     // Get all devices from manager proxy and convert to DeviceInfo
     m_devices.clear();
-    QList<YubiKeyDeviceProxy*> deviceProxies = m_manager->devices();
+    const QList<YubiKeyDeviceProxy*> deviceProxies = m_manager->devices();
     for (const auto *deviceProxy : deviceProxies) {
         m_devices.append(deviceProxy->toDeviceInfo());
     }
@@ -111,7 +111,7 @@ void YubiKeyDeviceModel::authorizeDevice(const QString &deviceId)
 {
     qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Authorization requested for device:" << deviceId;
 
-    DeviceInfo *device = findDevice(deviceId);
+    const DeviceInfo * const device = findDevice(deviceId);
     if (!device) {
         qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found:" << deviceId;
         return;
@@ -150,21 +150,21 @@ bool YubiKeyDeviceModel::testAndSavePassword(const QString &deviceId, const QStr
     }
 
     // Test and save password via device proxy
-    bool success = deviceProxy->savePassword(password);
+    const bool success = deviceProxy->savePassword(password);
 
     if (success) {
         qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Password saved successfully";
 
         // Update device info
-        DeviceInfo *device = findDevice(deviceId);
+        DeviceInfo * const device = findDevice(deviceId);
         if (device) {
             device->hasValidPassword = true;
             device->requiresPassword = true;
 
             // Notify QML of change
-            int row = findDeviceIndex(deviceId);
+            const int row = findDeviceIndex(deviceId);
             if (row >= 0) {
-                QModelIndex idx = index(row);
+                const QModelIndex idx = index(row);
                 Q_EMIT dataChanged(idx, idx);
             }
         }
@@ -182,7 +182,7 @@ void YubiKeyDeviceModel::showPasswordDialog(const QString &deviceId,
     qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Showing password dialog for device:" << deviceId;
 
     // Validate device state first (same as authorizeDevice)
-    DeviceInfo *device = findDevice(deviceId);
+    const DeviceInfo * const device = findDevice(deviceId);
     if (!device) {
         qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found:" << deviceId;
         return;
@@ -216,7 +216,7 @@ void YubiKeyDeviceModel::showChangePasswordDialog(const QString &deviceId,
     qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Showing change password dialog for device:" << deviceId;
 
     // Validate device state first
-    DeviceInfo *device = findDevice(deviceId);
+    const DeviceInfo * const device = findDevice(deviceId);
     if (!device) {
         qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found:" << deviceId;
         return;
@@ -244,7 +244,7 @@ void YubiKeyDeviceModel::forgetDevice(const QString &deviceId)
 {
     qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Forgetting device:" << deviceId;
 
-    int row = findDeviceIndex(deviceId);
+    const int row = findDeviceIndex(deviceId);
     if (row < 0) {
         qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found:" << deviceId;
         return;
@@ -274,7 +274,7 @@ bool YubiKeyDeviceModel::setDeviceName(const QString &deviceId, const QString &n
                               << "to:" << newName;
 
     // Validate input
-    QString trimmedName = newName.trimmed();
+    const QString trimmedName = newName.trimmed();
     if (deviceId.isEmpty() || trimmedName.isEmpty()) {
         qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Invalid device ID or name (empty after trim)";
         return false;
@@ -299,14 +299,14 @@ bool YubiKeyDeviceModel::setDeviceName(const QString &deviceId, const QString &n
     qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device name updated successfully via device proxy";
 
     // Update local model
-    DeviceInfo *device = findDevice(deviceId);
+    DeviceInfo * const device = findDevice(deviceId);
     if (device) {
         device->deviceName = trimmedName;
 
         // Notify QML of change
-        int row = findDeviceIndex(deviceId);
+        const int row = findDeviceIndex(deviceId);
         if (row >= 0) {
-            QModelIndex idx = index(row);
+            const QModelIndex idx = index(row);
             Q_EMIT dataChanged(idx, idx, {DeviceNameRole});
             qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Model updated and QML notified";
         }
@@ -347,6 +347,16 @@ void YubiKeyDeviceModel::onCredentialsUpdated()
 DeviceInfo* YubiKeyDeviceModel::findDevice(const QString &deviceId)
 {
     for (DeviceInfo &device : m_devices) {
+        if (device.deviceId == deviceId) {
+            return &device;
+        }
+    }
+    return nullptr;
+}
+
+const DeviceInfo* YubiKeyDeviceModel::findDevice(const QString &deviceId) const
+{
+    for (const DeviceInfo &device : m_devices) {
         if (device.deviceId == deviceId) {
             return &device;
         }
