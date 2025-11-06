@@ -341,7 +341,8 @@ void TestOathProtocol::testParseSelectResponse()
 
     QString deviceId;
     QByteArray challenge;
-    bool result = OathProtocol::parseSelectResponse(response, deviceId, challenge);
+    Version firmwareVersion;
+    bool result = OathProtocol::parseSelectResponse(response, deviceId, challenge, firmwareVersion);
 
     QVERIFY(result);
     QCOMPARE(deviceId, QString("41424344")); // "ABCD" in hex
@@ -379,9 +380,10 @@ void TestOathProtocol::testParseCredentialList()
     QCOMPARE(credentials[0].account, QString("user@test"));
     QVERIFY(credentials[0].isTotp); // Algo 0x22 has TOTP (0x02) in lower nibble
 
-    // Check second credential
+    // Check second credential (no account - entire name becomes account, issuer empty)
     QCOMPARE(credentials[1].originalName, QString("GitHub"));
-    QCOMPARE(credentials[1].issuer, QString("GitHub"));
+    QCOMPARE(credentials[1].issuer, QString("")); // No colon, so no issuer
+    QCOMPARE(credentials[1].account, QString("GitHub")); // Entire name is account
 }
 
 void TestOathProtocol::testParseCode()
@@ -442,20 +444,21 @@ void TestOathProtocol::testParseSelectResponse_InvalidData()
 {
     QString deviceId;
     QByteArray challenge;
+    Version firmwareVersion;
 
     // Empty response
-    QVERIFY(!OathProtocol::parseSelectResponse(QByteArray(), deviceId, challenge));
+    QVERIFY(!OathProtocol::parseSelectResponse(QByteArray(), deviceId, challenge, firmwareVersion));
 
     // Single byte
     QByteArray response;
     response.append((char)0x90);
-    QVERIFY(!OathProtocol::parseSelectResponse(response, deviceId, challenge));
+    QVERIFY(!OathProtocol::parseSelectResponse(response, deviceId, challenge, firmwareVersion));
 
     // Error status word (0x6982)
     response.clear();
     response.append((char)0x69);
     response.append((char)0x82);
-    QVERIFY(!OathProtocol::parseSelectResponse(response, deviceId, challenge));
+    QVERIFY(!OathProtocol::parseSelectResponse(response, deviceId, challenge, firmwareVersion));
 }
 
 void TestOathProtocol::testParseCredentialList_EmptyResponse()

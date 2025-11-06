@@ -253,7 +253,7 @@ void TestCredentialFormatter::testFormatDisplayName_CredentialInfo_AllOptions()
 
 void TestCredentialFormatter::testFormatDisplayName_EmptyFields()
 {
-    // Test with empty issuer - should fall back to name
+    // Test with empty issuer - should fall back to account
     {
         OathCredential cred;
         cred.originalName = "MyAccount";
@@ -264,7 +264,7 @@ void TestCredentialFormatter::testFormatDisplayName_EmptyFields()
             cred, FormatOptions(false, false, false, QString(), 1, false)
         );
 
-        QCOMPARE(result, QString("MyAccount"));
+        QCOMPARE(result, QString("user")); // Uses account when issuer is empty
     }
 
     // Test with empty username - should not add parentheses

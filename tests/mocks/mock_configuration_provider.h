@@ -6,6 +6,7 @@
 #pragma once
 
 #include "shared/config/configuration_provider.h"
+#include <QObject>
 
 namespace YubiKeyOath {
 namespace Shared {
@@ -26,13 +27,13 @@ namespace Shared {
  * MyComponent component(&config);
  * @endcode
  */
-class MockConfigurationProvider : public ConfigurationProvider
+class MockConfigurationProvider : public QObject, public ConfigurationProvider
 {
     Q_OBJECT
 
 public:
     explicit MockConfigurationProvider(QObject *parent = nullptr)
-        : ConfigurationProvider(parent)
+        : QObject(parent)
         , m_showNotifications(true)
         , m_showUsername(true)
         , m_showCode(false)
@@ -86,6 +87,10 @@ public:
         return m_deviceReconnectTimeout;
     }
 
+Q_SIGNALS:
+    void configurationChanged();
+
+public:
     // Test control methods
     void setShowNotifications(bool value) {
         m_showNotifications = value;

@@ -4,6 +4,10 @@ cmake_minimum_required(VERSION 3.16)
 # Find Qt Test module
 find_package(Qt6 REQUIRED COMPONENTS Test Core)
 
+# Disable clang-tidy for all test targets
+# Tests should not have the same strict requirements as production code
+set(CMAKE_CXX_CLANG_TIDY "")
+
 # Helper function for creating test executables
 function(add_yubikey_test TEST_NAME)
     # Parse arguments: SOURCE_FILES and optional LINK_LIBRARIES
@@ -52,7 +56,8 @@ add_yubikey_test(test_result
 add_yubikey_test(test_oath_protocol
     SOURCES test_oath_protocol.cpp
             ../src/daemon/oath/oath_protocol.cpp
-    LIBRARIES KF6::I18n
+            ../src/shared/utils/version.cpp
+    LIBRARIES KF6::I18n Qt6::DBus
 )
 
 # Test: ActionManager (requires KRunner and I18n)
@@ -93,6 +98,7 @@ if(KF6_I18n_FOUND)
         SOURCES test_flexible_display_strategy.cpp
                 ../src/shared/formatting/credential_formatter.cpp
                 ../src/shared/types/yubikey_value_types.cpp
+                ../src/shared/utils/version.cpp
         LIBRARIES KF6::I18n Qt6::DBus
     )
 else()
@@ -107,6 +113,7 @@ if(KF6_I18n_FOUND)
         SOURCES test_credential_formatter.cpp
                 ../src/shared/formatting/credential_formatter.cpp
                 ../src/shared/types/yubikey_value_types.cpp
+                ../src/shared/utils/version.cpp
         LIBRARIES Qt6::DBus KF6::I18n
     )
 else()
@@ -120,9 +127,9 @@ if(KF6_Runner_FOUND AND KF6_I18n_FOUND)
     add_yubikey_test(test_match_builder
         SOURCES test_match_builder.cpp
                 mocks/mock_configuration_provider.cpp
-                ../src/shared/config/configuration_provider.cpp
                 ../src/krunner/matching/match_builder.cpp
                 ../src/krunner/logging_categories.cpp
+                ../src/shared/utils/version.cpp
         LIBRARIES KF6::Runner KF6::I18n Qt6::DBus yubikey_dbus_client
     )
 else()
@@ -148,6 +155,7 @@ endif()
 # This test connects to a live daemon and tests all proxy classes
 add_yubikey_test(test_yubikey_proxy
     SOURCES test_yubikey_proxy.cpp
+            ../src/shared/utils/version.cpp
     LIBRARIES Qt6::DBus yubikey_dbus_client
 )
 
@@ -156,7 +164,90 @@ add_yubikey_test(test_yubikey_proxy
 add_yubikey_test(test_proxy_unit
     SOURCES test_proxy_unit.cpp
             ../src/shared/types/yubikey_value_types.cpp
+            ../src/shared/utils/version.cpp
     LIBRARIES Qt6::DBus yubikey_dbus_client
+)
+
+# Test: TouchHandler (workflow component)
+add_yubikey_test(test_touch_handler
+    SOURCES test_touch_handler.cpp
+            ../src/daemon/workflows/touch_handler.cpp
+            ../src/daemon/logging_categories.cpp
+)
+
+# Test: ActionExecutor (action execution with fallback)
+find_package(KF6 COMPONENTS GuiAddons QUIET)
+find_package(PkgConfig QUIET)
+if(PKG_CONFIG_FOUND)
+    pkg_check_modules(X11 IMPORTED_TARGET x11)
+endif()
+
+if(KF6_GuiAddons_FOUND AND X11_FOUND)
+    add_yubikey_test(test_action_executor
+        SOURCES test_action_executor.cpp
+                mocks/mock_configuration_provider.cpp
+                mocks/mock_clipboard_manager.cpp
+                mocks/mock_text_input_provider.cpp
+                mocks/mock_dbus_notification_manager.cpp
+                mocks/mock_notification_orchestrator.cpp
+                ../src/daemon/actions/action_executor.cpp
+                ../src/daemon/input/modifier_key_checker.cpp
+                ../src/daemon/clipboard/clipboard_manager.cpp
+                ../src/daemon/workflows/notification_orchestrator.cpp
+                ../src/daemon/workflows/notification_helper.cpp
+                ../src/daemon/workflows/notification_utils.cpp
+                ../src/daemon/notification/dbus_notification_manager.cpp
+                ../src/daemon/formatting/code_validator.cpp
+                ../src/daemon/logging_categories.cpp
+        LIBRARIES Qt6::Gui Qt6::Widgets Qt6::DBus KF6::I18n KF6::Notifications KF6::GuiAddons PkgConfig::X11
+    )
+else()
+    message(STATUS "GuiAddons or X11 not found - skipping test_action_executor")
+endif()
+
+# Test: TouchWorkflowCoordinator (workflow component integration tests)
+add_yubikey_test(test_touch_workflow_coordinator
+    SOURCES test_touch_workflow_coordinator.cpp
+            mocks/mock_touch_handler.cpp
+            mocks/mock_yubikey_action_coordinator.cpp
+            mocks/mock_configuration_provider.cpp
+            mocks/mock_dbus_notification_manager.cpp
+            mocks/mock_notification_orchestrator.cpp
+            ../src/daemon/workflows/touch_handler.cpp
+            ../src/daemon/workflows/notification_orchestrator.cpp
+            ../src/daemon/workflows/notification_helper.cpp
+            ../src/daemon/workflows/notification_utils.cpp
+            ../src/daemon/notification/dbus_notification_manager.cpp
+            ../src/daemon/formatting/code_validator.cpp
+            ../src/daemon/logging_categories.cpp
+    LIBRARIES Qt6::Core Qt6::DBus KF6::I18n KF6::Notifications
+)
+
+# Test: ClipboardManager (clipboard operations with auto-clear)
+find_package(KF6 COMPONENTS GuiAddons QUIET)
+if(KF6_GuiAddons_FOUND)
+    add_yubikey_test(test_clipboard_manager
+        SOURCES test_clipboard_manager.cpp
+                ../src/daemon/clipboard/clipboard_manager.cpp
+                ../src/daemon/logging_categories.cpp
+        LIBRARIES Qt6::Core Qt6::Gui KF6::GuiAddons
+    )
+else()
+    message(STATUS "GuiAddons not found - skipping test_clipboard_manager")
+endif()
+
+# Test: NotificationOrchestrator (notification management with countdown timers)
+add_yubikey_test(test_notification_orchestrator
+    SOURCES test_notification_orchestrator.cpp
+            mocks/mock_dbus_notification_manager.cpp
+            mocks/mock_configuration_provider.cpp
+            ../src/daemon/workflows/notification_orchestrator.cpp
+            ../src/daemon/workflows/notification_helper.cpp
+            ../src/daemon/workflows/notification_utils.cpp
+            ../src/daemon/notification/dbus_notification_manager.cpp
+            ../src/daemon/formatting/code_validator.cpp
+            ../src/daemon/logging_categories.cpp
+    LIBRARIES Qt6::Core Qt6::DBus KF6::I18n KF6::Notifications
 )
 
 # Summary
@@ -166,6 +257,11 @@ message(STATUS "  - test_code_validator (CodeValidator)")
 message(STATUS "  - test_credential_formatter (CredentialFormatter)")
 message(STATUS "  - test_yubikey_proxy (Proxy architecture integration - requires daemon)")
 message(STATUS "  - test_proxy_unit (Proxy architecture unit tests - mock D-Bus service)")
+message(STATUS "  - test_touch_handler (TouchHandler workflow)")
+message(STATUS "  - test_action_executor (ActionExecutor with fallback)")
+message(STATUS "  - test_touch_workflow_coordinator (Touch workflow integration)")
+message(STATUS "  - test_clipboard_manager (ClipboardManager with auto-clear)")
+message(STATUS "  - test_notification_orchestrator (NotificationOrchestrator with timers)")
 if(KF6_Runner_FOUND)
     message(STATUS "  - test_match_builder (MatchBuilder)")
     message(STATUS "  - test_modifier_key_checker (ModifierKeyChecker)")

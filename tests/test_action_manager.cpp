@@ -58,12 +58,14 @@ private Q_SLOTS:
     // isValidAction tests
     void testIsValidAction_Copy();
     void testIsValidAction_Type();
+    void testIsValidAction_Delete();
     void testIsValidAction_Invalid();
     void testIsValidAction_Empty();
 
     // getActionName tests
     void testGetActionName_Copy();
     void testGetActionName_Type();
+    void testGetActionName_Delete();
     void testGetActionName_Unknown();
 
     // determineAction tests
@@ -102,13 +104,19 @@ void TestActionManager::testIsValidAction_Type()
     QVERIFY(m_manager->isValidAction(QString("type")));
 }
 
+void TestActionManager::testIsValidAction_Delete()
+{
+    QVERIFY(m_manager->isValidAction("delete"));
+    QVERIFY(m_manager->isValidAction(QString("delete")));
+}
+
 void TestActionManager::testIsValidAction_Invalid()
 {
     QVERIFY(!m_manager->isValidAction("invalid"));
-    QVERIFY(!m_manager->isValidAction("delete"));
     QVERIFY(!m_manager->isValidAction("paste"));
     QVERIFY(!m_manager->isValidAction("COPY")); // Case sensitive
     QVERIFY(!m_manager->isValidAction("TYPE")); // Case sensitive
+    QVERIFY(!m_manager->isValidAction("DELETE")); // Case sensitive
 }
 
 void TestActionManager::testIsValidAction_Empty()
@@ -132,6 +140,13 @@ void TestActionManager::testGetActionName_Type()
     QString name = m_manager->getActionName("type");
     QVERIFY(!name.isEmpty());
     QVERIFY(name.contains("Type") || name.contains("type"));
+}
+
+void TestActionManager::testGetActionName_Delete()
+{
+    QString name = m_manager->getActionName("delete");
+    QVERIFY(!name.isEmpty());
+    QVERIFY(name.contains("Delete") || name.contains("delete") || name.contains("credential"));
 }
 
 void TestActionManager::testGetActionName_Unknown()

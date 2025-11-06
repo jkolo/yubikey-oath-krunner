@@ -6,7 +6,6 @@ set(krunner_yubikey_SRCS
     yubikeyrunner.cpp
 
     # Configuration components
-    ../shared/config/configuration_provider.cpp
     config/krunner_configuration.cpp
 
     # Shared UI components (password dialogs still in shared, used by config too)

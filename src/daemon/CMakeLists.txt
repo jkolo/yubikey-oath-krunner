@@ -32,9 +32,8 @@ add_executable(yubikey-oath-daemon
     main.cpp
     yubikey_dbus_service.cpp
     ../shared/types/yubikey_value_types.cpp
-    ../shared/config/configuration_provider.cpp
-    ../shared/interfaces/credential_update_notifier.cpp
     ../shared/utils/device_name_formatter.cpp
+    ../shared/utils/version.cpp
     ${DBUS_ADAPTOR_SRCS}
     ${DAEMON_RESOURCES}
 
@@ -75,7 +74,6 @@ add_executable(yubikey-oath-daemon
 
     # Input (text input emulation)
     input/text_input_factory.cpp
-    input/text_input_provider.cpp
     input/x11_text_input.cpp
     input/portal_text_input.cpp
     input/modifier_key_checker.cpp

@@ -406,8 +406,8 @@ void TestCredentialFormatter::testFormat_EmptyIssuer_UsesName()
 
     QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, false, false, QString(), 1, false));
 
-    // Should fall back to name when issuer is empty
-    QCOMPARE(result, QString("MyAccount"));
+    // Should fall back to account when issuer is empty
+    QCOMPARE(result, QString("user"));
 }
 
 void TestCredentialFormatter::testFormat_EmptyIssuerAndName()
@@ -419,8 +419,8 @@ void TestCredentialFormatter::testFormat_EmptyIssuerAndName()
 
     QString result = CredentialFormatter::formatDisplayName(cred, FormatOptions(false, false, false, QString(), 1, false));
 
-    // Should return empty string
-    QCOMPARE(result, QString(""));
+    // Should use account even if originalName is empty
+    QCOMPARE(result, QString("user"));
 }
 
 void TestCredentialFormatter::testFormat_AllEmpty()
