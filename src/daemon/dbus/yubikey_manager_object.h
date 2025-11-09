@@ -107,7 +107,7 @@ Q_SIGNALS:
     // ObjectManager signals - provide device/credential discovery
     // Clients should use these signals + GetManagedObjects() instead of aggregated properties
     void InterfacesAdded(const QDBusObjectPath &object_path,
-                        const QVariantMap &interfaces_and_properties);
+                        const InterfacePropertiesMap &interfaces_and_properties);
     void InterfacesRemoved(const QDBusObjectPath &object_path,
                           const QStringList &interfaces);
 
@@ -163,10 +163,12 @@ public:
 private:
     /**
      * @brief Builds D-Bus object path for device
-     * @param deviceId Device ID
-     * @return /pl/jkolo/yubikey/oath/devices/<deviceId>
+     * @param deviceId Device ID (used as fallback if serialNumber == 0)
+     * @param serialNumber Serial number (preferred for path if > 0)
+     * @return /pl/jkolo/yubikey/oath/devices/<serialNumber> or
+     *         /pl/jkolo/yubikey/oath/devices/dev_<deviceId> if serialNumber == 0
      */
-    static QString devicePath(const QString &deviceId);
+    static QString devicePath(const QString &deviceId, quint32 serialNumber);
 
     YubiKeyService *m_service{nullptr};                 ///< Business logic service (not owned)
     QDBusConnection m_connection;                       ///< D-Bus connection

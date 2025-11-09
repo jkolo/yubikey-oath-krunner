@@ -11,6 +11,7 @@
 #include <optional>
 #include "common/result.h"
 #include "types/oath_credential.h"
+#include "../../shared/types/yubikey_model.h"
 
 namespace YubiKeyOath {
 namespace Shared {

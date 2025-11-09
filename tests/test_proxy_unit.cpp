@@ -595,8 +595,8 @@ void TestProxyUnit::testManagerProxyDeviceList()
 
     for (auto *device : devices) {
         QVERIFY(device != nullptr);
-        QVERIFY(!device->deviceId().isEmpty());
-        qDebug() << "    Device:" << device->deviceId() << "-" << device->name();
+        QVERIFY(device->serialNumber() != 0);
+        qDebug() << "    Device:" << device->serialNumber() << "-" << device->name();
     }
 
     qDebug() << "✅ Device list works";

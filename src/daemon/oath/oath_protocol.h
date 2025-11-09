@@ -305,6 +305,159 @@ public:
                                    QString &outIssuer,
                                    QString &outAccount);
 
+    // OTP Application support (for serial number retrieval on YubiKey NEO)
+    /**
+     * @brief OTP Application Identifier
+     *
+     * Used for serial number retrieval on YubiKey NEO firmware 3.x.x.
+     * OTP application provides CMD_DEVICE_SERIAL which works via CCID/NFC.
+     * This is the primary method used by Yubico Authenticator for NEO devices.
+     */
+    static const QByteArray OTP_AID;
+
+    /**
+     * @brief OTP INS_CONFIG instruction code
+     *
+     * Used for OTP configuration commands including GET_SERIAL.
+     */
+    static constexpr quint8 INS_OTP_CONFIG = 0x01;
+
+    /**
+     * @brief OTP CMD_DEVICE_SERIAL slot code
+     *
+     * Used as P1 parameter for INS_CONFIG to retrieve device serial number.
+     * Available on YubiKey firmware 1.2+ (includes NEO 3.4.0).
+     */
+    static constexpr quint8 CMD_DEVICE_SERIAL = 0x10;
+
+    /**
+     * @brief Creates SELECT OTP application command
+     * @return APDU command bytes
+     */
+    static QByteArray createSelectOtpCommand();
+
+    /**
+     * @brief Creates OTP GET_SERIAL command
+     * @return APDU command bytes
+     *
+     * APDU format: 00 01 10 00 00
+     * - CLA: 0x00
+     * - INS: 0x01 (INS_OTP_CONFIG)
+     * - P1:  0x10 (CMD_DEVICE_SERIAL)
+     * - P2:  0x00
+     * - Lc:  0x00 (no data)
+     *
+     * Response: 4 bytes (big-endian serial number) + 90 00
+     */
+    static QByteArray createOtpGetSerialCommand();
+
+    /**
+     * @brief Parses OTP GET_SERIAL response
+     * @param response Response data from GET_SERIAL command
+     * @param outSerial Output parameter for serial number
+     * @return true on success, false on parse error
+     *
+     * Response format: 4 bytes serial number (big-endian) + status word (90 00)
+     * Example: 00 35 7A 5C 90 00 → serial = 0x00357A5C = 3504732
+     *
+     * Status words:
+     *   0x9000: Success
+     *   0x6D00: INS not supported (OTP not available)
+     *   0x6984: Security status not satisfied (serial-api-visible disabled)
+     */
+    static bool parseOtpSerialResponse(const QByteArray &response,
+                                       quint32 &outSerial);
+
+    // PIV Application support (for serial number retrieval on YubiKey NEO)
+    /**
+     * @brief PIV Application Identifier
+     *
+     * Used for fallback serial number retrieval on YubiKey NEO and YubiKey 4.
+     * YubiKey 5 series should use Management interface instead (faster).
+     */
+    static const QByteArray PIV_AID;
+
+    /**
+     * @brief PIV GET SERIAL instruction code
+     *
+     * Available on all YubiKey models with PIV support (NEO, 4, 5).
+     * Requires serial-api-visible flag (enabled by default).
+     */
+    static constexpr quint8 INS_GET_SERIAL = 0xF8;
+
+    /**
+     * @brief Creates SELECT PIV application command
+     * @return APDU command bytes
+     */
+    static QByteArray createSelectPivCommand();
+
+    /**
+     * @brief Creates PIV GET SERIAL command
+     * @return APDU command bytes
+     *
+     * APDU format: 00 F8 00 00
+     * - CLA: 0x00
+     * - INS: 0xF8 (GET SERIAL)
+     * - P1:  0x00
+     * - P2:  0x00
+     * - No data, no Le
+     *
+     * Response: 4 bytes (big-endian serial number) + 90 00
+     */
+    static QByteArray createGetSerialCommand();
+
+    /**
+     * @brief Parses PIV GET SERIAL response
+     * @param response Response data from GET SERIAL command
+     * @param outSerial Output parameter for serial number
+     * @return true on success, false on parse error
+     *
+     * Response format: 4 bytes serial number (big-endian) + status word (90 00)
+     * Example: 00 AE 17 CB 90 00 → serial = 0x00AE17CB = 11409355
+     *
+     * Status words:
+     *   0x9000: Success
+     *   0x6D00: INS not supported (PIV not available)
+     *   0x6982: Security status not satisfied (serial-api-visible disabled)
+     */
+    static bool parseSerialResponse(const QByteArray &response,
+                                   quint32 &outSerial);
+
+    // PC/SC Reader Name Parsing (for legacy device detection)
+    /**
+     * @brief Information parsed from PC/SC reader name
+     *
+     * Used as fallback detection method for YubiKey NEO devices that don't support
+     * Management Application interface. Yubico Authenticator uses this method
+     * to detect device model via NFC/CCID.
+     */
+    struct ReaderNameInfo {
+        bool isNEO = false;          ///< True if "NEO" detected in reader name
+        quint32 serialNumber = 0;    ///< Serial extracted from reader name (e.g., "(0003507404)")
+        quint8 formFactor = 0;       ///< USB_A_KEYCHAIN (0x01) for NEO, or 0 if unknown
+        bool valid = false;          ///< True if parsing succeeded and useful info extracted
+    };
+
+    /**
+     * @brief Parses PC/SC reader name for device information
+     * @param readerName Reader name from SCardListReaders (e.g., "Yubico YubiKey NEO OTP+CCID (0003507404) 00 00")
+     * @return Parsed information structure
+     *
+     * Parsing strategy (Yubico method):
+     * 1. Detect "NEO" substring (case-insensitive) → sets isNEO = true
+     * 2. Extract serial from format "(XXXXXXXXXX)" or "(00XXXXXXXX)" → 10-digit number
+     * 3. Set formFactor = USB_A_KEYCHAIN (0x01) if NEO detected (all NEO are USB-A keychain)
+     * 4. Mark valid = true if any useful information was extracted
+     *
+     * Examples:
+     * - "Yubico YubiKey NEO OTP+U2F+CCID (0003507404) 00 00" → isNEO=true, serial=3507404, formFactor=0x01
+     * - "Yubico YubiKey OTP+FIDO+CCID 01 00" → isNEO=false, serial=0, formFactor=0, valid=false
+     *
+     * Use case: YubiKey NEO 3.4.0 doesn't support Management Application,
+     * so we use reader name parsing as fallback detection method.
+     */
+    static ReaderNameInfo parseReaderNameInfo(const QString &readerName);
+
 private:
     // Private constructor - utility class only
     OathProtocol() = delete;

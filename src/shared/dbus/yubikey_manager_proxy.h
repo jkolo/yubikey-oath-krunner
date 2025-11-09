@@ -14,6 +14,7 @@
 // Forward declarations
 class QDBusInterface;
 class QDBusServiceWatcher;
+class QDBusMessage;
 
 namespace YubiKeyOath {
 namespace Shared {
@@ -141,9 +142,14 @@ Q_SIGNALS:
      */
     void daemonUnavailable();
 
+    /**
+     * @brief Emitted when device properties change (name, connection status, password state)
+     * @param device Device proxy with changed properties
+     */
+    void devicePropertyChanged(YubiKeyDeviceProxy *device);
+
 private Q_SLOTS:
-    void onInterfacesAdded(const QDBusObjectPath &objectPath,
-                          const QVariantMap &interfacesAndProperties);
+    void onInterfacesAdded(const QDBusMessage &message);
     void onInterfacesRemoved(const QDBusObjectPath &objectPath,
                             const QStringList &interfaces);
     void onManagerPropertiesChanged(const QString &interfaceName,

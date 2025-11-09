@@ -9,6 +9,7 @@
 #include <QString>
 #include <QList>
 #include <QHash>
+#include <QMutex>
 #include <QDateTime>
 #include <memory>
 #include "types/yubikey_value_types.h"
@@ -24,6 +25,9 @@ namespace Daemon {
     class DaemonConfiguration;
     class YubiKeyActionCoordinator;
     class YubiKeyOathDevice;
+    class PasswordService;
+    class DeviceLifecycleService;
+    class CredentialService;
 }
 }
 
@@ -98,6 +102,13 @@ public:
      * @return List of connected device IDs
      */
     QList<QString> getConnectedDeviceIds() const;
+
+    /**
+     * @brief Gets last seen timestamp for device
+     * @param deviceId Device ID
+     * @return QDateTime timestamp (unix epoch in ms) or invalid QDateTime if device not in database
+     */
+    QDateTime getDeviceLastSeen(const QString &deviceId) const;
 
     /**
      * @brief Generates TOTP/HOTP code for credential
@@ -267,8 +278,6 @@ Q_SIGNALS:
     void deviceForgotten(const QString &deviceId);
 
 private Q_SLOTS:
-    void onDeviceConnectedInternal(const QString &deviceId);
-    void onDeviceDisconnectedInternal(const QString &deviceId);
     void onCredentialCacheFetched(const QString &deviceId,
                                  const QList<OathCredential> &credentials);
     void onReconnectStarted(const QString &deviceId);
@@ -276,60 +285,78 @@ private Q_SLOTS:
     void onConfigurationChanged();
 
 private:
-    /**
-     * @brief Appends cached credentials for offline device to list
-     * @param deviceId Device ID to check
-     * @param credentialsList List to append to (modified in-place)
-     *
-     * If cache is enabled and device is offline, appends cached credentials.
-     * Skips if device is currently connected (already in list).
-     */
-    void appendCachedCredentialsForOfflineDevice(const QString &deviceId,
-                                                  QList<OathCredential> &credentialsList);
 
     /**
-     * @brief Generates default device name
+     * @brief Checks authentication state based on credentials and password
      * @param deviceId Device ID
-     * @return "YubiKey <deviceId>"
+     * @param device Device instance
+     * @param credentials Fetched credentials list
+     * @param authenticationFailed Output parameter set to true if auth failed
+     * @param authError Output parameter set to error message if auth failed
      */
-    QString generateDefaultDeviceName(const QString &deviceId) const;
+    void checkAuthenticationState(const QString &deviceId,
+                                  YubiKeyOathDevice *device,
+                                  const QList<OathCredential> &credentials,
+                                  bool &authenticationFailed,
+                                  QString &authError);
 
     /**
-     * @brief Gets device name (custom or generated default)
+     * @brief Handles authentication failure - emits signals
      * @param deviceId Device ID
-     * @return Custom name from database or generated default
+     * @param authError Error message
      */
-    QString getDeviceName(const QString &deviceId) const;
+    void handleAuthenticationFailure(const QString &deviceId,
+                                     const QString &authError);
 
     /**
-     * @brief Clears device from memory
+     * @brief Handles authentication success - saves credentials and emits signals
      * @param deviceId Device ID
+     * @param device Device instance
+     * @param credentials Fetched credentials list
      */
-    void clearDeviceFromMemory(const QString &deviceId);
+    void handleAuthenticationSuccess(const QString &deviceId,
+                                     YubiKeyOathDevice *device,
+                                     const QList<OathCredential> &credentials);
 
     /**
-     * @brief Shows add credential dialog asynchronously (non-blocking)
-     * @param deviceId Preselected device ID
-     * @param initialData Initial credential data
-     *
-     * Dialog is shown in background, doesn't block D-Bus call.
-     * On accept: adds credential and emits credentialsUpdated signal.
-     * On reject: dialog is closed and deleted.
+     * @brief Determines if credentials should be saved to cache with rate limiting
+     * @param deviceId Device ID
+     * @return true if credentials should be saved
      */
-    void showAddCredentialDialogAsync(const QString &deviceId,
-                                      const OathCredentialData &initialData);
+    bool shouldSaveCredentialsToCache(const QString &deviceId);
+
+    /**
+     * @brief Gets list of connected devices only
+     * @return List of connected device info
+     */
+    QList<DeviceInfo> getAvailableConnectedDevices();
+
+    /**
+     * @brief Validates credential data before saving to device
+     * @param data Credential data to validate
+     * @param selectedDeviceId Device ID
+     * @param errorMessage Output parameter for error message
+     * @return YubiKeyOathDevice* if validation passed, nullptr otherwise
+     */
+    YubiKeyOathDevice* validateCredentialBeforeSave(const OathCredentialData &data,
+                                                     const QString &selectedDeviceId,
+                                                     QString &errorMessage);
 
     // Reconnect notification state
     uint m_reconnectNotificationId = 0;
 
     // Rate limiting for credential saves (per device)
     QHash<QString, qint64> m_lastCredentialSave;
+    mutable QMutex m_lastCredentialSaveMutex;
 
     std::unique_ptr<YubiKeyDeviceManager> m_deviceManager;
     std::unique_ptr<YubiKeyDatabase> m_database;
     std::unique_ptr<SecretStorage> m_secretStorage;
     std::unique_ptr<DaemonConfiguration> m_config;
     std::unique_ptr<YubiKeyActionCoordinator> m_actionCoordinator;
+    std::unique_ptr<PasswordService> m_passwordService;
+    std::unique_ptr<DeviceLifecycleService> m_deviceLifecycleService;
+    std::unique_ptr<CredentialService> m_credentialService;
 };
 
 } // namespace Daemon

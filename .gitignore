@@ -54,6 +54,8 @@ rc.cpp
 *.swo
 .*.kate-swp
 *_autogen/
+*.backup
+*.pot.new
 
 # Logs
 *.log

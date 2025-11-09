@@ -125,6 +125,73 @@ QString modelToString(YubiKeyModel model)
     return name;
 }
 
+// ==================== Capability and Form Factor Conversion ====================
+
+QStringList capabilitiesToStringList(YubiKeyCapabilities capabilities)
+{
+    QStringList result;
+
+    if (capabilities.testFlag(YubiKeyCapability::FIDO2)) {
+        result.append(QStringLiteral("FIDO2"));
+    }
+    if (capabilities.testFlag(YubiKeyCapability::FIDO_U2F)) {
+        result.append(QStringLiteral("FIDO U2F"));
+    }
+    if (capabilities.testFlag(YubiKeyCapability::YubicoOTP)) {
+        result.append(QStringLiteral("Yubico OTP"));
+    }
+    if (capabilities.testFlag(YubiKeyCapability::OATH_HOTP)) {
+        result.append(QStringLiteral("OATH-HOTP"));
+    }
+    if (capabilities.testFlag(YubiKeyCapability::OATH_TOTP)) {
+        result.append(QStringLiteral("OATH-TOTP"));
+    }
+    if (capabilities.testFlag(YubiKeyCapability::PIV)) {
+        result.append(QStringLiteral("PIV"));
+    }
+    if (capabilities.testFlag(YubiKeyCapability::OpenPGP)) {
+        result.append(QStringLiteral("OpenPGP"));
+    }
+    if (capabilities.testFlag(YubiKeyCapability::HMAC_SHA1)) {
+        result.append(QStringLiteral("HMAC-SHA1"));
+    }
+
+    return result;
+}
+
+QString formFactorToString(quint8 formFactor)
+{
+    // Form factor values from YubiKey Management Interface specification
+    constexpr quint8 FORM_FACTOR_UNKNOWN = 0x00;
+    constexpr quint8 FORM_FACTOR_USB_A_KEYCHAIN = 0x01;
+    constexpr quint8 FORM_FACTOR_USB_A_NANO = 0x02;
+    constexpr quint8 FORM_FACTOR_USB_C_KEYCHAIN = 0x03;
+    constexpr quint8 FORM_FACTOR_USB_C_NANO = 0x04;
+    constexpr quint8 FORM_FACTOR_USB_C_LIGHTNING = 0x05;
+    constexpr quint8 FORM_FACTOR_USB_A_BIO_KEYCHAIN = 0x06;
+    constexpr quint8 FORM_FACTOR_USB_C_BIO_KEYCHAIN = 0x07;
+
+    switch (formFactor) {
+    case FORM_FACTOR_USB_A_KEYCHAIN:
+        return QStringLiteral("USB-A Keychain");
+    case FORM_FACTOR_USB_A_NANO:
+        return QStringLiteral("USB-A Nano");
+    case FORM_FACTOR_USB_C_KEYCHAIN:
+        return QStringLiteral("USB-C Keychain");
+    case FORM_FACTOR_USB_C_NANO:
+        return QStringLiteral("USB-C Nano");
+    case FORM_FACTOR_USB_C_LIGHTNING:
+        return QStringLiteral("USB-C Lightning");
+    case FORM_FACTOR_USB_A_BIO_KEYCHAIN:
+        return QStringLiteral("USB-A Bio Keychain");
+    case FORM_FACTOR_USB_C_BIO_KEYCHAIN:
+        return QStringLiteral("USB-C Bio Keychain");
+    case FORM_FACTOR_UNKNOWN:
+    default:
+        return QStringLiteral("Unknown");
+    }
+}
+
 // ==================== Model Detection ====================
 
 namespace {
@@ -287,9 +354,46 @@ YubiKeySeries detectSeriesFromFirmware(const Version& firmware)
     return YubiKeySeries::Unknown;
 }
 
+/**
+ * @brief Maps FormFactor to YubiKeyPorts
+ * @param formFactor FormFactor value from Management Interface GET_DEVICE_INFO
+ * @return Corresponding YubiKeyPorts flags
+ *
+ * FormFactor values (from YubiKey Management Interface spec):
+ * - 0x00 = Unknown/Unavailable
+ * - 0x01 = USB-A Keychain
+ * - 0x02 = USB-A Nano
+ * - 0x03 = USB-C Keychain
+ * - 0x04 = USB-C Nano
+ * - 0x05 = USB-C + Lightning (5Ci)
+ * - 0x06 = USB-A Bio
+ * - 0x07 = USB-C Bio
+ */
+YubiKeyPorts formFactorToPorts(quint8 formFactor)
+{
+    switch (formFactor) {
+    case 0x01:  // USB-A Keychain
+    case 0x02:  // USB-A Nano
+    case 0x06:  // USB-A Bio
+        return YubiKeyPort::USB_A;
+
+    case 0x03:  // USB-C Keychain
+    case 0x04:  // USB-C Nano
+    case 0x07:  // USB-C Bio
+        return YubiKeyPort::USB_C;
+
+    case 0x05:  // USB-C + Lightning (5Ci)
+        return YubiKeyPort::USB_C | YubiKeyPort::Lightning;
+
+    case 0x00:  // Unknown/Unavailable
+    default:
+        return YubiKeyPort::USB_A;  // Fallback to USB-A
+    }
+}
+
 } // anonymous namespace
 
-YubiKeyModel detectModel(const Version& firmware, const QString& ykmanOutput)
+YubiKeyModel detectModel(const Version& firmware, const QString& ykmanOutput, quint8 formFactor, quint16 nfcSupported)
 {
     // Try parsing ykman output first (most reliable)
     if (!ykmanOutput.isEmpty()) {
@@ -307,7 +411,29 @@ YubiKeyModel detectModel(const Version& firmware, const QString& ykmanOutput)
 
     // Default assumptions when no ykman output available
     YubiKeyVariant const variant = YubiKeyVariant::Standard;
-    YubiKeyPorts ports = YubiKeyPort::USB_A;  // Assume USB-A
+
+    // Use formFactor to determine ports if available, otherwise assume USB-A
+    YubiKeyPorts ports = (formFactor != 0) ? formFactorToPorts(formFactor) : YubiKeyPort::USB_A;
+
+    // Add NFC port if device supports NFC (from Management Interface nfcSupported field)
+    if (nfcSupported != 0) {
+        ports = ports | YubiKeyPort::NFC;
+    }
+
+    // Firmware-based NFC fallback for YubiKey 5 series with incomplete Management API
+    // Some YubiKey 5 NFC devices (e.g., firmware 5.1.2) return formFactor=0 and don't
+    // provide TAG_NFC_SUPPORTED (0x0D) field in Management API response.
+    // Apply NFC capability heuristically based on firmware version and USB port type.
+    if (nfcSupported == 0 &&  // No NFC info from Management API
+        formFactor == 0 &&     // Unknown form factor (incomplete Management API)
+        firmware >= Version(5, 0, 0) && firmware < Version(6, 0, 0) &&  // YubiKey 5 series
+        (ports & YubiKeyPort::USB_A) != 0) {  // USB-A port detected
+
+        // YubiKey 5 USB-A models commonly have NFC variant (YubiKey 5 NFC)
+        // Apply NFC as fallback when Management API doesn't provide this information
+        ports = ports | YubiKeyPort::NFC;
+    }
+
     YubiKeyCapabilities capabilities = YubiKeyCapability::NoCapability;
 
     // Set default capabilities based on series
@@ -325,7 +451,8 @@ YubiKeyModel detectModel(const Version& firmware, const QString& ykmanOutput)
         break;
 
     case YubiKeySeries::YubiKeyNEO:
-        ports = YubiKeyPort::USB_A | YubiKeyPort::NFC;  // NEO always has NFC
+        // NEO always has NFC in addition to USB port from formFactor
+        ports = ports | YubiKeyPort::NFC;
         capabilities = YubiKeyCapability::FIDO_U2F |
                        YubiKeyCapability::YubicoOTP |
                        YubiKeyCapability::OATH_HOTP |

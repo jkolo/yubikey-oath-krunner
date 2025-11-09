@@ -10,6 +10,7 @@
 #include "dbus/yubikey_credential_proxy.h"
 #include "dbus/yubikey_device_proxy.h"
 #include "../logging_categories.h"
+#include "../shared/utils/yubikey_icon_resolver.h"
 
 #include <KLocalizedString>
 #include <QDebug>
@@ -58,7 +59,7 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
     int connectedDeviceCount = 0;
 
     for (const auto *device : devices) {
-        deviceIdToName[device->deviceId()] = device->name();
+        deviceIdToName[QString::number(device->serialNumber())] = device->name();
         if (device->isConnected()) {
             connectedDeviceCount++;
         }
@@ -129,12 +130,15 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
 
     qCDebug(MatchBuilderLog) << "Formatted displayName:" << displayName;
 
+    // Use generic YubiKey icon (deviceModel is now a human-readable QString, not uint32)
+    const QString iconPath = YubiKeyIconResolver::getGenericIconPath();
+
     // Set match data (index: 0=name, 1=display, 2=code, 3=touch, 4=pwdError, 5=deviceId)
     data << credentialName << displayName << code << requiresTouch << isPasswordError << credentialProxy->deviceId();
     match.setData(data);
     match.setText(displayName);
     match.setSubtext(i18n("YubiKey OATH TOTP/HOTP"));
-    match.setIconName(QStringLiteral(":/icons/yubikey.svg"));
+    match.setIconName(iconPath);
     match.setId(QStringLiteral("yubikey_") + credentialProxy->name());
 
     // Convert to CredentialInfo for relevance calculation
@@ -156,32 +160,36 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
 KRunner::QueryMatch MatchBuilder::buildPasswordErrorMatch(const DeviceInfo &device)
 {
     qCDebug(MatchBuilderLog) << "Building password error match for device:"
-                              << device.deviceId << device.deviceName;
+                              << device._internalDeviceId << device.deviceName;
 
     KRunner::QueryMatch match(m_runner);
     QStringList data;
     // Format: [credentialName, displayName, code, requiresTouch, isPasswordError, deviceId]
     data << QString() << QString() << QString()
-         << QStringLiteral("false") << QStringLiteral("true") << device.deviceId;
+         << QStringLiteral("false") << QStringLiteral("true") << device._internalDeviceId;
 
     // Show device name and short device ID
-    QString shortId = device.deviceId.left(8);
-    if (device.deviceId.length() > 8) {
+    QString shortId = device._internalDeviceId.left(8);
+    if (device._internalDeviceId.length() > 8) {
         shortId += QStringLiteral("...");
     }
 
     const QString displayMessage = i18n("YubiKey password required: %1", device.deviceName);
     const QString subtext = i18n("Device: %1 - Click to enter password", shortId);
 
+    // Use generic YubiKey icon (deviceModel is now a human-readable QString, not uint32)
+    const QString iconPath = YubiKeyIconResolver::getGenericIconPath();
+
     match.setData(data);
     match.setText(displayMessage);
     match.setSubtext(subtext);
-    match.setIconName(QStringLiteral(":/icons/yubikey.svg"));
-    match.setId(QStringLiteral("yubikey_password_error_") + device.deviceId);
+    match.setIconName(iconPath);
+    match.setId(QStringLiteral("yubikey_password_error_") + device._internalDeviceId);
     match.setRelevance(1.0);  // Highest priority
     match.setCategoryRelevance(KRunner::QueryMatch::CategoryRelevance::Highest);
 
-    qCDebug(MatchBuilderLog) << "Password error match built for" << device.deviceName;
+    qCDebug(MatchBuilderLog) << "Password error match built for" << device.deviceName
+                              << "model:" << device.deviceModel << "icon:" << iconPath;
 
     return match;
 }

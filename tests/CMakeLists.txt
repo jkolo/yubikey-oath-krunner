@@ -52,10 +52,42 @@ add_yubikey_test(test_result
     SOURCES test_result.cpp
 )
 
+# Test: CredentialFinder (utility function)
+add_yubikey_test(test_credential_finder
+    SOURCES test_credential_finder.cpp
+            ../src/shared/utils/credential_finder.cpp
+)
+
+# Test: YubiKeyIconResolver (icon path resolution with fallback)
+add_yubikey_test(test_yubikey_icon_resolver
+    SOURCES test_yubikey_icon_resolver.cpp
+            ../src/shared/utils/yubikey_icon_resolver.cpp
+            ../src/shared/types/yubikey_model.cpp
+            ../src/shared/utils/version.cpp
+    LIBRARIES Qt6::DBus
+)
+
+# Test: SecureMemory (secure memory wiping for passwords)
+add_yubikey_test(test_secure_memory
+    SOURCES test_secure_memory.cpp
+            ../src/daemon/utils/secure_memory.cpp
+)
+
+# Test: ManagementProtocol (YubiKey Management interface)
+add_yubikey_test(test_management_protocol
+    SOURCES test_management_protocol.cpp
+            ../src/daemon/oath/management_protocol.cpp
+            ../src/daemon/logging_categories.cpp
+            ../src/shared/types/yubikey_model.cpp
+            ../src/shared/utils/version.cpp
+    LIBRARIES Qt6::DBus KF6::I18n
+)
+
 # Test: OathProtocol
 add_yubikey_test(test_oath_protocol
     SOURCES test_oath_protocol.cpp
             ../src/daemon/oath/oath_protocol.cpp
+            ../src/daemon/logging_categories.cpp
             ../src/shared/utils/version.cpp
     LIBRARIES KF6::I18n Qt6::DBus
 )
@@ -130,6 +162,8 @@ if(KF6_Runner_FOUND AND KF6_I18n_FOUND)
                 ../src/krunner/matching/match_builder.cpp
                 ../src/krunner/logging_categories.cpp
                 ../src/shared/utils/version.cpp
+                ../src/shared/utils/yubikey_icon_resolver.cpp
+                ../src/shared/types/yubikey_model.cpp
         LIBRARIES KF6::Runner KF6::I18n Qt6::DBus yubikey_dbus_client
     )
 else()
@@ -199,6 +233,9 @@ if(KF6_GuiAddons_FOUND AND X11_FOUND)
                 ../src/daemon/notification/dbus_notification_manager.cpp
                 ../src/daemon/formatting/code_validator.cpp
                 ../src/daemon/logging_categories.cpp
+                ../src/shared/utils/yubikey_icon_resolver.cpp
+                ../src/shared/types/yubikey_model.cpp
+                ../src/shared/utils/version.cpp
         LIBRARIES Qt6::Gui Qt6::Widgets Qt6::DBus KF6::I18n KF6::Notifications KF6::GuiAddons PkgConfig::X11
     )
 else()
@@ -220,6 +257,9 @@ add_yubikey_test(test_touch_workflow_coordinator
             ../src/daemon/notification/dbus_notification_manager.cpp
             ../src/daemon/formatting/code_validator.cpp
             ../src/daemon/logging_categories.cpp
+            ../src/shared/utils/yubikey_icon_resolver.cpp
+            ../src/shared/types/yubikey_model.cpp
+            ../src/shared/utils/version.cpp
     LIBRARIES Qt6::Core Qt6::DBus KF6::I18n KF6::Notifications
 )
 
@@ -247,12 +287,43 @@ add_yubikey_test(test_notification_orchestrator
             ../src/daemon/notification/dbus_notification_manager.cpp
             ../src/daemon/formatting/code_validator.cpp
             ../src/daemon/logging_categories.cpp
+            ../src/shared/utils/yubikey_icon_resolver.cpp
+            ../src/shared/types/yubikey_model.cpp
+            ../src/shared/utils/version.cpp
     LIBRARIES Qt6::Core Qt6::DBus KF6::I18n KF6::Notifications
 )
+
+# Test: RelativeTimeFormatter (Config UI utility)
+add_yubikey_test(test_relative_time_formatter
+    SOURCES test_relative_time_formatter.cpp
+            ../src/config/relative_time_formatter.cpp
+    LIBRARIES KF6::I18n
+)
+
+# Test: IDeviceIconResolver (Interface compliance and ISP verification)
+add_yubikey_test(test_device_icon_resolver
+    SOURCES test_device_icon_resolver.cpp
+)
+
+# Test: DeviceCardLayout (Config UI layout calculator)
+add_yubikey_test(test_device_card_layout
+    SOURCES test_device_card_layout.cpp
+            ../src/config/device_card_layout.cpp
+    LIBRARIES Qt6::Widgets
+)
+
+# Test: DeviceDelegate - SKIPPED (too complex for unit testing without refactoring)
+# DeviceDelegate requires YubiKeyConfig* which pulls in entire KCModule UI dependencies
+# (including generated ui_yubikey_config.h from .ui files).
+# Will be testable after Phase 5 refactoring splits DeviceDelegate into smaller components.
+# TODO: Add tests after refactoring DeviceDelegate → DeviceCardRenderer, DeviceActionHandler, DeviceNameEditor
 
 # Summary
 message(STATUS "Unit tests configured:")
 message(STATUS "  - test_result (Result<T> template)")
+message(STATUS "  - test_credential_finder (CredentialFinder utility)")
+message(STATUS "  - test_yubikey_icon_resolver (YubiKeyIconResolver utility)")
+message(STATUS "  - test_management_protocol (ManagementProtocol - YubiKey Management interface)")
 message(STATUS "  - test_code_validator (CodeValidator)")
 message(STATUS "  - test_credential_formatter (CredentialFormatter)")
 message(STATUS "  - test_yubikey_proxy (Proxy architecture integration - requires daemon)")
@@ -262,6 +333,10 @@ message(STATUS "  - test_action_executor (ActionExecutor with fallback)")
 message(STATUS "  - test_touch_workflow_coordinator (Touch workflow integration)")
 message(STATUS "  - test_clipboard_manager (ClipboardManager with auto-clear)")
 message(STATUS "  - test_notification_orchestrator (NotificationOrchestrator with timers)")
+message(STATUS "  - test_relative_time_formatter (RelativeTimeFormatter utility)")
+message(STATUS "  - test_device_icon_resolver (IDeviceIconResolver interface compliance)")
+message(STATUS "  - test_device_card_layout (DeviceCardLayout - UI layout calculator)")
+# message(STATUS "  - test_device_delegate (SKIPPED - requires refactoring)")
 if(KF6_Runner_FOUND)
     message(STATUS "  - test_match_builder (MatchBuilder)")
     message(STATUS "  - test_modifier_key_checker (ModifierKeyChecker)")

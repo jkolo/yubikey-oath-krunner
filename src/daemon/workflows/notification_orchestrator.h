@@ -10,6 +10,7 @@
 #include <QDateTime>
 #include <QPointer>
 #include <functional>
+#include "../../shared/types/yubikey_model.h"
 
 // Forward declarations for Qt/KDE classes (must be outside namespace)
 class QTimer;
@@ -86,11 +87,13 @@ public:
      * - TOTP code and credential name
      * - Live countdown timer (updates every second)
      * - Progress bar showing time remaining
+     * - Model-specific YubiKey icon
      * - Automatically closes when timer reaches 0
      *
      * @param code The TOTP code that was copied (typically 6-8 digits)
      * @param credentialName Credential name to display (e.g., "Google:user@example.com")
      * @param expirationSeconds Seconds until code expires (typically 30)
+     * @param deviceModel YubiKey model for icon (0 = generic icon)
      *
      * @note Only one code notification can be active at a time. Calling this
      *       again replaces the existing notification.
@@ -100,7 +103,8 @@ public:
      */
     void showCodeNotification(const QString &code,
                              const QString &credentialName,
-                             int expirationSeconds);
+                             int expirationSeconds,
+                             Shared::YubiKeyModel deviceModel = 0);
 
     /**
      * @brief Shows notification requesting YubiKey touch with timeout countdown
@@ -108,11 +112,13 @@ public:
      * Displays persistent notification with:
      * - Request to touch YubiKey
      * - Manual countdown timer (bypasses server 10-second limit)
+     * - Model-specific YubiKey icon
      * - Cancel button that emits touchCancelled() signal
      * - Updates every second with remaining time
      *
      * @param credentialName Credential requiring touch
      * @param timeoutSeconds Touch timeout in seconds (typically 15)
+     * @param deviceModel YubiKey model for icon (0 = generic icon)
      *
      * @note Notification persists until closeTouchNotification() is called
      *       or user clicks cancel button.
@@ -120,7 +126,9 @@ public:
      * @par Thread Safety
      * Must be called from main/UI thread.
      */
-    void showTouchNotification(const QString &credentialName, int timeoutSeconds);
+    void showTouchNotification(const QString &credentialName,
+                              int timeoutSeconds,
+                              Shared::YubiKeyModel deviceModel = 0);
 
     /**
      * @brief Closes active touch notification immediately
@@ -221,13 +229,15 @@ public:
      * @param deviceName Device name to display
      * @param credentialName Credential name to display
      * @param timeoutSeconds Timeout in seconds
+     * @param deviceModel YubiKey model for icon (0 = generic icon)
      *
      * Shows notification with message "Connect YubiKey {deviceName} to generate code for {credentialName}"
-     * with Cancel button and countdown timer.
+     * with Cancel button, countdown timer, and model-specific icon.
      */
     void showReconnectNotification(const QString &deviceName,
                                    const QString &credentialName,
-                                   int timeoutSeconds);
+                                   int timeoutSeconds,
+                                   Shared::YubiKeyModel deviceModel = 0);
 
     /**
      * @brief Closes reconnect notification if active
@@ -288,6 +298,7 @@ private:
     int m_codeTotalSeconds = 0;
     QString m_currentCredentialName;
     QString m_currentCode;
+    Shared::YubiKeyModel m_codeDeviceModel = 0;
 
     // Touch notification state
     QPointer<KNotification> m_touchNotification;
@@ -295,6 +306,7 @@ private:
     QTimer *m_touchUpdateTimer;
     QDateTime m_touchExpirationTime;
     QString m_touchCredentialName;
+    Shared::YubiKeyModel m_touchDeviceModel = 0;
 
     // Modifier release notification state
     uint m_modifierNotificationId = 0;
@@ -308,6 +320,7 @@ private:
     QDateTime m_reconnectExpirationTime;
     QString m_reconnectDeviceName;
     QString m_reconnectCredentialName;
+    Shared::YubiKeyModel m_reconnectDeviceModel = 0;
 };
 
 } // namespace Daemon

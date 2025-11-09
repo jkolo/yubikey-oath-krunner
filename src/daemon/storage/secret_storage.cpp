@@ -28,7 +28,7 @@ SecretStorage::~SecretStorage()
     }
 }
 
-QString SecretStorage::loadPasswordSync(const QString &deviceId)
+SecureMemory::SecureString SecretStorage::loadPasswordSync(const QString &deviceId)
 {
     qCDebug(SecretStorageLog) << "Loading password synchronously from KWallet for device:" << deviceId;
 
@@ -53,7 +53,8 @@ QString SecretStorage::loadPasswordSync(const QString &deviceId)
         password = QString();
     }
 
-    return password;
+    // Wrap in SecureString for automatic memory wiping
+    return SecureMemory::SecureString(std::move(password));
 }
 
 bool SecretStorage::savePassword(const QString &password, const QString &deviceId)
@@ -136,7 +137,9 @@ bool SecretStorage::removePassword(const QString &deviceId)
 QString SecretStorage::loadRestoreToken()
 {
     qCDebug(SecretStorageLog) << "Loading portal restore token from KWallet";
-    return loadPasswordSync(QString::fromLatin1(PORTAL_TOKEN_KEY));
+    // loadPasswordSync returns SecureString, convert to QString via implicit operator
+    const SecureMemory::SecureString token = loadPasswordSync(QString::fromLatin1(PORTAL_TOKEN_KEY));
+    return token.data();
 }
 
 bool SecretStorage::saveRestoreToken(const QString &token)

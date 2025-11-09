@@ -32,8 +32,10 @@ add_executable(yubikey-oath-daemon
     main.cpp
     yubikey_dbus_service.cpp
     ../shared/types/yubikey_value_types.cpp
+    ../shared/utils/credential_finder.cpp
     ../shared/utils/device_name_formatter.cpp
     ../shared/utils/version.cpp
+    ../shared/utils/yubikey_icon_resolver.cpp
     ${DBUS_ADAPTOR_SRCS}
     ${DAEMON_RESOURCES}
 
@@ -47,6 +49,7 @@ add_executable(yubikey-oath-daemon
     oath/yubikey_oath_device.cpp
     oath/oath_protocol.cpp
     oath/oath_session.cpp
+    oath/management_protocol.cpp
 
     # Storage components
     storage/yubikey_database.cpp
@@ -61,6 +64,9 @@ add_executable(yubikey-oath-daemon
 
     # Services (business logic layer)
     services/yubikey_service.cpp
+    services/password_service.cpp
+    services/device_lifecycle_service.cpp
+    services/credential_service.cpp
 
     # Actions
     actions/action_executor.cpp
@@ -98,6 +104,7 @@ add_executable(yubikey-oath-daemon
     utils/qr_code_parser.cpp
     utils/otpauth_uri_parser.cpp
     utils/async_waiter.cpp
+    utils/secure_memory.cpp
 
     # Formatting
     formatting/code_validator.cpp

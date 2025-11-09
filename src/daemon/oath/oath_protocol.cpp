@@ -821,5 +821,169 @@ void OathProtocol::parseCredentialId(const QString &credentialId,
     }
 }
 
+// =============================================================================
+// OTP Application Support (for serial number retrieval on YubiKey NEO)
+// =============================================================================
+
+// OTP Application Identifier
+// A0 00 00 05 27 20 01 01
+const QByteArray OathProtocol::OTP_AID = QByteArray::fromHex("a000000527200101");
+
+QByteArray OathProtocol::createSelectOtpCommand()
+{
+    QByteArray command;
+    command.append(static_cast<char>(CLA));                // CLA = 0x00
+    command.append((char)0xA4);                            // INS = SELECT
+    command.append((char)0x04);                            // P1 = Select by name
+    command.append((char)0x00);                            // P2 = 0x00
+    command.append(static_cast<char>(OTP_AID.length()));   // Lc = 8
+    command.append(OTP_AID);                               // Data = AID
+
+    return command;
+}
+
+QByteArray OathProtocol::createOtpGetSerialCommand()
+{
+    QByteArray command;
+    command.append(static_cast<char>(CLA));                // CLA = 0x00
+    command.append(static_cast<char>(INS_OTP_CONFIG));     // INS = 0x01
+    command.append(static_cast<char>(CMD_DEVICE_SERIAL));  // P1 = 0x10
+    command.append((char)0x00);                            // P2 = 0x00
+    command.append((char)0x00);                            // Lc = 0 (no data)
+
+    return command;
+}
+
+bool OathProtocol::parseOtpSerialResponse(const QByteArray &response,
+                                          quint32 &outSerial)
+{
+    // Response format: 4 bytes serial (big-endian) + status word (90 00)
+    // Example: 00 35 7A 5C 90 00 → serial = 3504732
+    if (response.length() < 6) {
+        qCWarning(YubiKeyOathDeviceLog) << "OTP serial response too short:" << response.length();
+        return false;
+    }
+
+    // Check status word
+    const quint16 sw = getStatusWord(response);
+    if (!isSuccess(sw)) {
+        qCWarning(YubiKeyOathDeviceLog) << "OTP GET_SERIAL failed, status word:"
+                                        << Qt::hex << Qt::showbase << sw;
+        return false;
+    }
+
+    // Parse serial number (4 bytes, big-endian)
+    const QByteArray serialBytes = response.left(4);
+    outSerial = (static_cast<quint8>(serialBytes[0]) << 24) |
+                (static_cast<quint8>(serialBytes[1]) << 16) |
+                (static_cast<quint8>(serialBytes[2]) << 8) |
+                (static_cast<quint8>(serialBytes[3]));
+
+    qCDebug(YubiKeyOathDeviceLog) << "OTP serial parsed successfully:" << outSerial;
+    return true;
+}
+
+// =============================================================================
+// PIV Application Support (for serial number retrieval)
+// =============================================================================
+
+// PIV Application Identifier
+// A0 00 00 03 08 00 00 10 00
+const QByteArray OathProtocol::PIV_AID = QByteArray::fromHex("a00000030800001000");
+
+QByteArray OathProtocol::createSelectPivCommand()
+{
+    QByteArray command;
+    command.append(static_cast<char>(CLA));                // CLA
+    command.append((char)0xA4);                            // INS = SELECT
+    command.append((char)0x04);                            // P1 = Select by name
+    command.append((char)0x00);                            // P2
+    command.append(static_cast<char>(PIV_AID.length()));   // Lc
+    command.append(PIV_AID);                               // Data = AID
+
+    return command;
+}
+
+QByteArray OathProtocol::createGetSerialCommand()
+{
+    QByteArray command;
+    command.append(static_cast<char>(CLA));               // CLA = 0x00
+    command.append(static_cast<char>(INS_GET_SERIAL));    // INS = 0xF8
+    command.append((char)0x00);                           // P1 = 0x00
+    command.append((char)0x00);                           // P2 = 0x00
+    // No Lc, no data, no Le
+
+    return command;
+}
+
+bool OathProtocol::parseSerialResponse(const QByteArray &response,
+                                       quint32 &outSerial)
+{
+    // Response format: 4 bytes serial (big-endian) + status word (90 00)
+    // Example: 00 AE 17 CB 90 00
+    if (response.length() < 6) {
+        qCWarning(YubiKeyOathDeviceLog) << "Serial response too short:" << response.length();
+        return false;
+    }
+
+    // Check status word
+    const quint16 sw = getStatusWord(response);
+    if (!isSuccess(sw)) {
+        qCWarning(YubiKeyOathDeviceLog) << "GET SERIAL failed, status word:"
+                                        << Qt::hex << Qt::showbase << sw;
+        return false;
+    }
+
+    // Parse 4-byte big-endian serial number
+    outSerial = (static_cast<quint8>(response[0]) << 24) |
+                (static_cast<quint8>(response[1]) << 16) |
+                (static_cast<quint8>(response[2]) << 8) |
+                (static_cast<quint8>(response[3]));
+
+    qCInfo(YubiKeyOathDeviceLog) << "PIV serial number retrieved:" << outSerial;
+
+    return true;
+}
+
+// ==================== PC/SC Reader Name Parsing ====================
+
+OathProtocol::ReaderNameInfo OathProtocol::parseReaderNameInfo(const QString &readerName)
+{
+    ReaderNameInfo info;
+
+    if (readerName.isEmpty()) {
+        return info;
+    }
+
+    // Detect "NEO" substring (case-insensitive)
+    if (readerName.contains(QStringLiteral("NEO"), Qt::CaseInsensitive)) {
+        info.isNEO = true;
+        info.formFactor = 0x01;  // USB_A_KEYCHAIN - all NEO devices are USB-A keychain
+        info.valid = true;
+
+        qCDebug(YubiKeyOathDeviceLog) << "YubiKey NEO detected from reader name:" << readerName;
+    }
+
+    // Extract serial number from format: "(XXXXXXXXXX)" or "(00XXXXXXXX)"
+    // Example: "Yubico YubiKey NEO OTP+U2F+CCID (0003507404) 00 00"
+    const QRegularExpression serialRegex(QStringLiteral(R"(\((\d{10})\))"));
+    const QRegularExpressionMatch match = serialRegex.match(readerName);
+
+    if (match.hasMatch()) {
+        const QString serialStr = match.captured(1);
+        bool ok = false;
+        const quint32 serial = serialStr.toUInt(&ok);
+
+        if (ok && serial > 0) {
+            info.serialNumber = serial;
+            info.valid = true;
+
+            qCDebug(YubiKeyOathDeviceLog) << "Serial number extracted from reader name:" << serial;
+        }
+    }
+
+    return info;
+}
+
 } // namespace Daemon
 } // namespace YubiKeyOath

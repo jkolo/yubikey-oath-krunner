@@ -112,7 +112,7 @@ void YubiKeyManagerProxy::connectToSignals()
         QLatin1String(OBJECT_MANAGER_INTERFACE),
         QStringLiteral("InterfacesAdded"),
         this,
-        SLOT(onInterfacesAdded(QDBusObjectPath,QVariantMap))
+        SLOT(onInterfacesAdded(QDBusMessage))
     );
 
     QDBusConnection::sessionBus().connect(
@@ -276,22 +276,57 @@ int YubiKeyManagerProxy::totalCredentials() const
     return total;
 }
 
-void YubiKeyManagerProxy::onInterfacesAdded(const QDBusObjectPath &objectPath,
-                                           const QVariantMap &interfacesAndProperties)
+void YubiKeyManagerProxy::onInterfacesAdded(const QDBusMessage &message)
 {
+    // Extract arguments from D-Bus message
+    // Argument 0: object path (o)
+    // Argument 1: interfaces and properties (a{sa{sv}})
+    QList<QVariant> const args = message.arguments();
+    if (args.size() < 2) {
+        qCWarning(YubiKeyManagerProxyLog) << "InterfacesAdded: Invalid message - expected 2 arguments, got" << args.size();
+        return;
+    }
+
+    auto const objectPath = args.at(0).value<QDBusObjectPath>();
     QString const path = objectPath.path();
     qCDebug(YubiKeyManagerProxyLog) << "InterfacesAdded:" << path;
 
-    // Debug: log all interfaces and properties
-    qCDebug(YubiKeyManagerProxyLog) << "Interfaces in signal:" << interfacesAndProperties.keys();
+    // Manual demarshaling of nested D-Bus structure
+    // D-Bus signature: a{sa{sv}} = Map<interface_name, Map<property_name, value>>
+    // Use qdbus_cast for type conversion, then wrap in QVariant
+    using InterfacePropertiesMap = QMap<QString, QVariantMap>;
+    auto const interfacesArg = args.at(1).value<QDBusArgument>();
+    auto const interfaces = qdbus_cast<InterfacePropertiesMap>(interfacesArg);
+
+    // Debug: log all interfaces
+    qCDebug(YubiKeyManagerProxyLog) << "Demarshaled interfaces:" << interfaces.keys();
+
+    // Convert to QVariantMap matching refreshManagedObjects pattern
+    // Key insight: each property map must be wrapped in QVariant
+    QVariantMap interfacesMap;
+    for (auto intIt = interfaces.constBegin(); intIt != interfaces.constEnd(); ++intIt) {
+        const QString &interfaceName = intIt.key();
+        const QVariantMap &properties = intIt.value();
+
+        // Debug: log each property in the map
+        qCDebug(YubiKeyManagerProxyLog) << "Interface" << interfaceName << "properties:";
+        for (auto propIt = properties.constBegin(); propIt != properties.constEnd(); ++propIt) {
+            qCDebug(YubiKeyManagerProxyLog) << "  " << propIt.key() << "=" << propIt.value();
+        }
+
+        interfacesMap.insert(interfaceName, QVariant::fromValue(properties));
+    }
+
+    qCDebug(YubiKeyManagerProxyLog) << "Total interfaces wrapped:" << interfacesMap.size();
 
     // Check if this is a Device object
-    if (interfacesAndProperties.contains(QLatin1String(DEVICE_INTERFACE))) {
-        QVariantMap const deviceProps = interfacesAndProperties.value(QLatin1String(DEVICE_INTERFACE)).toMap();
+    if (interfacesMap.contains(QLatin1String(DEVICE_INTERFACE))) {
+        // Extract device properties with .toMap() to unwrap QVariant (same pattern as refreshManagedObjects:205)
+        QVariantMap const deviceProps = interfacesMap.value(QLatin1String(DEVICE_INTERFACE)).toMap();
 
         // Debug: log device properties
         qCDebug(YubiKeyManagerProxyLog) << "Device properties:" << deviceProps;
-        qCDebug(YubiKeyManagerProxyLog) << "DeviceId property value:" << deviceProps.value(QLatin1String("DeviceId"));
+        qCDebug(YubiKeyManagerProxyLog) << "DeviceId (ID property):" << deviceProps.value(QLatin1String("ID"));
 
         QHash<QString, QVariantMap> const emptyCredentials; // New device has no credentials yet
         addDeviceProxy(path, deviceProps, emptyCredentials);
@@ -388,11 +423,11 @@ void YubiKeyManagerProxy::addDeviceProxy(const QString &devicePath,
                                         const QVariantMap &deviceProperties,
                                         const QHash<QString, QVariantMap> &credentialObjects)
 {
-    // Extract device ID from properties
-    QString const deviceId = deviceProperties.value(QStringLiteral("DeviceId")).toString();
+    // Extract device ID from properties (ID property contains last path segment: serialNumber or dev_<deviceId>)
+    QString const deviceId = deviceProperties.value(QStringLiteral("ID")).toString();
 
     if (deviceId.isEmpty()) {
-        qCWarning(YubiKeyManagerProxyLog) << "Cannot add device proxy: deviceId is empty for path" << devicePath;
+        qCWarning(YubiKeyManagerProxyLog) << "Cannot add device proxy: ID is empty for path" << devicePath;
         return;
     }
 
@@ -411,6 +446,16 @@ void YubiKeyManagerProxy::addDeviceProxy(const QString &devicePath,
             this, &YubiKeyManagerProxy::credentialsChanged);
     connect(device, &YubiKeyDeviceProxy::credentialRemoved,
             this, &YubiKeyManagerProxy::credentialsChanged);
+
+    // Forward device property changes
+    connect(device, &YubiKeyDeviceProxy::nameChanged,
+            this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
+    connect(device, &YubiKeyDeviceProxy::connectionChanged,
+            this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
+    connect(device, &YubiKeyDeviceProxy::requiresPasswordChanged,
+            this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
+    connect(device, &YubiKeyDeviceProxy::hasValidPasswordChanged,
+            this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
 
     qCDebug(YubiKeyManagerProxyLog) << "Added device proxy:" << deviceId
                                      << "Name:" << device->name()

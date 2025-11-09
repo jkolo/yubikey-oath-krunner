@@ -118,12 +118,31 @@ YubiKeyOathDevice::YubiKeyOathDevice(const QString &deviceId,
         qCDebug(YubiKeyOathDeviceLog) << "OATH session initialized successfully, firmware version:" << m_firmwareVersion.toString();
     }
 
-    // Detect device model from firmware version
-    // Note: ykman output not available here (would require external process execution)
-    // Fallback to firmware-based detection
-    m_deviceModel = detectModel(m_firmwareVersion);
-    qCDebug(YubiKeyOathDeviceLog) << "Detected device model:" << modelToString(m_deviceModel)
-                                   << "(" << QString::number(m_deviceModel, 16) << ")";
+    // Get extended device information (model, serial number, form factor)
+    // This uses Management interface for YubiKey 4/5 or OTP GET_SERIAL + reader name for NEO
+    auto extResult = m_session->getExtendedDeviceInfo(m_readerName);
+    if (extResult.isError()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Failed to get extended device info:" << extResult.error();
+        // Fallback to firmware-based model detection
+        m_deviceModel = detectModel(m_firmwareVersion);
+        qCDebug(YubiKeyOathDeviceLog) << "Using fallback model detection:" << modelToString(m_deviceModel)
+                                       << "(" << QString::number(m_deviceModel, 16) << ")";
+    } else {
+        // Use precise data from Management/PIV interface
+        const ExtendedDeviceInfo &extInfo = extResult.value();
+        if (extInfo.firmwareVersion.isValid()) {
+            m_firmwareVersion = extInfo.firmwareVersion;
+        }
+        m_deviceModel = extInfo.deviceModel;
+        m_serialNumber = extInfo.serialNumber;
+        m_formFactor = extInfo.formFactor;
+
+        qCDebug(YubiKeyOathDeviceLog) << "Extended device info:"
+                                       << "model=" << modelToString(m_deviceModel)
+                                       << "(" << QString::number(m_deviceModel, 16) << ")"
+                                       << "serial=" << m_serialNumber
+                                       << "formFactor=" << m_formFactor;
+    }
 
     // Connect to our own credentialCacheFetched signal to update internal state
     connect(this, &YubiKeyOathDevice::credentialCacheFetched,

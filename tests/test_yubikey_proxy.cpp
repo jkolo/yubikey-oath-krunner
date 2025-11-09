@@ -97,7 +97,7 @@ void TestYubiKeyProxy::printDebugInfo()
     qDebug() << "\n=== Devices ===";
     const auto devices = managerProxy()->devices();
     for (auto *device : devices) {
-        qDebug() << "Device:" << device->deviceId();
+        qDebug() << "Device:" << device->serialNumber();
         qDebug() << "  Name:" << device->name();
         qDebug() << "  Connected:" << device->isConnected();
         qDebug() << "  Requires password:" << device->requiresPassword();
@@ -177,8 +177,8 @@ void TestYubiKeyProxy::testManagerProxyDeviceList()
 
     for (auto *device : devices) {
         QVERIFY(device != nullptr);
-        QVERIFY(!device->deviceId().isEmpty());
-        qDebug() << "  Device:" << device->deviceId() << "-" << device->name();
+        QVERIFY(device->serialNumber() != 0);
+        qDebug() << "  Device:" << device->serialNumber() << "-" << device->name();
     }
 }
 
@@ -208,14 +208,14 @@ void TestYubiKeyProxy::testDeviceProxyProperties()
     YubiKeyDeviceProxy *device = devices.first();
     QVERIFY(device != nullptr);
 
-    qDebug() << "Testing device:" << device->deviceId();
+    qDebug() << "Testing device:" << device->serialNumber();
 
     // Test all properties
-    QVERIFY(!device->deviceId().isEmpty());
+    QVERIFY(device->serialNumber() != 0);
     QVERIFY(!device->name().isEmpty());
     QVERIFY(device->isConnected() == true); // Should be connected
 
-    qDebug() << "  deviceId:" << device->deviceId();
+    qDebug() << "  serialNumber:" << device->serialNumber();
     qDebug() << "  name:" << device->name();
     qDebug() << "  isConnected:" << device->isConnected();
     qDebug() << "  requiresPassword:" << device->requiresPassword();
@@ -232,12 +232,13 @@ void TestYubiKeyProxy::testDeviceProxyCredentials()
     YubiKeyDeviceProxy *device = devices.first();
     const auto credentials = device->credentials();
 
-    qDebug() << "Device" << device->deviceId() << "has" << credentials.size() << "credentials";
+    qDebug() << "Device" << device->serialNumber() << "has" << credentials.size() << "credentials";
     QVERIFY2(credentials.size() > 0, "Device has no credentials");
 
     for (auto *cred : credentials) {
         QVERIFY(cred != nullptr);
-        QVERIFY(cred->deviceId() == device->deviceId());
+        QVERIFY(!cred->name().isEmpty());
+        QVERIFY(!cred->deviceId().isEmpty());  // Credential has device reference (internal ID)
         qDebug() << "  Credential:" << cred->name();
     }
 }
@@ -253,9 +254,9 @@ void TestYubiKeyProxy::testDeviceProxyMethods()
 
     // Test toDeviceInfo conversion
     DeviceInfo info = device->toDeviceInfo();
-    QVERIFY(!info.deviceId.isEmpty());
+    QVERIFY(info.serialNumber != 0);
     QVERIFY(!info.deviceName.isEmpty());
-    QCOMPARE(info.deviceId, device->deviceId());
+    QCOMPARE(info.serialNumber, device->serialNumber());
     QCOMPARE(info.deviceName, device->name());
     QCOMPARE(info.isConnected, device->isConnected());
 

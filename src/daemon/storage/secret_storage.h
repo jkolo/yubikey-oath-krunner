@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "../utils/secure_memory.h"
+
 #include <QObject>
 #include <QString>
 
@@ -33,9 +35,12 @@ public:
     /**
      * @brief Loads password from KWallet synchronously
      * @param deviceId Unique device identifier (YubiKey device ID)
-     * @return Password or empty string if not found
+     * @return SecureString with password (automatically wiped from memory on destruction)
+     *
+     * Returns SecureString that will automatically wipe password from memory
+     * when it goes out of scope. Empty SecureString if password not found.
      */
-    QString loadPasswordSync(const QString &deviceId);
+    SecureMemory::SecureString loadPasswordSync(const QString &deviceId);
 
     /**
      * @brief Saves password to KWallet

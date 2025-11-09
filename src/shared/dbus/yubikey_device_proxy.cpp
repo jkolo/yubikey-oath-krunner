@@ -43,7 +43,6 @@ YubiKeyDeviceProxy::YubiKeyDeviceProxy(const QString &objectPath,
     }
 
     // Extract and cache device properties
-    m_deviceId = deviceProperties.value(QStringLiteral("DeviceId")).toString();
     m_name = deviceProperties.value(QStringLiteral("Name")).toString();
     m_isConnected = deviceProperties.value(QStringLiteral("IsConnected")).toBool();
     m_requiresPassword = deviceProperties.value(QStringLiteral("RequiresPassword")).toBool();
@@ -55,11 +54,22 @@ YubiKeyDeviceProxy::YubiKeyDeviceProxy(const QString &objectPath,
         m_firmwareVersion = Version::fromString(firmwareVersionStr);
     }
 
-    // Extract device model (DeviceModel property is quint32)
-    m_deviceModel = deviceProperties.value(QStringLiteral("DeviceModel")).toUInt();
+    // Extract device ID (const property) - hex device identifier
+    m_deviceId = deviceProperties.value(QStringLiteral("ID")).toString();
+
+    // Extract serial number and device model (const properties)
+    m_serialNumber = deviceProperties.value(QStringLiteral("SerialNumber")).toUInt();
+    m_deviceModel = deviceProperties.value(QStringLiteral("DeviceModel")).toString();
+    m_deviceModelCode = deviceProperties.value(QStringLiteral("DeviceModelCode")).toUInt();
+    m_formFactor = deviceProperties.value(QStringLiteral("FormFactor")).toString();
+    m_capabilities = deviceProperties.value(QStringLiteral("Capabilities")).toStringList();
+
+    // Extract last seen timestamp
+    const qint64 lastSeenMsecs = deviceProperties.value(QStringLiteral("LastSeen")).toLongLong();
+    m_lastSeen = QDateTime::fromMSecsSinceEpoch(lastSeenMsecs);
 
     qCDebug(YubiKeyDeviceProxyLog) << "Created device proxy for" << m_name
-                                    << "DeviceId:" << m_deviceId
+                                    << "SerialNumber:" << m_serialNumber
                                     << "at" << objectPath;
 
     // Create credential proxies for all initial credentials
@@ -264,13 +274,18 @@ bool YubiKeyDeviceProxy::setName(const QString &newName)
 DeviceInfo YubiKeyDeviceProxy::toDeviceInfo() const
 {
     DeviceInfo info;
-    info.deviceId = m_deviceId;
+    info._internalDeviceId = m_deviceId;
     info.deviceName = m_name;
     info.firmwareVersion = m_firmwareVersion;
+    info.serialNumber = m_serialNumber;
     info.deviceModel = m_deviceModel;
+    info.deviceModelCode = m_deviceModelCode;
+    info.capabilities = m_capabilities;
+    info.formFactor = m_formFactor;
     info.isConnected = m_isConnected;
     info.requiresPassword = m_requiresPassword;
     info.hasValidPassword = m_hasValidPassword;
+    info.lastSeen = m_lastSeen;
     return info;
 }
 
@@ -332,10 +347,12 @@ void YubiKeyDeviceProxy::onPropertiesChanged(const QString &interfaceName,
 
     if (changedProperties.contains(QStringLiteral("RequiresPassword"))) {
         m_requiresPassword = changedProperties.value(QStringLiteral("RequiresPassword")).toBool();
+        Q_EMIT requiresPasswordChanged(m_requiresPassword);
     }
 
     if (changedProperties.contains(QStringLiteral("HasValidPassword"))) {
         m_hasValidPassword = changedProperties.value(QStringLiteral("HasValidPassword")).toBool();
+        Q_EMIT hasValidPasswordChanged(m_hasValidPassword);
     }
 }
 

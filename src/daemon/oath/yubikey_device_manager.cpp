@@ -95,17 +95,13 @@ Result<void> YubiKeyDeviceManager::initialize() {
                 const QString reader = QString::fromUtf8(readerName);
                 qCDebug(YubiKeyDeviceManagerLog) << "Found reader:" << reader;
 
-                // Check if it's a YubiKey reader
-                if (reader.contains(QStringLiteral("Yubico"), Qt::CaseInsensitive) ||
-                    reader.contains(QStringLiteral("YubiKey"), Qt::CaseInsensitive)) {
-                    qCDebug(YubiKeyDeviceManagerLog) << "Detected YubiKey reader - connecting:" << reader;
+                // Try to connect to this reader (will succeed if it contains a YubiKey with OATH support)
+                qCDebug(YubiKeyDeviceManagerLog) << "Attempting to connect to reader:" << reader;
 
-                    // Try to connect to this device
-                    const QString deviceId = connectToDevice(reader);
-                    if (!deviceId.isEmpty()) {
-                        qCDebug(YubiKeyDeviceManagerLog) << "Successfully connected to existing device" << deviceId;
-                        // Credential fetching will be triggered by onDeviceConnectedInternal in YubiKeyDBusService
-                    }
+                const QString deviceId = connectToDevice(reader);
+                if (!deviceId.isEmpty()) {
+                    qCDebug(YubiKeyDeviceManagerLog) << "Successfully connected to YubiKey device" << deviceId;
+                    // Credential fetching will be triggered by onDeviceConnectedInternal in YubiKeyDBusService
                 }
 
                 // Move to next reader name
@@ -158,12 +154,14 @@ bool YubiKeyDeviceManager::hasConnectedDevices() const {
 }
 
 QString YubiKeyDeviceManager::connectToDevice(const QString &readerName) {
-    qCDebug(YubiKeyDeviceManagerLog) << "connectToDevice() called for reader:" << readerName;
+    qCDebug(YubiKeyDeviceManagerLog) << "=== connectToDevice() START ===" << readerName;
 
     if (!m_initialized) {
         qCDebug(YubiKeyDeviceManagerLog) << "Not initialized, cannot connect";
         return {};
     }
+
+    qCDebug(YubiKeyDeviceManagerLog) << "Step 1: Attempting PC/SC connection to reader:" << readerName;
 
     // Connect to card
     SCARDHANDLE cardHandle = 0;
@@ -177,12 +175,13 @@ QString YubiKeyDeviceManager::connectToDevice(const QString &readerName) {
     qCDebug(YubiKeyDeviceManagerLog) << "SCardConnect result:" << result << "protocol:" << protocol;
 
     if (result != SCARD_S_SUCCESS) {
-        qCDebug(YubiKeyDeviceManagerLog) << "Failed to connect to reader" << readerName << ", error code:" << result;
-        Q_EMIT errorOccurred(tr("Failed to connect to YubiKey reader %1: %2").arg(readerName).arg(result));
-        return {};
+        qCDebug(YubiKeyDeviceManagerLog) << "Could not connect to reader" << readerName << "- error code:" << result << "(this is normal if no card is present)";
+        return {};  // Silently return - this is expected when no card is present
     }
 
     qCDebug(YubiKeyDeviceManagerLog) << "Successfully connected to PC/SC reader, cardHandle:" << cardHandle;
+
+    qCDebug(YubiKeyDeviceManagerLog) << "Step 2: Attempting to SELECT OATH application";
 
     // Select OATH application to get device ID using OathSession
     QByteArray challenge;
@@ -195,10 +194,9 @@ QString YubiKeyDeviceManager::connectToDevice(const QString &readerName) {
         const auto selectResult = tempSession.selectOathApplication(challenge, firmwareVersion);
 
         if (selectResult.isError()) {
-            qCDebug(YubiKeyDeviceManagerLog) << "Failed to select OATH application:" << selectResult.error();
+            qCDebug(YubiKeyDeviceManagerLog) << "Card does not support OATH application:" << selectResult.error() << "- this is normal for non-YubiKey cards";
             SCardDisconnect(cardHandle, SCARD_LEAVE_CARD);
-            Q_EMIT errorOccurred(tr("Failed to select OATH application: %1").arg(selectResult.error()));
-            return {};
+            return {};  // Silently return - this is expected for non-OATH cards
         }
 
         // Get device ID from session
@@ -272,6 +270,8 @@ QString YubiKeyDeviceManager::connectToDevice(const QString &readerName) {
     // Emit device connected signal
     Q_EMIT deviceConnected(deviceId);
     qCDebug(YubiKeyDeviceManagerLog) << "Emitted deviceConnected signal for" << deviceId;
+
+    qCDebug(YubiKeyDeviceManagerLog) << "=== connectToDevice() SUCCESS ===" << deviceId << "on reader:" << readerName;
 
     return deviceId;
 }
@@ -414,17 +414,13 @@ void YubiKeyDeviceManager::onReaderListChanged()
     // Find new readers (present in currentReaders but not in connectedReaderNames)
     for (const QString &readerName : currentReaders) {
         if (!connectedReaderNames.contains(readerName)) {
-            // New reader detected - check if it's a YubiKey
-            if (readerName.contains(QStringLiteral("Yubico"), Qt::CaseInsensitive) ||
-                readerName.contains(QStringLiteral("YubiKey"), Qt::CaseInsensitive)) {
-                qCDebug(YubiKeyDeviceManagerLog) << "Detected new YubiKey reader - connecting:" << readerName;
+            // Try to connect to this reader (will succeed if it contains a YubiKey with OATH support)
+            qCDebug(YubiKeyDeviceManagerLog) << "Attempting to connect to new reader:" << readerName;
 
-                // Try to connect to this device
-                const QString deviceId = connectToDevice(readerName);
-                if (!deviceId.isEmpty()) {
-                    qCDebug(YubiKeyDeviceManagerLog) << "Successfully connected to device" << deviceId << "on new reader" << readerName;
-                    // Credential fetching will be triggered by onDeviceConnectedInternal in YubiKeyDBusService
-                }
+            const QString deviceId = connectToDevice(readerName);
+            if (!deviceId.isEmpty()) {
+                qCDebug(YubiKeyDeviceManagerLog) << "Successfully connected to YubiKey device" << deviceId << "on new reader" << readerName;
+                // Credential fetching will be triggered by onDeviceConnectedInternal in YubiKeyDBusService
             }
         }
     }

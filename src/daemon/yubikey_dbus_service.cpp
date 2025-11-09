@@ -44,11 +44,11 @@ YubiKeyDBusService::YubiKeyDBusService(QObject *parent)
     // Device objects will be created with correct IsConnected status
     const QList<DeviceInfo> devices = m_service->listDevices();
     for (const auto &devInfo : devices) {
-        if (!devInfo.deviceId.isEmpty()) {
+        if (!devInfo._internalDeviceId.isEmpty()) {
             qCDebug(YubiKeyDaemonLog) << "YubiKeyDBusService: Adding device to Manager:"
-                                      << devInfo.deviceId << "isConnected:" << devInfo.isConnected;
+                                      << devInfo._internalDeviceId << "isConnected:" << devInfo.isConnected;
             // Pass connection status to ensure correct IsConnected property
-            m_manager->addDeviceWithStatus(devInfo.deviceId, devInfo.isConnected);
+            m_manager->addDeviceWithStatus(devInfo._internalDeviceId, devInfo.isConnected);
         }
     }
 

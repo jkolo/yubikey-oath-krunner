@@ -1,5 +1,0 @@
-<RCC>
-    <qresource prefix="/">
-        <file alias="qml/config/YubiKeyConfig.qml">ui/YubiKeyConfig.qml</file>
-    </qresource>
-</RCC>

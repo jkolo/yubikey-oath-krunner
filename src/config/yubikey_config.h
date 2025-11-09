@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ui_yubikey_config.h"
+#include "../shared/types/yubikey_model.h"
 #include <KCModule>
 #include <KConfigGroup>
 #include <KSharedConfig>
@@ -34,6 +35,16 @@ class YubiKeyConfig : public KCModule
 public:
     explicit YubiKeyConfig(QObject *parent, const QVariantList &args);
     ~YubiKeyConfig() override;
+
+    /**
+     * @brief Resolves model-specific icon path for QML
+     * @param deviceModel Encoded model (0xSSVVPPFF)
+     * @return Qt resource path to model-specific icon
+     *
+     * This method is exposed to QML to allow dynamic icon selection
+     * based on YubiKey model in device list.
+     */
+    Q_INVOKABLE QString getModelIcon(quint32 deviceModel) const;
 
 public Q_SLOTS:
     void load() override;

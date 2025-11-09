@@ -20,6 +20,8 @@
 #include "../config/daemon_configuration.h"
 #include "../logging_categories.h"
 #include "formatting/credential_formatter.h"
+#include "utils/credential_finder.h"
+#include "utils/device_name_formatter.h"
 
 #include <QDebug>
 
@@ -91,10 +93,12 @@ bool YubiKeyActionCoordinator::typeCode(const QString &deviceId, const QString &
 
 ActionExecutor::ActionResult YubiKeyActionCoordinator::executeActionWithNotification(const QString &code,
                                                                                     const QString &credentialName,
-                                                                                    const QString &actionType)
+                                                                                    const QString &actionType,
+                                                                                    Shared::YubiKeyModel deviceModel)
 {
     qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: executeActionWithNotification"
-                                << "action:" << actionType << "credential:" << credentialName;
+                                << "action:" << actionType << "credential:" << credentialName
+                                << "deviceModel:" << QString::number(deviceModel, 16);
 
     // Execute action based on type
     ActionExecutor::ActionResult result = ActionExecutor::ActionResult::Failed;
@@ -104,7 +108,7 @@ ActionExecutor::ActionResult YubiKeyActionCoordinator::executeActionWithNotifica
         // Copy action: always show notification on success
         if (result == ActionExecutor::ActionResult::Success) {
             const int totalSeconds = NotificationHelper::calculateNotificationDuration(m_config);
-            m_notificationOrchestrator->showCodeNotification(code, credentialName, totalSeconds);
+            m_notificationOrchestrator->showCodeNotification(code, credentialName, totalSeconds, deviceModel);
         }
     } else if (actionType == QStringLiteral("type")) {
         result = m_actionExecutor->executeTypeAction(code, credentialName);
@@ -185,32 +189,21 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
     // Check if credential requires touch BEFORE calling generateCode() to avoid blocking
     // Also find the credential object for formatting
     const QList<OathCredential> credentials = m_deviceManager->getCredentials();
-    bool requiresTouch = false;
-    OathCredential foundCredential;
-    bool credentialFound = false;
 
-    for (const auto &cred : credentials) {
-        if (cred.originalName == credentialName && cred.deviceId == actualDeviceId) {
-            requiresTouch = cred.requiresTouch;
-            foundCredential = cred;
-            credentialFound = true;
-            qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Credential" << credentialName
-                                        << "requiresTouch:" << requiresTouch;
-            break;
-        }
-    }
-
-    if (!credentialFound) {
+    // Find credential using shared utility function
+    auto foundCredentialOpt = Utils::findCredential(credentials, credentialName, actualDeviceId);
+    if (!foundCredentialOpt.has_value()) {
         qCWarning(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Credential not found:" << credentialName;
         return false;
     }
 
+    const OathCredential &foundCredential = foundCredentialOpt.value();
+    const bool requiresTouch = foundCredential.requiresTouch;
+    qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Credential" << credentialName
+                                << "requiresTouch:" << requiresTouch;
+
     // Format credential display name according to configuration (same as KRunner)
-    QString deviceName;
-    auto dbRecord = m_database->getDevice(actualDeviceId);
-    if (dbRecord.has_value()) {
-        deviceName = dbRecord->deviceName;
-    }
+    const QString deviceName = DeviceNameFormatter::getDeviceDisplayName(actualDeviceId, m_database);
 
     const int connectedDeviceCount = static_cast<int>(m_deviceManager->getConnectedDeviceIds().size());
 
@@ -227,7 +220,8 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
     // If touch required, start async touch workflow to avoid blocking
     if (requiresTouch) {
         qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Touch required, starting async touch workflow";
-        m_touchWorkflowCoordinator->startTouchWorkflow(credentialName, actionType, actualDeviceId);
+        const Shared::YubiKeyModel deviceModel = device->deviceModel();
+        m_touchWorkflowCoordinator->startTouchWorkflow(credentialName, actionType, actualDeviceId, deviceModel);
         return true; // Workflow started successfully
     }
 
@@ -240,8 +234,11 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
 
     const QString code = codeResult.value();
 
-    // Use unified action execution with notification handling (pass formatted title)
-    const ActionExecutor::ActionResult result = executeActionWithNotification(code, formattedTitle, actionType);
+    // Get device model for notification icon
+    const Shared::YubiKeyModel deviceModel = device->deviceModel();
+
+    // Use unified action execution with notification handling (pass formatted title and device model)
+    const ActionExecutor::ActionResult result = executeActionWithNotification(code, formattedTitle, actionType, deviceModel);
     return result == ActionExecutor::ActionResult::Success;
 }
 

@@ -93,6 +93,18 @@ public:
     YubiKeyModel deviceModel() const { return m_deviceModel; }
 
     /**
+     * @brief Gets device serial number
+     * @return Serial number (0 if unavailable)
+     */
+    quint32 serialNumber() const { return m_serialNumber; }
+
+    /**
+     * @brief Gets device form factor
+     * @return Form factor code (0 if unavailable)
+     */
+    quint8 formFactor() const { return m_formFactor; }
+
+    /**
      * @brief Gets cached credentials
      * @return List of OATH credentials
      */
@@ -260,6 +272,8 @@ private:
     QByteArray m_challenge;
     Version m_firmwareVersion;  ///< YubiKey firmware version from TAG_VERSION
     YubiKeyModel m_deviceModel{0x00000000};  ///< YubiKey model (0xSSVVPPFF)
+    quint32 m_serialNumber{0};  ///< Device serial number (0 if unavailable)
+    quint8 m_formFactor{0};  ///< Form factor code (0 if unavailable)
     QList<OathCredential> m_credentials;
     QString m_password;
     bool m_updateInProgress = false;

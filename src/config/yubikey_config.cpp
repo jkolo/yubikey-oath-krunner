@@ -2,24 +2,21 @@
 #include "logging_categories.h"
 #include "dbus/yubikey_manager_proxy.h"
 #include "yubikey_device_model.h"
+#include "device_delegate.h"
+#include "yubikey_config_icon_resolver.h"
+#include "../shared/utils/yubikey_icon_resolver.h"
 
 #include <KConfigGroup>
 #include <KSharedConfig>
 #include <KLocalizedString>
-#include <KLocalizedContext>
 #include <QMessageBox>
 #include <QWidget>
 #include <QGridLayout>
 #include <QVariantList>
 #include <QDebug>
-#include <QQmlEngine>
-#include <QQmlContext>
-#include <QQuickWidget>
-#include <QUrl>
 
 // Forward declare Qt resource initialization functions
 extern void qInitResources_shared();
-extern void qInitResources_config();
 
 namespace YubiKeyOath {
 namespace Config {
@@ -33,9 +30,9 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
     // Set translation domain for i18n
     KLocalizedString::setApplicationDomain("yubikey_oath");
 
-    // Initialize Qt resources (QML files, icons)
+    // Initialize Qt resources (icons)
     qInitResources_shared();
-    qInitResources_config();
+
     auto *layout = new QGridLayout(widget());
     layout->addWidget(m_ui, 0, 0);
 
@@ -50,40 +47,37 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
         nullptr  // No Qt parent - sole ownership by unique_ptr
     );
 
-    // Setup QML widget
-    if (m_ui->qmlWidget) {
-        qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: Setting up QML widget";
+    // Setup device list view with custom delegate
+    if (m_ui->deviceListView) {
+        qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: Setting up device list view";
 
-        // Use default background color (not transparent)
-        // The QML will set its own background color to match theme
+        // Create icon resolver adapter and delegate
+        auto *iconResolver = new YubiKeyConfigIconResolver(this);
+        auto *delegate = new DeviceDelegate(iconResolver, this);
+        m_ui->deviceListView->setModel(m_deviceModel.get());
+        m_ui->deviceListView->setItemDelegate(delegate);
 
-        // Set up i18n support for QML
-        // KLocalizedContext ownership is transferred to QML engine's root context
-        auto *localizedContext = new KLocalizedContext(m_ui->qmlWidget->engine());
-        m_ui->qmlWidget->engine()->rootContext()->setContextObject(localizedContext);
-        qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: KLocalizedContext set";
+        // Enable mouse tracking for hover effects
+        m_ui->deviceListView->setMouseTracking(true);
+        m_ui->deviceListView->viewport()->setMouseTracking(true);
 
-        // Expose device model to QML
-        m_ui->qmlWidget->rootContext()->setContextProperty(
-            QStringLiteral("deviceModel"),
-            m_deviceModel.get()
-        );
-        qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: deviceModel exposed to QML";
+        // Connect delegate signals to model methods
+        connect(delegate, &DeviceDelegate::authorizeClicked,
+                m_deviceModel.get(), &YubiKeyDeviceModel::showPasswordDialog);
+        connect(delegate, &DeviceDelegate::changePasswordClicked,
+                m_deviceModel.get(), &YubiKeyDeviceModel::showChangePasswordDialog);
+        connect(delegate, &DeviceDelegate::forgetClicked,
+                m_deviceModel.get(), &YubiKeyDeviceModel::forgetDevice);
 
-        // Load QML file
-        const QUrl qmlUrl(QStringLiteral("qrc:/qml/config/YubiKeyConfig.qml"));
-        qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: Loading QML from:" << qmlUrl;
-        m_ui->qmlWidget->setSource(qmlUrl);
+        // Connect name edit signal to start editing
+        connect(delegate, &DeviceDelegate::nameEditRequested,
+                this, [this](const QModelIndex &index) {
+                    m_ui->deviceListView->edit(index);
+                });
 
-        // Check QML status
-        qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: QML status:" << m_ui->qmlWidget->status();
-        if (m_ui->qmlWidget->status() == QQuickWidget::Error) {
-            qCWarning(YubiKeyConfigLog) << "YubiKeyConfig: QML errors:" << m_ui->qmlWidget->errors();
-        } else {
-            qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: QML loaded successfully";
-        }
+        qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: Device list view configured successfully";
     } else {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyConfig: qmlWidget is null!";
+        qCWarning(YubiKeyConfigLog) << "YubiKeyConfig: deviceListView is null!";
     }
 
     // Setup ComboBox user data programmatically (Qt Designer userData may not load correctly)
@@ -114,6 +108,14 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
             this, &YubiKeyConfig::markAsChanged);
     connect(m_ui->deviceReconnectTimeoutSpinbox, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &YubiKeyConfig::markAsChanged);
+}
+
+QString YubiKeyConfig::getModelIcon(quint32 deviceModel) const
+{
+    qCDebug(YubiKeyConfigLog) << "getModelIcon called with deviceModel:" << deviceModel << "(hex:" << Qt::hex << deviceModel << Qt::dec << ")";
+    QString iconPath = YubiKeyIconResolver::getIconPath(deviceModel);
+    qCDebug(YubiKeyConfigLog) << "getModelIcon returning iconPath:" << iconPath;
+    return iconPath;
 }
 
 YubiKeyConfig::~YubiKeyConfig()

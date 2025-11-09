@@ -9,6 +9,7 @@
 #include "notification_helper.h"
 #include "notification_utils.h"
 #include "../logging_categories.h"
+#include "../../shared/utils/yubikey_icon_resolver.h"
 
 #include <KLocalizedString>
 #include <KNotification>
@@ -45,20 +46,22 @@ NotificationOrchestrator::~NotificationOrchestrator() = default;
 
 void NotificationOrchestrator::showCodeNotification(const QString &code,
                                                     const QString &credentialName,
-                                                    int expirationSeconds)
+                                                    int expirationSeconds,
+                                                    YubiKeyModel deviceModel)
 {
     if (!m_config->showNotifications() || !m_notificationManager || !m_notificationManager->isAvailable()) {
         return;
     }
 
     qCDebug(NotificationOrchestratorLog) << "Showing code notification for:" << credentialName
-             << "expiration:" << expirationSeconds << "seconds";
+             << "expiration:" << expirationSeconds << "seconds" << "model:" << deviceModel;
 
     // Store state for updates
     m_codeExpirationTime = QDateTime::currentDateTime().addSecs(expirationSeconds);
     m_codeTotalSeconds = expirationSeconds;
     m_currentCredentialName = credentialName;
     m_currentCode = code;
+    m_codeDeviceModel = deviceModel;
 
     // Format notification body: "CODE (copied) • expires in XXs"
     QString const body = i18n("%1 (copied) • expires in %2s", code, expirationSeconds);
@@ -66,11 +69,14 @@ void NotificationOrchestrator::showCodeNotification(const QString &code,
     // Prepare hints with progress bar (100% at start)
     QVariantMap const hints = NotificationUtils::createNotificationHints(1, 100);
 
+    // Get model-specific icon path
+    const QString iconPath = YubiKeyIconResolver::getIconPath(deviceModel);
+
     // Show notification without timeout - we'll close it manually
     m_codeNotificationId = m_notificationManager->showNotification(
         QStringLiteral("YubiKey OATH"),
         m_codeNotificationId, // replaces_id
-        QStringLiteral(":/icons/yubikey.svg"),
+        iconPath,
         credentialName,
         body,
         QStringList(), // No actions
@@ -78,20 +84,23 @@ void NotificationOrchestrator::showCodeNotification(const QString &code,
         0 // no timeout - we manage closing manually
     );
 
-    qCDebug(NotificationOrchestratorLog) << "Code notification shown with ID:" << m_codeNotificationId;
+    qCDebug(NotificationOrchestratorLog) << "Code notification shown with ID:" << m_codeNotificationId
+                                         << "icon:" << iconPath;
 
     // Start timer to update notification every second with progress bar
     m_codeUpdateTimer->start(1000);
 }
 
-void NotificationOrchestrator::showTouchNotification(const QString &credentialName, int timeoutSeconds)
+void NotificationOrchestrator::showTouchNotification(const QString &credentialName,
+                                                     int timeoutSeconds,
+                                                     YubiKeyModel deviceModel)
 {
     if (!m_config->showNotifications() || !m_notificationManager || !m_notificationManager->isAvailable()) {
         return;
     }
 
     qCDebug(NotificationOrchestratorLog) << "Showing touch notification for:" << credentialName
-             << "timeout:" << timeoutSeconds << "seconds";
+             << "timeout:" << timeoutSeconds << "seconds" << "model:" << deviceModel;
 
     // Close any existing touch notification
     if (m_touchNotificationId != 0) {
@@ -102,6 +111,7 @@ void NotificationOrchestrator::showTouchNotification(const QString &credentialNa
     // Store state for updates
     m_touchExpirationTime = QDateTime::currentDateTime().addSecs(timeoutSeconds);
     m_touchCredentialName = credentialName;
+    m_touchDeviceModel = deviceModel;
 
     // Format message - simple and concise
     QString const body = i18n("Timeout in %1s", timeoutSeconds);
@@ -113,11 +123,14 @@ void NotificationOrchestrator::showTouchNotification(const QString &credentialNa
     QStringList actions;
     actions << QStringLiteral("cancel") << i18n("Cancel");
 
+    // Get model-specific icon path
+    const QString iconPath = YubiKeyIconResolver::getIconPath(deviceModel);
+
     // Show notification without timeout - we'll update it manually
     m_touchNotificationId = m_notificationManager->showNotification(
         QStringLiteral("YubiKey OATH"),
         m_touchNotificationId, // replaces_id
-        QStringLiteral(":/icons/yubikey.svg"),
+        iconPath,
         i18n("Please touch your YubiKey"),
         body,
         actions,
@@ -125,7 +138,8 @@ void NotificationOrchestrator::showTouchNotification(const QString &credentialNa
         0 // no timeout - we manage closing manually
     );
 
-    qCDebug(NotificationOrchestratorLog) << "Touch notification shown with ID:" << m_touchNotificationId;
+    qCDebug(NotificationOrchestratorLog) << "Touch notification shown with ID:" << m_touchNotificationId
+                                         << "icon:" << iconPath;
 
     // Start timer to update notification every second with progress bar
     m_touchUpdateTimer->start(1000);
@@ -167,7 +181,7 @@ void NotificationOrchestrator::showSimpleNotification(const QString &title, cons
     m_notificationManager->showNotification(
         QStringLiteral("YubiKey OATH"),
         0, // replaces_id - don't replace anything
-        QStringLiteral(":/icons/yubikey.svg"),
+        YubiKeyIconResolver::getGenericIconPath(),
         title,
         message,
         QStringList(), // No actions
@@ -195,7 +209,7 @@ uint NotificationOrchestrator::showPersistentNotification(const QString &title, 
     const uint notificationId = m_notificationManager->showNotification(
         QStringLiteral("YubiKey OATH"),
         0, // replaces_id - don't replace anything
-        QStringLiteral(":/icons/yubikey.svg"),
+        YubiKeyIconResolver::getGenericIconPath(),
         title,
         message,
         QStringList(), // No actions
@@ -249,7 +263,7 @@ void NotificationOrchestrator::showModifierReleaseNotification(const QStringList
     m_modifierNotificationId = m_notificationManager->showNotification(
         QStringLiteral("YubiKey OATH"),
         m_modifierNotificationId, // replaces_id
-        QStringLiteral(":/icons/yubikey.svg"),
+        YubiKeyIconResolver::getGenericIconPath(),
         i18n("Please release modifier keys"),
         body,
         QStringList(), // No actions
@@ -289,14 +303,15 @@ void NotificationOrchestrator::showModifierCancelNotification()
     notification->setComponentName(QStringLiteral("yubikey_oath"));
     notification->setTitle(i18n("Code Input Cancelled"));
     notification->setText(i18n("Modifier keys were held down for too long"));
-    notification->setIconName(QStringLiteral(":/icons/yubikey.svg"));
+    notification->setIconName(YubiKeyIconResolver::getGenericIconPath());
 
     notification->sendEvent();
 }
 
 void NotificationOrchestrator::showReconnectNotification(const QString &deviceName,
                                                          const QString &credentialName,
-                                                         int timeoutSeconds)
+                                                         int timeoutSeconds,
+                                                         YubiKeyModel deviceModel)
 {
     if (!m_config->showNotifications() || !m_notificationManager || !m_notificationManager->isAvailable()) {
         return;
@@ -304,7 +319,7 @@ void NotificationOrchestrator::showReconnectNotification(const QString &deviceNa
 
     qCDebug(NotificationOrchestratorLog) << "Showing reconnect notification for device:" << deviceName
              << "credential:" << credentialName
-             << "timeout:" << timeoutSeconds << "seconds";
+             << "timeout:" << timeoutSeconds << "seconds" << "model:" << deviceModel;
 
     // Close any existing reconnect notification
     if (m_reconnectNotificationId != 0) {
@@ -316,6 +331,7 @@ void NotificationOrchestrator::showReconnectNotification(const QString &deviceNa
     m_reconnectExpirationTime = QDateTime::currentDateTime().addSecs(timeoutSeconds);
     m_reconnectDeviceName = deviceName;
     m_reconnectCredentialName = credentialName;
+    m_reconnectDeviceModel = deviceModel;
 
     // Format message
     QString const body = i18n("Timeout in %1s", timeoutSeconds);
@@ -327,11 +343,14 @@ void NotificationOrchestrator::showReconnectNotification(const QString &deviceNa
     QStringList actions;
     actions << QStringLiteral("cancel_reconnect") << i18n("Cancel");
 
+    // Get model-specific icon path
+    const QString iconPath = YubiKeyIconResolver::getIconPath(deviceModel);
+
     // Show notification without timeout - we'll update it manually
     m_reconnectNotificationId = m_notificationManager->showNotification(
         QStringLiteral("YubiKey OATH"),
         m_reconnectNotificationId, // replaces_id
-        QStringLiteral(":/icons/yubikey.svg"),
+        iconPath,
         i18n("Connect YubiKey '%1'", deviceName),
         body,
         actions,
@@ -339,7 +358,8 @@ void NotificationOrchestrator::showReconnectNotification(const QString &deviceNa
         0 // no timeout - we manage closing manually
     );
 
-    qCDebug(NotificationOrchestratorLog) << "Reconnect notification shown with ID:" << m_reconnectNotificationId;
+    qCDebug(NotificationOrchestratorLog) << "Reconnect notification shown with ID:" << m_reconnectNotificationId
+                                         << "icon:" << iconPath;
 
     // Start timer to update notification every second with progress bar
     m_reconnectUpdateTimer->start(1000);

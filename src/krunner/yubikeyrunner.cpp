@@ -160,7 +160,7 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
             device->requiresPassword() &&
             !device->hasValidPassword()) {
             qCDebug(YubiKeyRunnerLog) << "Device requires password:"
-                                      << device->name() << device->deviceId();
+                                      << device->name() << "serial:" << device->serialNumber();
             const DeviceInfo deviceInfo = device->toDeviceInfo();
             const KRunner::QueryMatch match = m_matchBuilder->buildPasswordErrorMatch(deviceInfo);
             context.addMatch(match);
@@ -451,7 +451,8 @@ void YubiKeyRunner::reloadConfiguration()
 void YubiKeyRunner::onDeviceConnected(YubiKeyDeviceProxy *device)
 {
     if (device) {
-        qCDebug(YubiKeyRunnerLog) << "Device connected:" << device->deviceId() << device->name();
+        qCDebug(YubiKeyRunnerLog) << "Device connected:" << device->name()
+                                  << "serial:" << device->serialNumber();
     }
 }
 

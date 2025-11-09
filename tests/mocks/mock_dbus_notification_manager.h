@@ -371,16 +371,9 @@ public:
         m_isAvailableResult = true;
     }
 
-Q_SIGNALS:
-    /**
-     * @brief Emitted when a notification action is invoked
-     */
-    void actionInvoked(uint notificationId, const QString& actionKey);
-
-    /**
-     * @brief Emitted when a notification is closed
-     */
-    void notificationClosed(uint notificationId, uint reason);
+    // Note: Signals are inherited from DBusNotificationManager base class
+    // (actionInvoked and notificationClosed)
+    // DO NOT redeclare them here - redeclaring creates separate signals!
 
 private:
     uint m_nextNotificationId;

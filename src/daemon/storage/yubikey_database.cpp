@@ -45,10 +45,23 @@ YubiKeyDatabase::~YubiKeyDatabase()
 
 bool YubiKeyDatabase::isValidDeviceId(const QString &deviceId)
 {
+    // Trim whitespace defensively to handle any formatting inconsistencies
+    const QString trimmed = deviceId.trimmed();
+
     // Device ID must be exactly 16 hexadecimal characters (64-bit hex string)
     // Example: "28b5c0b54ccb10db"
     static const QRegularExpression hexPattern(QStringLiteral("^[0-9a-fA-F]{16}$"));
-    return hexPattern.match(deviceId).hasMatch();
+    const bool isValid = hexPattern.match(trimmed).hasMatch();
+
+    if (!isValid) {
+        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Invalid device ID format:"
+                                      << "original:'" << deviceId << "'"
+                                      << "trimmed:'" << trimmed << "'"
+                                      << "original length:" << deviceId.length()
+                                      << "trimmed length:" << trimmed.length();
+    }
+
+    return isValid;
 }
 
 QString YubiKeyDatabase::getDatabasePath() const
@@ -114,6 +127,12 @@ bool YubiKeyDatabase::initialize()
         return false;
     }
 
+    // Migrate schema if needed (add new columns to existing tables)
+    if (!checkAndMigrateSchema()) {
+        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to migrate schema";
+        return false;
+    }
+
     qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Initialization complete";
     return true;
 }
@@ -131,7 +150,11 @@ bool YubiKeyDatabase::createTables()
         "device_name TEXT NOT NULL, "
         "requires_password INTEGER NOT NULL DEFAULT 0, "
         "last_seen TEXT, "
-        "created_at TEXT NOT NULL"
+        "created_at TEXT NOT NULL, "
+        "firmware_version TEXT, "
+        "device_model INTEGER, "
+        "serial_number INTEGER, "
+        "form_factor INTEGER"
         ")"
     );
 
@@ -169,6 +192,113 @@ bool YubiKeyDatabase::createTables()
     return true;
 }
 
+bool YubiKeyDatabase::addColumnIfNotExists(const QString &columnName, const QString &columnType)
+{
+    // Whitelist validation for column names and types (security: prevent SQL injection)
+    // Even though this function is only called with hardcoded literals, we validate
+    // as a defense-in-depth measure and to enforce secure coding practices.
+    static const QSet<QString> allowedColumns = {
+        QStringLiteral("firmware_version"),
+        QStringLiteral("device_model"),
+        QStringLiteral("serial_number"),
+        QStringLiteral("form_factor")
+    };
+    static const QSet<QString> allowedTypes = {
+        QStringLiteral("TEXT"),
+        QStringLiteral("INTEGER")
+    };
+
+    if (!allowedColumns.contains(columnName)) {
+        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Rejected attempt to add non-whitelisted column:" << columnName;
+        return false;
+    }
+
+    if (!allowedTypes.contains(columnType)) {
+        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Rejected attempt to use non-whitelisted column type:" << columnType;
+        return false;
+    }
+
+    // Get current columns in devices table
+    QSqlQuery query(m_db);
+    if (!query.exec(QStringLiteral("PRAGMA table_info(devices)"))) {
+        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to get table info:"
+                                      << query.lastError().text();
+        return false;
+    }
+
+    // Check if column exists
+    bool columnExists = false;
+    while (query.next()) {
+        if (query.value(1).toString() == columnName) {  // Column 1 is 'name'
+            columnExists = true;
+            break;
+        }
+    }
+
+    // Column already exists - success
+    if (columnExists) {
+        qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Column already exists:" << columnName;
+        return true;
+    }
+
+    // Add missing column
+    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Adding missing column:" << columnName;
+
+    // Note: Cannot use prepared statements for DDL operations (ALTER TABLE, CREATE TABLE, etc.)
+    // SQLite and most databases don't support parameter binding for schema modification.
+    // Security is ensured through whitelist validation above.
+    const QString alterSql = QStringLiteral("ALTER TABLE devices ADD COLUMN %1 %2")
+                            .arg(columnName, columnType);
+
+    QSqlQuery alterQuery(m_db);
+    if (!alterQuery.exec(alterSql)) {
+        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to add column"
+                                      << columnName << ":" << alterQuery.lastError().text();
+        return false;
+    }
+
+    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Column added successfully:" << columnName;
+    return true;
+}
+
+bool YubiKeyDatabase::checkAndMigrateSchema()
+{
+    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Checking and migrating schema if needed";
+
+    // Add columns if missing (delegates to helper)
+    if (!addColumnIfNotExists(QStringLiteral("firmware_version"), QStringLiteral("TEXT"))) {
+        return false;
+    }
+    if (!addColumnIfNotExists(QStringLiteral("device_model"), QStringLiteral("INTEGER"))) {
+        return false;
+    }
+    if (!addColumnIfNotExists(QStringLiteral("serial_number"), QStringLiteral("INTEGER"))) {
+        return false;
+    }
+    if (!addColumnIfNotExists(QStringLiteral("form_factor"), QStringLiteral("INTEGER"))) {
+        return false;
+    }
+
+    // Migrate NULL last_seen values to created_at (for devices added before this feature)
+    QSqlQuery updateQuery(m_db);
+    if (!updateQuery.exec(QStringLiteral(
+        "UPDATE devices SET last_seen = created_at WHERE last_seen IS NULL OR last_seen = ''"
+    ))) {
+        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to migrate NULL last_seen values:"
+                                      << updateQuery.lastError().text();
+        return false;
+    }
+
+    int const rowsUpdated = updateQuery.numRowsAffected();
+    if (rowsUpdated > 0) {
+        qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Migrated" << rowsUpdated
+                                    << "devices with NULL last_seen to use created_at";
+    }
+
+    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Schema migration complete";
+    return true;
+}
+
 bool YubiKeyDatabase::addDevice(const QString &deviceId, const QString &name, bool requiresPassword)
 {
     qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Adding device:" << deviceId
@@ -181,14 +311,16 @@ bool YubiKeyDatabase::addDevice(const QString &deviceId, const QString &name, bo
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
-        "INSERT INTO devices (device_id, device_name, requires_password, created_at) "
-        "VALUES (:device_id, :device_name, :requires_password, :created_at)"
+        "INSERT INTO devices (device_id, device_name, requires_password, created_at, last_seen) "
+        "VALUES (:device_id, :device_name, :requires_password, :created_at, :last_seen)"
     ));
 
+    QString const currentTime = QDateTime::currentDateTime().toString(Qt::ISODate);
     query.bindValue(QStringLiteral(":device_id"), deviceId);
     query.bindValue(QStringLiteral(":device_name"), name);
     query.bindValue(QStringLiteral(":requires_password"), requiresPassword ? 1 : 0);
-    query.bindValue(QStringLiteral(":created_at"), QDateTime::currentDateTime().toString(Qt::ISODate));
+    query.bindValue(QStringLiteral(":created_at"), currentTime);
+    query.bindValue(QStringLiteral(":last_seen"), currentTime);
 
     if (!query.exec()) {
         qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to add device:"
@@ -250,22 +382,24 @@ bool YubiKeyDatabase::updateLastSeen(const QString &deviceId)
 
 bool YubiKeyDatabase::removeDevice(const QString &deviceId)
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Removing device:" << deviceId;
+    // Trim whitespace defensively to match validation
+    const QString trimmedId = deviceId.trimmed();
+    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Removing device:" << trimmedId;
 
-    if (!isValidDeviceId(deviceId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot remove device - invalid device ID format:" << deviceId;
+    if (!isValidDeviceId(trimmedId)) {
+        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot remove device - invalid device ID format:" << trimmedId;
         return false;
     }
 
     // Defensive delete: Clear credentials first (belt + suspenders with CASCADE DELETE)
-    if (!clearDeviceCredentials(deviceId)) {
+    if (!clearDeviceCredentials(trimmedId)) {
         qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to clear credentials before device removal";
         // Continue anyway - CASCADE DELETE should handle this
     }
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral("DELETE FROM devices WHERE device_id = :device_id"));
-    query.bindValue(QStringLiteral(":device_id"), deviceId);
+    query.bindValue(QStringLiteral(":device_id"), trimmedId);
 
     if (!query.exec()) {
         qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to remove device:"
@@ -288,7 +422,8 @@ std::optional<YubiKeyDatabase::DeviceRecord> YubiKeyDatabase::getDevice(const QS
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
-        "SELECT device_id, device_name, requires_password, last_seen, created_at "
+        "SELECT device_id, device_name, requires_password, last_seen, created_at, "
+        "firmware_version, device_model, serial_number, form_factor "
         "FROM devices WHERE device_id = :device_id"
     ));
     query.bindValue(QStringLiteral(":device_id"), deviceId);
@@ -319,6 +454,16 @@ std::optional<YubiKeyDatabase::DeviceRecord> YubiKeyDatabase::getDevice(const QS
         record.createdAt = QDateTime::fromString(createdAtStr, Qt::ISODate);
     }
 
+    // Parse firmware version, device model, serial number, form factor
+    QString const firmwareVersionStr = query.value(5).toString();
+    if (!firmwareVersionStr.isEmpty()) {
+        record.firmwareVersion = Version::fromString(firmwareVersionStr);
+    }
+
+    record.deviceModel = query.value(6).toUInt();
+    record.serialNumber = query.value(7).toUInt();
+    record.formFactor = static_cast<quint8>(query.value(8).toUInt());
+
     qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device found:" << record.deviceName;
     return record;
 }
@@ -331,7 +476,8 @@ QList<YubiKeyDatabase::DeviceRecord> YubiKeyDatabase::getAllDevices()
 
     QSqlQuery query(m_db);
     if (!query.exec(QStringLiteral(
-        "SELECT device_id, device_name, requires_password, last_seen, created_at FROM devices"
+        "SELECT device_id, device_name, requires_password, last_seen, created_at, "
+        "firmware_version, device_model, serial_number, form_factor FROM devices"
     ))) {
         qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to query devices:"
                                       << query.lastError().text();
@@ -353,6 +499,16 @@ QList<YubiKeyDatabase::DeviceRecord> YubiKeyDatabase::getAllDevices()
         if (!createdAtStr.isEmpty()) {
             record.createdAt = QDateTime::fromString(createdAtStr, Qt::ISODate);
         }
+
+        // Parse firmware version, device model, serial number, form factor
+        QString const firmwareVersionStr = query.value(5).toString();
+        if (!firmwareVersionStr.isEmpty()) {
+            record.firmwareVersion = Version::fromString(firmwareVersionStr);
+        }
+
+        record.deviceModel = query.value(6).toUInt();
+        record.serialNumber = query.value(7).toUInt();
+        record.formFactor = static_cast<quint8>(query.value(8).toUInt());
 
         devices.append(record);
     }
@@ -443,6 +599,110 @@ bool YubiKeyDatabase::hasDevice(const QString &deviceId)
     bool const exists = query.value(0).toInt() > 0;
     qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device exists:" << exists;
     return exists;
+}
+
+int YubiKeyDatabase::countDevicesWithNamePrefix(const QString &prefix)
+{
+    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Counting devices with name prefix:" << prefix;
+
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral("SELECT COUNT(*) FROM devices WHERE device_name LIKE :prefix || '%'"));
+    query.bindValue(QStringLiteral(":prefix"), prefix);
+
+    if (!query.exec()) {
+        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to count devices with prefix:"
+                                      << query.lastError().text();
+        return 0;
+    }
+
+    if (!query.next()) {
+        return 0;
+    }
+
+    int const count = query.value(0).toInt();
+    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Devices with prefix count:" << count;
+    return count;
+}
+
+bool YubiKeyDatabase::updateDeviceInfo(const QString &deviceId,
+                                        const Version &firmwareVersion,
+                                        YubiKeyModel deviceModel,
+                                        quint32 serialNumber,
+                                        quint8 formFactor)
+{
+    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Updating device info for:" << deviceId
+                                << "firmware:" << firmwareVersion.toString()
+                                << "model:" << deviceModel
+                                << "serial:" << serialNumber
+                                << "formFactor:" << formFactor;
+
+    if (!isValidDeviceId(deviceId)) {
+        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot update device info - invalid device ID format:" << deviceId;
+        return false;
+    }
+
+    // First, check if values are different from database
+    QSqlQuery checkQuery(m_db);
+    checkQuery.prepare(QStringLiteral(
+        "SELECT firmware_version, device_model, serial_number, form_factor "
+        "FROM devices WHERE device_id = :device_id"
+    ));
+    checkQuery.bindValue(QStringLiteral(":device_id"), deviceId);
+
+    if (!checkQuery.exec()) {
+        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to check current device info:"
+                                      << checkQuery.lastError().text();
+        return false;
+    }
+
+    if (!checkQuery.next()) {
+        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device not found:" << deviceId;
+        return false;
+    }
+
+    // Check if values differ
+    const QString dbFirmware = checkQuery.value(0).toString();
+    const quint32 dbModel = checkQuery.value(1).toUInt();
+    const quint32 dbSerial = checkQuery.value(2).toUInt();
+    const quint8 dbFormFactor = static_cast<quint8>(checkQuery.value(3).toUInt());
+
+    const QString newFirmware = firmwareVersion.toString();
+
+    if (dbFirmware == newFirmware &&
+        dbModel == deviceModel &&
+        dbSerial == serialNumber &&
+        dbFormFactor == formFactor) {
+        qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device info unchanged, skipping update";
+        return true;  // No update needed
+    }
+
+    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device info changed, updating database";
+
+    // Update device info
+    QSqlQuery updateQuery(m_db);
+    updateQuery.prepare(QStringLiteral(
+        "UPDATE devices SET "
+        "firmware_version = :firmware_version, "
+        "device_model = :device_model, "
+        "serial_number = :serial_number, "
+        "form_factor = :form_factor "
+        "WHERE device_id = :device_id"
+    ));
+
+    updateQuery.bindValue(QStringLiteral(":firmware_version"), newFirmware);
+    updateQuery.bindValue(QStringLiteral(":device_model"), deviceModel);
+    updateQuery.bindValue(QStringLiteral(":serial_number"), serialNumber);
+    updateQuery.bindValue(QStringLiteral(":form_factor"), formFactor);
+    updateQuery.bindValue(QStringLiteral(":device_id"), deviceId);
+
+    if (!updateQuery.exec()) {
+        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to update device info:"
+                                      << updateQuery.lastError().text();
+        return false;
+    }
+
+    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device info updated successfully";
+    return true;
 }
 
 bool YubiKeyDatabase::deleteOldCredentials(const QString &deviceId)

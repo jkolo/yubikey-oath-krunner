@@ -278,7 +278,7 @@ void TestMatchBuilder::testBuildPasswordErrorMatch()
 {
     // Create DeviceInfo for testing
     DeviceInfo device;
-    device.deviceId = "ABC123DEF456";
+    device._internalDeviceId = "ABC123DEF456";
     device.deviceName = "YubiKey ABC123";
     device.isConnected = true;
     device.requiresPassword = true;
@@ -296,14 +296,14 @@ void TestMatchBuilder::testBuildPasswordErrorMatch()
     // KRunner automatically prefixes match ID with runner plugin ID
     // Match ID should be unique per device: "yubikey_password_error_" + deviceId
     QVERIFY(match.id().contains("yubikey_password_error"));
-    QVERIFY(match.id().contains(device.deviceId));
+    QVERIFY(match.id().contains(device._internalDeviceId));
     QCOMPARE(match.relevance(), 1.0);
 
     // Verify match data format (index 4 should be "true" for password error, index 5 should be deviceId)
     QStringList data = match.data().toStringList();
     QVERIFY(data.size() >= 6);
     QCOMPARE(data[4], QString("true")); // isPasswordError flag
-    QCOMPARE(data[5], device.deviceId); // deviceId
+    QCOMPARE(data[5], device._internalDeviceId); // deviceId
 }
 
 // ========== Real-World Scenarios ==========

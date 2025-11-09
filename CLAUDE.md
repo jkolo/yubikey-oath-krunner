@@ -30,19 +30,7 @@ cmake --build build-clang-release -j$(nproc)
 run0 cmake --install build-clang-release
 ```
 
-**Available presets:**
-- `clang-debug` - Debug build with Clang (recommended for development)
-- `clang-release` - Release build with Clang (optimized)
-
-**Legacy method (manual configuration):**
-
-```bash
-# From project root
-mkdir -p build && cd build
-cmake .. -DCMAKE_INSTALL_PREFIX=/usr
-cmake --build . -j$(nproc)
-sudo cmake --install .
-```
+**Available presets:** `clang-debug` (development), `clang-release` (optimized)
 
 ### Verify Installation
 
@@ -57,45 +45,15 @@ ls -la /usr/lib/qt6/plugins/kf6/krunner/krunner_yubikey.so
 ls -la /usr/lib/qt6/plugins/kcm_krunner_yubikey.so
 ```
 
-### Development Build
-
-**With CMake presets (recommended):**
-
-CMake presets automatically use Debug build type. For local installation:
+### Development Build & Quick Rebuild
 
 ```bash
-# Configure with local install prefix
+# Local installation
 cmake --preset clang-debug -DCMAKE_INSTALL_PREFIX=$HOME/.local
-cmake --build build-clang-debug -j$(nproc)
-cmake --install build-clang-debug
-```
+cmake --build build-clang-debug -j$(nproc) && cmake --install build-clang-debug
 
-**Legacy method:**
-
-```bash
-cd build
-cmake .. -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=$HOME/.local
-cmake --build . -j$(nproc)
-cmake --install .
-```
-
-### Quick Rebuild After Changes
-
-**With CMake presets (recommended):**
-
-```bash
-# Rebuild and install (debug build)
+# Quick rebuild after changes
 cmake --build build-clang-debug -j$(nproc) && run0 cmake --install build-clang-debug
-
-# Or for release build
-cmake --build build-clang-release -j$(nproc) && run0 cmake --install build-clang-release
-```
-
-**Legacy method:**
-
-```bash
-cd build
-cmake --build . -j$(nproc) && sudo cmake --install .
 ```
 
 ### Restart KRunner After Install
@@ -152,12 +110,13 @@ src/
 │   │   └── pl.po
 │   └── resources/       # Shared resources (icons)
 │       ├── shared.qrc   # Qt resource file for shared assets
-│       └── yubikey.svg  # Application icon
+│       ├── yubikey.svg  # Application icon
+│       └── models/      # YubiKey model-specific icons (PNG format)
 │
 ├── daemon/              # D-Bus daemon service
 │   ├── main.cpp, yubikey_dbus_service.{h,cpp}
 │   ├── logging_categories.{h,cpp}  # Daemon-specific logging
-│   ├── services/        # Business logic layer (YubiKeyService)
+│   ├── services/        # Business logic layer (YubiKeyService, PasswordService, DeviceLifecycleService, CredentialService)
 │   ├── actions/         # Action coordination and execution
 │   ├── config/          # Daemon configuration (DaemonConfiguration)
 │   ├── workflows/       # Touch workflow coordination, notification orchestration
@@ -167,6 +126,7 @@ src/
 │   ├── formatting/      # Code validation
 │   ├── ui/              # UI components (add_credential_dialog)
 │   ├── utils/           # Daemon utilities (async_waiter, qr/otpauth parsers, screenshot_capture)
+│   ├── cache/           # Credential caching (CredentialCacheSearcher)
 │   ├── oath/            # OATH protocol implementation
 │   ├── storage/         # Database and KWallet
 │   └── pcsc/            # PC/SC card reader monitoring
@@ -181,18 +141,18 @@ src/
 │
 └── config/              # KCM configuration module
     ├── yubikey_config.{h,cpp}, yubikey_device_model.{h,cpp}
+    ├── device_delegate.{h,cpp}  # Custom item delegate for device list
     ├── logging_categories.{h,cpp}  # Config-specific logging
-    └── resources/       # Config module resources
-        ├── config.qrc   # Qt resource file for QML UI
-        └── ui/          # QML UI files
-            └── YubiKeyConfig.qml
+    ├── yubikey_config.ui  # Qt Designer UI file
+    └── resources/       # Config module resources (icons only)
+        └── config.qrc   # Qt resource file
 ```
 
 **Key principles:**
 - **Component isolation**: Each module (daemon, krunner, config) has its own subdirectory
 - **Shared resources**: Common code and assets in `shared/` to avoid duplication
 - **Daemon-centric architecture**: Most business logic moved to daemon; krunner is now lightweight
-- **Resource organization**: Icons in shared/, QML UI in config/resources/
+- **Resource organization**: Icons in shared/resources/, Qt Designer .ui files in config/
 - **Configuration keys**: Shared configuration keys in `shared/config/configuration_keys.h`
 - **Logical grouping**: Files organized into subdirectories by function
 - **Entry point visibility**: Main entry points (like `yubikeyrunner.cpp`) stay at module root level
@@ -305,11 +265,40 @@ The daemon now exposes a 3-level hierarchical D-Bus object tree following best p
 - **Business logic layer** (~430 lines)
 - Aggregates and coordinates all daemon components
 - Owns: YubiKeyDeviceManager, YubiKeyDatabase, PasswordStorage, DaemonConfiguration, YubiKeyActionCoordinator
+- Delegates to specialized services: PasswordService, DeviceLifecycleService, CredentialService
 - Implements all business logic for device management, credential operations, password handling
 - Handles device lifecycle events (connection, disconnection, credential updates)
 - Provides action coordinator for copy/type operations
 - Emits signals forwarded to D-Bus layer
 - **Note:** Authentication failures are handled internally - empty credential list indicates auth failure, no separate signal emitted
+
+### Service Layer Architecture (v1.1+)
+
+YubiKeyService delegates to specialized services following Single Responsibility Principle:
+
+**PasswordService** (`src/daemon/services/password_service.{h,cpp}`)
+- Handles password operations (~224 lines)
+- Methods: `validatePassword()`, `savePassword()`, `changePassword()`, `hasStoredPassword()`
+- Dependencies: SecretStorage (KWallet), YubiKeyOathDevice
+- Validates passwords against YubiKey OATH application
+- Stores validated passwords in KWallet
+
+**DeviceLifecycleService** (`src/daemon/services/device_lifecycle_service.{h,cpp}`)
+- Manages device lifecycle events (~510 lines)
+- Methods: `handleDeviceConnected()`, `handleDeviceDisconnected()`, `setDeviceName()`, `forgetDevice()`
+- Dependencies: YubiKeyDeviceManager, YubiKeyDatabase
+- Coordinates device connection/disconnection workflow
+- Persists device metadata to database
+- Cleans up resources on device removal
+
+**CredentialService** (`src/daemon/services/credential_service.{h,cpp}`)
+- CRUD operations for credentials (~658 lines)
+- Methods: `getCredentials()`, `generateCode()`, `addCredential()`, `deleteCredential()`
+- Dependencies: YubiKeyDeviceManager, YubiKeyDatabase, DaemonConfiguration, DBusNotificationManager
+- Retrieves credentials (online devices + cached for offline)
+- Interactive credential addition with AddCredentialDialog
+- Shows success notifications after credential operations
+- Appends cached credentials for offline devices when cache enabled
 
 **Client-Side Proxy Architecture** (New in v1.0)
 
@@ -462,6 +451,22 @@ OathSession (PC/SC I/O + OATH operations)
 OathProtocol (static utility functions)
 ```
 
+**ManagementProtocol** (`src/daemon/oath/management_protocol.{h,cpp}`)
+- Stateless utility class for YubiKey Management interface protocol
+- Implements GET DEVICE INFO command for firmware and model detection
+- Available on YubiKey 4.1+ firmware
+- Protocol constants and TLV tag definitions
+- Device information retrieval:
+  - Firmware version (major.minor.patch)
+  - Serial number (4-byte big-endian)
+  - Form factor detection (Keychain, Nano, USB-C variants)
+  - USB/NFC interface capabilities
+  - FIPS compliance and Security Key detection
+- Static command creation and response parsing methods
+- No state, no I/O - pure functions only
+- Used by OathSession for extended device information
+- Complements OathProtocol (OATH-specific) with Management interface (device-level)
+
 **NotificationOrchestrator** (`src/krunner/workflows/notification_orchestrator.{h,cpp}`)
 - Manages all notification types (code, touch, errors)
 - Implements countdown timers with progress bars
@@ -517,6 +522,92 @@ OathProtocol (static utility functions)
 - Secure clipboard operations
 - Auto-clear support for security
 - Integration with QClipboard
+
+### UI Components
+
+**DeviceDelegate** (`src/config/device_delegate.{h,cpp}`)
+- Custom QStyledItemDelegate for device list in KCM settings module (~425 lines)
+- Renders each device as a styled card with model-specific icon
+- Uses IDeviceIconResolver interface (ISP compliance) instead of full YubiKeyConfig dependency
+- Button click handling via editorEvent() with signal emission
+- Inline editing of device names via createEditor/setEditorData/setModelData
+- Delegates rendering to DeviceCardPainter, layout to DeviceCardLayout
+- Uses i18n() for all translatable strings (NOT Qt tr())
+
+**DeviceCardLayout** (`src/config/device_card_layout.{h,cpp}`)
+- Calculates layout for device card rendering (~139 lines)
+- Extracted from DeviceDelegate following Single Responsibility Principle
+- Computes positions for: icon, text lines, buttons, status indicators
+- Handles card geometry, margins, and spacing
+- Pure layout logic without rendering or interaction
+
+**DeviceCardPainter** (`src/config/device_card_painter.{h,cpp}`)
+- Renders device card visual components (~254 lines)
+- Extracted from DeviceDelegate following Single Responsibility Principle
+- Paints: background, icon, device name, connection status, "last seen" timestamp
+- Uses QPainter for custom drawing
+- Works with DeviceCardLayout for positioning
+
+**RelativeTimeFormatter** (`src/config/relative_time_formatter.{h,cpp}`)
+- Formats timestamps as relative time strings (~99 lines)
+- Extracted from DeviceDelegate following Single Responsibility Principle
+- Examples: "2 minutes ago", "3 hours ago", "2 days ago"
+- Handles edge cases: just now, singular/plural forms
+- Uses i18n() for localized output
+
+**IDeviceIconResolver** (`src/config/i_device_icon_resolver.h`)
+- Interface for icon resolution (~31 lines)
+- Pure virtual interface following Interface Segregation Principle
+- Method: `getModelIcon(deviceModel) → QString`
+- Decouples DeviceDelegate from YubiKeyConfig
+
+**YubiKeyConfigIconResolver** (`src/config/yubikey_config_icon_resolver.{h,cpp}`)
+- Adapter implementing IDeviceIconResolver (~58 lines)
+- Delegates to YubiKeyConfig::getModelIcon()
+- Created to fix ISP violation in DeviceDelegate
+
+### Utility Classes
+
+**CredentialFinder** (`src/shared/utils/credential_finder.{h,cpp}`)
+- Single-purpose utility function for credential search
+- Static function: `findCredential(credentials, credentialName, deviceId)`
+- Case-insensitive credential name matching
+- Device ID filtering
+- Returns std::optional<OathCredential>
+- Eliminates code duplication across components
+- Used by YubiKeyRunner, TouchWorkflowCoordinator, and other components
+- ~26 lines of focused search logic
+
+**YubiKeyIconResolver** (`src/shared/utils/yubikey_icon_resolver.{h,cpp}`)
+- Resolves model-specific icon paths for YubiKey devices
+- Centralized icon selection based on YubiKeyModel metadata
+- Multi-level fallback strategy:
+  1. Exact match: series + variant + ports (e.g., "yubikey-5c-nano.png")
+  2. Series + ports match (e.g., "yubikey-5c-nfc.png")
+  3. Generic fallback: ":/icons/yubikey.svg"
+- Icon naming convention: lowercase, hyphen-separated
+  - Format: "yubikey-{series}{usb_type}[-{variant}][-nfc]"
+  - File format: PNG for model-specific icons, SVG for generic fallback
+  - Examples: "yubikey-5-nfc.png", "yubikey-5c-nano.png", "yubikey-bio-c.png"
+- Icon location: `src/shared/resources/models/`
+- Returns Qt resource path: ":/icons/models/{icon}" or ":/icons/yubikey.svg"
+- ~183 lines including comprehensive fallback logic
+- Used by DeviceDelegate and any component displaying device icons
+- **FIPS model handling:**
+  - YubiKey 5 FIPS uses same icons as YubiKey 5 (no separate FIPS icons)
+  - YubiKey 4 FIPS uses same icons as YubiKey 4
+  - Implementation uses fallthrough pattern in switch statement
+  - Example: Both YubiKey5 and YubiKey5FIPS return "5" series string
+  - Security Key and Bio series fallback to generic icon (no OATH support)
+
+**SecureMemory** (`src/daemon/utils/secure_memory.{h,cpp}`)
+- RAII-based secure memory management for sensitive data (~207 lines)
+- Template class for automatic zeroing of sensitive data on destruction
+- Uses `sodium_mlock()` / `sodium_munlock()` to prevent swapping to disk
+- Overwrites memory with zeros before deallocation
+- Prevents sensitive data (passwords, secrets) from leaking to swap or core dumps
+- Used for password and secret key handling throughout daemon
+- Thread-safe, move-only semantics
 
 ### Input System (Multi-Platform)
 
@@ -616,13 +707,15 @@ OathProtocol (static utility functions)
 - Connects to manager signals: deviceConnected, deviceDisconnected, credentialsChanged
 - Real-time device status updates
 
-**YubiKeyConfig.qml** (`src/config/resources/ui/YubiKeyConfig.qml`)
-- QML UI for configuration
-- Settings: notifications, display format, touch timeout
-- Embedded via Qt resources: `qrc:/qml/config/YubiKeyConfig.qml`
+**yubikey_config.ui** (`src/config/yubikey_config.ui`)
+- **Qt Designer UI file** (NOT QML) for configuration interface
+- Settings: notifications, display format, touch timeout, credential caching
+- Uses standard Qt Widgets (QCheckBox, QSpinBox, QListView, etc.)
+- Device list rendered via DeviceDelegate custom item delegate
 - Icon path: `:/icons/yubikey.svg` (from shared resources)
-- Device password management
-- **Resource initialization**: Config module must call both `qInitResources_shared()` and `qInitResources_config()` to load all resources
+- Device password management with inline editing
+- Uses i18n() for all translatable strings
+- **Resource initialization**: Config module must call `qInitResources_shared()` in constructor to load icons
 
 ### PC/SC Layer
 
@@ -672,31 +765,13 @@ FormatOptions options(showUsername, showCode, showDevice, deviceName, deviceCoun
 
 ### RAII Pattern - TransactionGuard
 
-**TransactionGuard** ensures database transaction safety through RAII:
-- Constructor begins transaction
-- Destructor automatically rolls back if not committed
-- Eliminates manual rollback on error paths
-- Exception-safe by design
+**TransactionGuard** ensures database transaction safety through RAII: Constructor begins transaction, destructor auto-rollbacks if not committed. Eliminates manual rollback on error paths, exception-safe.
 
-**Usage:**
 ```cpp
 TransactionGuard guard(m_db);
 if (!guard.isValid()) return false;
-
 // All early returns automatically trigger rollback
-if (!deleteOldCredentials(deviceId)) return false;
-if (!insertNewCredentials(deviceId, credentials)) return false;
-
 return guard.commit(); // Explicit commit
-```
-
-**Replaced pattern:**
-```cpp
-// Old manual pattern (error-prone):
-m_db.transaction();
-if (!op1()) { m_db.rollback(); return false; }
-if (!op2()) { m_db.rollback(); return false; }
-m_db.commit();
 ```
 
 ### Notification Management
@@ -713,20 +788,48 @@ m_db.commit();
 4. On timeout: close notification, cancel operation
 
 ### Icon and Resource Usage
-- **Icon path**: Always use `:/icons/yubikey.svg` for consistency
-- **Icon location**: `src/shared/resources/yubikey.svg`
-- Required in: match results, notifications, password errors, config UI
-- **Resource files**:
-  - `shared.qrc` - Contains icon, used by both krunner and config modules
-  - `config.qrc` - Contains QML UI files, used only by config module
-- **CMakeLists.txt**: Config module must include both resource files via `qt6_add_resources()`
-- **Code initialization**: Config module must call both `qInitResources_shared()` and `qInitResources_config()` in constructor
+- Generic: `:/icons/yubikey.svg` (location: `src/shared/resources/yubikey.svg`)
+- Model-specific: `:/icons/models/yubikey-5c-nfc.png` via YubiKeyIconResolver (location: `src/shared/resources/models/`)
+- Resources: `shared.qrc` (all modules), `config.qrc` (config only)
+- Config module: Must include `shared.qrc` via `qt6_add_resources()` and call `qInitResources_shared()`
 
 ### Error Handling
 - Password errors show special match that opens settings
 - Touch timeout emits signal to TouchHandler
 - D-Bus notification failures degrade gracefully
 - Result<T> pattern for type-safe error handling
+
+### Translation System
+
+The project uses the KDE i18n system for internationalization:
+
+**Translation Infrastructure:**
+- All user-visible strings use `i18n()` macro (NOT Qt's `tr()`)
+- Plural forms handled with `i18np()` macro
+- Translation files located in `src/shared/po/`
+- CMake integration via `ki18n_install()` in CMakeLists.txt
+
+**Available Translations:**
+- **Polish (pl.po)**: 144 messages, 100% complete
+- Template file: `yubikey_oath.pot` (source message catalog)
+
+**Translation Usage:**
+```cpp
+// Simple translation
+QString text = i18n("Connect your YubiKey");
+
+// Translation with placeholders
+QString msg = i18n("Device %1 connected", deviceName);
+
+// Plural forms
+QString count = i18np("1 credential", "%1 credentials", num);
+```
+
+**IMPORTANT:**
+- **NEVER** use Qt's `tr()` function in this codebase
+- Always use KDE i18n macros for consistency with KDE Frameworks
+- DeviceDelegate, YubiKeyConfig, and all UI components use i18n()
+- Even C++ UI code (not just QML) must use i18n(), not tr()
 
 ## Logging
 
@@ -824,6 +927,10 @@ The project has comprehensive unit tests:
 - `test_code_validator.cpp` - Code validation tests (100% coverage)
 - `test_credential_formatter.cpp` - Display formatting tests
 - `test_match_builder.cpp` - KRunner match building tests
+- `test_relative_time_formatter.cpp` - Relative time formatting tests (18 tests, 100% coverage)
+- `test_yubikey_icon_resolver.cpp` - Icon resolver with FIPS verification (21 tests, 100% coverage)
+- `test_device_icon_resolver.cpp` - Interface Segregation Principle compliance (13 tests)
+- `test_device_card_layout.cpp` - Device card layout calculations (14 tests, 100% coverage)
 - `mocks/mock_configuration_provider.cpp` - Mock for configuration testing
 
 ### Running Tests
@@ -865,6 +972,22 @@ ctest --output-on-failure
 ./tests/test_match_builder       # Match building tests
 ```
 
+### Testing Qt Resources
+
+**IMPORTANT:** Qt resource system behaves differently in test environment:
+
+- `QFile::exists(":/icons/yubikey.svg")` may return `false` even if resource exists
+- Tests should check file extensions instead: `iconPath.endsWith(".svg")`
+- Tests should allow both specific icons OR generic fallback:
+  ```cpp
+  // ✅ CORRECT - allows fallback
+  QVERIFY(iconPath.contains("yubikey-5-nfc") || iconPath.endsWith(".svg"));
+
+  // ❌ WRONG - fails when fallback triggers
+  QVERIFY(iconPath.contains("yubikey-5-nfc"));
+  ```
+- Resource files must be registered: Config module calls `qInitResources_shared()`
+
 ### Code Coverage
 
 ```bash
@@ -905,23 +1028,13 @@ See [COVERAGE.md](COVERAGE.md) for detailed coverage analysis.
 ### Enable Detailed Logging
 
 ```bash
-# All components - KRunner
-QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*=true" \
-QT_LOGGING_TO_CONSOLE=1 \
-QT_FORCE_STDERR_LOGGING=1 \
-krunner --replace 2>&1 | tee /tmp/krunner_debug.log
+# All components (KRunner or Daemon)
+QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*=true" QT_LOGGING_TO_CONSOLE=1 QT_FORCE_STDERR_LOGGING=1 \
+  krunner --replace 2>&1 | tee /tmp/krunner.log
+# Or: /usr/bin/yubikey-oath-daemon --verbose 2>&1 | tee /tmp/daemon.log
 
-# All components - Daemon
-QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*=true" \
-QT_LOGGING_TO_CONSOLE=1 \
-QT_FORCE_STDERR_LOGGING=1 \
-/usr/bin/yubikey-oath-daemon --verbose 2>&1 | tee /tmp/daemon_debug.log
-
-# Specific components for targeted debugging
-QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.runner=true;pl.jkolo.yubikey.oath.daemon.oath=true;pl.jkolo.yubikey.oath.daemon.notification=true" \
-QT_LOGGING_TO_CONSOLE=1 \
-QT_FORCE_STDERR_LOGGING=1 \
-krunner --replace 2>&1 | tee /tmp/krunner_debug.log
+# Specific components
+QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.runner=true;pl.jkolo.yubikey.oath.daemon.oath=true" krunner --replace
 ```
 
 ### Check Plugin Installation
@@ -941,70 +1054,22 @@ pcsc_scan  # Should detect YubiKey
 
 ### D-Bus Service Debugging
 
-**Legacy Interface (backward compatibility):**
-
 ```bash
-# Check if daemon D-Bus service is registered
+# Check daemon status
 busctl --user list | grep yubikey
-
-# Get service status
 busctl --user status pl.jkolo.yubikey.oath.daemon
 
-# Test daemon connectivity (legacy interface)
-busctl --user call pl.jkolo.yubikey.oath.daemon /Device \
-  pl.jkolo.yubikey.oath.daemon.Device ListDevices
+# Legacy interface (/Device) - backward compatibility
+busctl --user call pl.jkolo.yubikey.oath.daemon /Device pl.jkolo.yubikey.oath.daemon.Device ListDevices
 
-# Monitor D-Bus signals from daemon
+# Hierarchical interface (v1.0) - ObjectManager pattern
+busctl --user tree pl.jkolo.yubikey.oath.daemon  # View 3-level hierarchy
+busctl --user call pl.jkolo.yubikey.oath.daemon /pl/jkolo/yubikey/oath pl.jkolo.yubikey.oath.Manager GetManagedObjects
+busctl --user introspect pl.jkolo.yubikey.oath.daemon /pl/jkolo/yubikey/oath/devices/<deviceId>
+busctl --user call pl.jkolo.yubikey.oath.daemon /pl/jkolo/yubikey/oath/devices/<deviceId>/credentials/<credId> pl.jkolo.yubikey.oath.Credential GenerateCode
+
+# Monitor signals
 dbus-monitor --session "sender='pl.jkolo.yubikey.oath.daemon'"
-
-# Introspect legacy interface
-busctl --user introspect pl.jkolo.yubikey.oath.daemon /Device
-```
-
-**Hierarchical D-Bus Architecture (v1.0):**
-
-```bash
-# View complete object tree (3-level hierarchy)
-busctl --user tree pl.jkolo.yubikey.oath.daemon
-
-# Introspect Manager object
-busctl --user introspect pl.jkolo.yubikey.oath.daemon /pl/jkolo/yubikey/oath
-
-# Get Manager property (only Version is available - other data via GetManagedObjects)
-busctl --user get-property pl.jkolo.yubikey.oath.daemon \
-  /pl/jkolo/yubikey/oath \
-  pl.jkolo.yubikey.oath.Manager Version
-
-# Get all managed objects (ObjectManager pattern)
-busctl --user call pl.jkolo.yubikey.oath.daemon \
-  /pl/jkolo/yubikey/oath \
-  pl.jkolo.yubikey.oath.Manager GetManagedObjects
-
-# Introspect specific Device object
-busctl --user introspect pl.jkolo.yubikey.oath.daemon \
-  /pl/jkolo/yubikey/oath/devices/28b5c0b54ccb10db
-
-# Get Device properties
-busctl --user get-property pl.jkolo.yubikey.oath.daemon \
-  /pl/jkolo/yubikey/oath/devices/28b5c0b54ccb10db \
-  pl.jkolo.yubikey.oath.Device Name
-
-# Introspect specific Credential object
-busctl --user introspect pl.jkolo.yubikey.oath.daemon \
-  /pl/jkolo/yubikey/oath/devices/28b5c0b54ccb10db/credentials/github_3ajkolo
-
-# Generate TOTP code via Credential object
-busctl --user call pl.jkolo.yubikey.oath.daemon \
-  /pl/jkolo/yubikey/oath/devices/28b5c0b54ccb10db/credentials/github_3ajkolo \
-  pl.jkolo.yubikey.oath.Credential GenerateCode
-
-# Type code with fallback to clipboard
-busctl --user call pl.jkolo.yubikey.oath.daemon \
-  /pl/jkolo/yubikey/oath/devices/28b5c0b54ccb10db/credentials/github_3ajkolo \
-  pl.jkolo.yubikey.oath.Credential TypeCode b true
-
-# Monitor ObjectManager signals (device/credential additions/removals)
-dbus-monitor --session "sender='pl.jkolo.yubikey.oath.daemon',interface='pl.jkolo.yubikey.oath.Manager'"
 ```
 
 ### Common D-Bus Issues
@@ -1048,3 +1113,45 @@ echo $DBUS_SESSION_BUS_ADDRESS
 - Result<T> pattern for type-safe error handling
 - Smart pointers (std::unique_ptr, std::shared_ptr) for memory management
 - Namespace organization: KRunner::YubiKey
+- W projekcie używaj tylko CMake z bezwzględnymi ścieżkami do każdej operacji. Zabronione jest korzystanie z make, ninja, etc.
+- W projekcie używaj tylko CMake z bezwzględnymi ścieżkami do każdej operacji. Zabronione jest korzystanie z make, ninja, etc.
+
+## Code Quality and Static Analysis
+
+### Clang-Tidy Compliance
+
+The project uses clang-tidy for static code analysis. All code MUST pass clang-tidy checks without errors.
+
+**Common clang-tidy issues and solutions:**
+
+1. **bugprone-branch-clone** - Identical consecutive switch branches
+   ```cpp
+   // ❌ WRONG - triggers bugprone-branch-clone
+   switch (series) {
+       case YubiKeySeries::YubiKey5:
+           return QStringLiteral("5");
+       case YubiKeySeries::YubiKey5FIPS:
+           return QStringLiteral("5");  // Identical to above - ERROR
+   }
+
+   // ✅ CORRECT - use fallthrough pattern
+   switch (series) {
+       case YubiKeySeries::YubiKey5:
+       case YubiKeySeries::YubiKey5FIPS:
+           // FIPS models use same icons as non-FIPS counterparts
+           return QStringLiteral("5");
+   }
+   ```
+
+2. **Switch statement fallthrough pattern:**
+   - Combine case labels when return values are identical
+   - Add comment explaining why cases are combined
+   - Applies to: icon resolution, model detection, etc.
+
+**Verification:**
+```bash
+# Build with clang-tidy enabled (automatic in CMake presets)
+cmake --build build-clang-debug -j$(nproc)
+
+# Expect zero errors - all warnings are treated as errors
+```

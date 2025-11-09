@@ -9,6 +9,7 @@
 #include <QObject>
 #include <QString>
 #include <QHash>
+#include <QDateTime>
 #include "types/yubikey_value_types.h"
 #include "yubikey_credential_proxy.h"
 
@@ -70,11 +71,17 @@ public:
     // ========== Cached Properties ==========
 
     QString objectPath() const { return m_objectPath; }
-    QString deviceId() const { return m_deviceId; } // const property
+    QString deviceId() const { return m_deviceId; } // const property - hex device ID
     QString name() const { return m_name; } // writable property
+    quint32 serialNumber() const { return m_serialNumber; } // const property
+    QString deviceModel() const { return m_deviceModel; } // const property - human-readable
+    YubiKeyModel deviceModelCode() const { return m_deviceModelCode; } // const property - numeric code
+    QString formFactor() const { return m_formFactor; } // const property - human-readable
+    QStringList capabilities() const { return m_capabilities; } // const property
     bool isConnected() const { return m_isConnected; }
     bool requiresPassword() const { return m_requiresPassword; }
     bool hasValidPassword() const { return m_hasValidPassword; }
+    QDateTime lastSeen() const { return m_lastSeen; } // const property - last time seen
     // Note: credentialCount() removed - use credentials().size() instead
 
     // ========== Credential Management ==========
@@ -191,6 +198,18 @@ Q_SIGNALS:
      */
     void credentialRemoved(const QString &credentialName);
 
+    /**
+     * @brief Emitted when requiresPassword property changes
+     * @param requiresPassword New requiresPassword state
+     */
+    void requiresPasswordChanged(bool requiresPassword);
+
+    /**
+     * @brief Emitted when hasValidPassword property changes
+     * @param hasValid New hasValidPassword state
+     */
+    void hasValidPasswordChanged(bool hasValid);
+
 private Q_SLOTS:
     void onCredentialAddedSignal(const QDBusObjectPath &credentialPath);
     void onCredentialRemovedSignal(const QDBusObjectPath &credentialPath);
@@ -207,13 +226,18 @@ private:  // NOLINT(readability-redundant-access-specifiers) - Required to close
     QDBusInterface *m_interface;
 
     // Cached properties
-    QString m_deviceId; // const
+    QString m_deviceId; // const - hex device ID from D-Bus
     QString m_name; // writable
     Version m_firmwareVersion; // const
-    YubiKeyModel m_deviceModel{0x00000000}; // const
+    quint32 m_serialNumber{0}; // const
+    QString m_deviceModel; // const - human-readable model string
+    YubiKeyModel m_deviceModelCode{0}; // const - numeric model code (0xSSVVPPFF)
+    QString m_formFactor; // const - human-readable form factor string
+    QStringList m_capabilities; // const - list of capability strings
     bool m_isConnected;
     bool m_requiresPassword;
     bool m_hasValidPassword;
+    QDateTime m_lastSeen; // const - last time device was seen (for offline devices)
 
     // Credential proxies (owned by this object via Qt parent-child)
     QHash<QString, YubiKeyCredentialProxy*> m_credentials; // key: credential name

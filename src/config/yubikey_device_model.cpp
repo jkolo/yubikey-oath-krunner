@@ -30,6 +30,8 @@ YubiKeyDeviceModel::YubiKeyDeviceModel(YubiKeyManagerProxy *manager, QObject *pa
             this, &YubiKeyDeviceModel::onDeviceDisconnected);
     connect(m_manager, &YubiKeyManagerProxy::credentialsChanged,
             this, &YubiKeyDeviceModel::onCredentialsUpdated);
+    connect(m_manager, &YubiKeyManagerProxy::devicePropertyChanged,
+            this, &YubiKeyDeviceModel::onDevicePropertyChanged);
 
     // Initial refresh
     refreshDevices();
@@ -53,7 +55,7 @@ QVariant YubiKeyDeviceModel::data(const QModelIndex &index, int role) const
 
     switch (role) {
     case DeviceIdRole:
-        return device.deviceId;
+        return device._internalDeviceId;
     case DeviceNameRole:
         return device.deviceName;
     case IsConnectedRole:
@@ -65,6 +67,17 @@ QVariant YubiKeyDeviceModel::data(const QModelIndex &index, int role) const
     case ShowAuthorizeButtonRole:
         // Show "Authorize" button if device is connected, requires password, and we don't have valid password
         return device.isConnected && device.requiresPassword && !device.hasValidPassword;
+    case DeviceModelRole:
+        qCDebug(YubiKeyConfigLog) << "DeviceModel role requested for device:" << device.deviceName
+                                  << "returning deviceModelCode:" << device.deviceModelCode
+                                  << "(hex: 0x" << Qt::hex << device.deviceModelCode << Qt::dec << ")";
+        return device.deviceModelCode;
+    case SerialNumberRole:
+        return device.serialNumber;
+    case FormFactorRole:
+        return device.formFactor;
+    case LastSeenRole:
+        return device.lastSeen;
     default:
         return {};
     }
@@ -79,7 +92,20 @@ QHash<int, QByteArray> YubiKeyDeviceModel::roleNames() const
     roles[RequiresPasswordRole] = "requiresPassword";
     roles[HasValidPasswordRole] = "hasValidPassword";
     roles[ShowAuthorizeButtonRole] = "showAuthorizeButton";
+    roles[DeviceModelRole] = "deviceModel";
+    roles[SerialNumberRole] = "serialNumber";
+    roles[FormFactorRole] = "formFactor";
+    roles[LastSeenRole] = "lastSeen";
     return roles;
+}
+
+Qt::ItemFlags YubiKeyDeviceModel::flags(const QModelIndex &index) const
+{
+    if (!index.isValid()) {
+        return Qt::NoItemFlags;
+    }
+    // Items are selectable, enabled, and editable (for inline name editing)
+    return Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsEditable;
 }
 
 void YubiKeyDeviceModel::refreshDevices()
@@ -321,7 +347,7 @@ void YubiKeyDeviceModel::onDeviceConnected(YubiKeyDeviceProxy *device)
 {
     if (device) {
         qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device connected:"
-                                  << device->deviceId() << device->name();
+                                  << device->serialNumber() << device->name();
     }
 
     // Refresh device list from manager
@@ -344,10 +370,38 @@ void YubiKeyDeviceModel::onCredentialsUpdated()
     refreshDevices();
 }
 
+void YubiKeyDeviceModel::onDevicePropertyChanged(YubiKeyDeviceProxy *device)
+{
+    if (!device) {
+        return;
+    }
+
+    const QString deviceId = device->deviceId();
+    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device property changed:" << deviceId
+                              << "Name:" << device->name()
+                              << "IsConnected:" << device->isConnected();
+
+    // Find device in model
+    const int row = findDeviceIndex(deviceId);
+    if (row < 0) {
+        qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found in model, skipping update";
+        return;
+    }
+
+    // Update device info from proxy (efficient single-row update)
+    m_devices[row] = device->toDeviceInfo();
+
+    // Notify view of changes for this row only (all roles may have changed)
+    const QModelIndex idx = index(row);
+    Q_EMIT dataChanged(idx, idx);
+
+    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Updated row" << row << "for device" << deviceId;
+}
+
 DeviceInfo* YubiKeyDeviceModel::findDevice(const QString &deviceId)
 {
     for (DeviceInfo &device : m_devices) {
-        if (device.deviceId == deviceId) {
+        if (device._internalDeviceId == deviceId) {
             return &device;
         }
     }
@@ -357,7 +411,7 @@ DeviceInfo* YubiKeyDeviceModel::findDevice(const QString &deviceId)
 const DeviceInfo* YubiKeyDeviceModel::findDevice(const QString &deviceId) const
 {
     for (const DeviceInfo &device : m_devices) {
-        if (device.deviceId == deviceId) {
+        if (device._internalDeviceId == deviceId) {
             return &device;
         }
     }
@@ -367,7 +421,7 @@ const DeviceInfo* YubiKeyDeviceModel::findDevice(const QString &deviceId) const
 int YubiKeyDeviceModel::findDeviceIndex(const QString &deviceId) const
 {
     for (int i = 0; i < m_devices.size(); ++i) {
-        if (m_devices.at(i).deviceId == deviceId) {
+        if (m_devices.at(i)._internalDeviceId == deviceId) {
             return i;
         }
     }

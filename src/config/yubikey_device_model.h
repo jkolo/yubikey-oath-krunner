@@ -48,7 +48,11 @@ public:
         IsConnectedRole,
         RequiresPasswordRole,
         HasValidPasswordRole,
-        ShowAuthorizeButtonRole
+        ShowAuthorizeButtonRole,
+        DeviceModelRole,  // Encoded model (0xSSVVPPFF) for icon selection
+        SerialNumberRole,  // Device serial number
+        FormFactorRole,  // Device form factor code
+        LastSeenRole  // Last time device was seen (QDateTime)
     };
 
     /**
@@ -62,6 +66,7 @@ public:
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
+    Qt::ItemFlags flags(const QModelIndex &index) const override;
 
     /**
      * @brief Refreshes device list from daemon
@@ -165,6 +170,15 @@ private Q_SLOTS:
      * @brief Handles credentials update from daemon
      */
     void onCredentialsUpdated();
+
+    /**
+     * @brief Handles device property changes
+     * @param device Device proxy with changed properties
+     *
+     * Updates the model for single device when properties change
+     * (name, connection status, password state, etc.)
+     */
+    void onDevicePropertyChanged(YubiKeyDeviceProxy *device);
 
 private:
     YubiKeyManagerProxy *m_manager;

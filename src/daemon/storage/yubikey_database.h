@@ -12,6 +12,8 @@
 #include <QSqlDatabase>
 #include <optional>
 #include "types/oath_credential.h"
+#include "shared/utils/version.h"
+#include "shared/types/yubikey_model.h"
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -44,6 +46,10 @@ public:
         bool requiresPassword;      ///< Device requires password for OATH access
         QDateTime lastSeen;         ///< Last time device was connected
         QDateTime createdAt;        ///< When device was first added to database
+        Version firmwareVersion;    ///< Firmware version (from Management or OATH SELECT)
+        YubiKeyModel deviceModel;   ///< Device model (series, variant, ports, capabilities)
+        quint32 serialNumber;       ///< Device serial number (0 if unavailable)
+        quint8 formFactor;          ///< Form factor (1=Keychain, 2=Nano, etc., 0 if unavailable)
     };
 
     /**
@@ -137,6 +143,35 @@ public:
     bool hasDevice(const QString &deviceId);
 
     /**
+     * @brief Counts devices with names starting with given prefix
+     * @param prefix Name prefix to search for (case-sensitive)
+     * @return Number of devices with names starting with prefix
+     *
+     * Used for generating unique device names with numeric suffixes.
+     * Example: countDevicesWithNamePrefix("YubiKey 5C NFC") returns count
+     * matching "YubiKey 5C NFC", "YubiKey 5C NFC 2", "YubiKey 5C NFC 3", etc.
+     */
+    int countDevicesWithNamePrefix(const QString &prefix);
+
+    /**
+     * @brief Updates device extended information (firmware, model, serial, form factor)
+     * @param deviceId Device ID to update
+     * @param firmwareVersion Firmware version from YubiKey
+     * @param deviceModel Device model (series, variant, ports)
+     * @param serialNumber Device serial number (0 if unavailable)
+     * @param formFactor Form factor (0 if unavailable)
+     * @return true if successful
+     *
+     * Updates only if values are different from database.
+     * Called when device is connected to synchronize hardware info.
+     */
+    bool updateDeviceInfo(const QString &deviceId,
+                          const Version &firmwareVersion,
+                          YubiKeyModel deviceModel,
+                          quint32 serialNumber,
+                          quint8 formFactor);
+
+    /**
      * @brief Saves/updates credentials for device in cache
      * @param deviceId Device ID
      * @param credentials List of credentials to save
@@ -179,6 +214,23 @@ private:
      * @return true if successful
      */
     bool createTables();
+
+    /**
+     * @brief Checks and migrates database schema if needed
+     * @return true if successful
+     *
+     * Adds missing columns to existing tables without data loss.
+     * Called automatically during initialization.
+     */
+    bool checkAndMigrateSchema();
+
+    /**
+     * @brief Adds column to devices table if it doesn't exist
+     * @param columnName Name of column to add
+     * @param columnType SQL type of column
+     * @return true if column exists or was added successfully
+     */
+    bool addColumnIfNotExists(const QString &columnName, const QString &columnType);
 
     /**
      * @brief Gets database file path

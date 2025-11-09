@@ -6,7 +6,8 @@
     @short_description: Device interface for individual YubiKey
 
     This interface represents a single YubiKey device with its credentials.
-    Each device is available at path: /pl/jkolo/yubikey/oath/devices/<deviceId>
+    Each device is available at path: /pl/jkolo/yubikey/oath/devices/<serialNumber>
+    (or /pl/jkolo/yubikey/oath/devices/dev_<deviceId> for devices without serial number)
   -->
   <interface name="pl.jkolo.yubikey.oath.Device">
 
@@ -49,10 +50,6 @@
       <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
     </property>
 
-    <property name="DeviceId" type="s" access="read">
-      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="const"/>
-    </property>
-
     <property name="IsConnected" type="b" access="read">
       <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
     </property>
@@ -69,8 +66,32 @@
       <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="const"/>
     </property>
 
-    <property name="DeviceModel" type="u" access="read">
+    <property name="SerialNumber" type="u" access="read">
       <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="const"/>
+    </property>
+
+    <property name="ID" type="s" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="const"/>
+    </property>
+
+    <property name="DeviceModel" type="s" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="const"/>
+    </property>
+
+    <property name="DeviceModelCode" type="u" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="const"/>
+    </property>
+
+    <property name="FormFactor" type="s" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="const"/>
+    </property>
+
+    <property name="Capabilities" type="as" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="const"/>
+    </property>
+
+    <property name="LastSeen" type="x" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
     </property>
 
     <!-- Note: CredentialCount and Credentials properties removed following D-Bus best practices.

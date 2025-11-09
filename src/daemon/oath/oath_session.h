@@ -11,7 +11,10 @@
 #include <QObject>
 #include "types/oath_credential.h"
 #include "oath_protocol.h"
+#include "management_protocol.h"
 #include "common/result.h"
+#include "shared/types/yubikey_model.h"
+#include "shared/utils/version.h"
 
 // Forward declarations for PC/SC types
 #ifdef __APPLE__
@@ -23,6 +26,23 @@
 
 namespace YubiKeyOath {
 namespace Daemon {
+using namespace YubiKeyOath::Shared;
+
+/**
+ * @brief Extended device information retrieved from YubiKey
+ *
+ * Contains comprehensive device data from multiple sources:
+ * - Serial number (from Management or PIV interface)
+ * - Firmware version (from OATH SELECT or Management)
+ * - Device model (derived from firmware/form factor)
+ * - Form factor (from Management interface)
+ */
+struct ExtendedDeviceInfo {
+    quint32 serialNumber = 0;      ///< Device serial number (0 if unavailable)
+    Version firmwareVersion;       ///< Firmware version (major.minor.patch)
+    YubiKeyModel deviceModel;      ///< Device model (series, variant, ports, capabilities)
+    quint8 formFactor = 0;         ///< Form factor (1=Keychain, 2=Nano, etc.)
+};
 
 /**
  * @brief Manages OATH session with YubiKey device
@@ -197,6 +217,33 @@ public:
     Result<void> changePassword(const QString &oldPassword,
                                 const QString &newPassword,
                                 const QString &deviceId);
+
+    /**
+     * @brief Retrieves extended device information (serial, firmware, form factor)
+     * @return Result with ExtendedDeviceInfo or error message
+     *
+     * Comprehensive device data retrieval strategy:
+     * 1. Try Management GET DEVICE INFO (YubiKey 4.1+):
+     *    - Gets serial, firmware, form factor in single call
+     *    - Most efficient and comprehensive
+     * 2. Fallback to PIV GET SERIAL (YubiKey NEO, 4, 5):
+     *    - Gets serial number only
+     *    - Firmware from previous OATH SELECT
+     *    - Form factor unavailable (set to 0)
+     * 3. Final fallback:
+     *    - Serial = 0 (unavailable)
+     *    - Firmware from OATH SELECT
+     *    - Device model derived from firmware only
+     *
+     * IMPORTANT: Must re-select OATH application after Management/PIV!
+     * This method automatically restores OATH session state.
+     *
+     * Usage: Call once during device connection to cache device info.
+     *
+     * @param readerName Optional PC/SC reader name for fallback detection (e.g., "Yubico YubiKey NEO OTP+CCID (0003507404) 00 00")
+     *                   Used for parsing device model from reader name when Management interface unavailable
+     */
+    Result<ExtendedDeviceInfo> getExtendedDeviceInfo(const QString &readerName = QString());
 
     /**
      * @brief Cancels pending operation by sending SELECT

@@ -12,6 +12,8 @@
 #include "../storage/yubikey_database.h"
 #include "touch_handler.h"
 #include "formatting/credential_formatter.h"
+#include "utils/credential_finder.h"
+#include "utils/device_name_formatter.h"
 
 #include <KLocalizedString>
 #include <QTimer>
@@ -50,21 +52,23 @@ void TouchWorkflowCoordinator::init()
             this, &TouchWorkflowCoordinator::onTouchCancelled);
 }
 
-void TouchWorkflowCoordinator::startTouchWorkflow(const QString &credentialName, const QString &actionId, const QString &deviceId)
+void TouchWorkflowCoordinator::startTouchWorkflow(const QString &credentialName, const QString &actionId, const QString &deviceId, Shared::YubiKeyModel deviceModel)
 {
     qCDebug(TouchWorkflowCoordinatorLog) << "Starting touch workflow for:" << credentialName
-             << "action:" << actionId << "device:" << deviceId;
+             << "action:" << actionId << "device:" << deviceId
+             << "deviceModel:" << QString::number(deviceModel, 16);
 
     m_pendingActionId = actionId;
     m_pendingDeviceId = deviceId;
+    m_pendingDeviceModel = deviceModel;
     int const timeout = m_config->touchTimeout();
     qCDebug(TouchWorkflowCoordinatorLog) << "Touch timeout from config:" << timeout << "seconds";
 
     // Start touch operation
     m_touchHandler->startTouchOperation(credentialName, timeout);
 
-    // Show touch notification
-    m_notificationOrchestrator->showTouchNotification(credentialName, timeout);
+    // Show touch notification with device model
+    m_notificationOrchestrator->showTouchNotification(credentialName, timeout, deviceModel);
 
     // Start asynchronous code generation via DeviceManager
     qCDebug(TouchWorkflowCoordinatorLog) << "Starting async code generation for:" << credentialName << "device:" << deviceId;
@@ -121,25 +125,15 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
 
     // Find credential and format display name according to configuration
     QList<OathCredential> const credentials = m_deviceManager->getCredentials();
-    OathCredential foundCredential;
-    bool credentialFound = false;
 
-    for (const auto &cred : credentials) {
-        if (cred.originalName == credentialName && cred.deviceId == m_pendingDeviceId) {
-            foundCredential = cred;
-            credentialFound = true;
-            break;
-        }
-    }
+    // Find credential using shared utility function
+    auto foundCredentialOpt = Utils::findCredential(credentials, credentialName, m_pendingDeviceId);
 
     // Format credential display name according to configuration (same as KRunner)
     QString formattedTitle = credentialName; // fallback to raw name
-    if (credentialFound) {
-        QString deviceName;
-        auto dbRecord = m_database->getDevice(m_pendingDeviceId);
-        if (dbRecord.has_value()) {
-            deviceName = dbRecord->deviceName;
-        }
+    if (foundCredentialOpt.has_value()) {
+        const OathCredential &foundCredential = foundCredentialOpt.value();
+        const QString deviceName = DeviceNameFormatter::getDeviceDisplayName(m_pendingDeviceId, m_database);
 
         const int connectedDeviceCount = static_cast<int>(m_deviceManager->getConnectedDeviceIds().size());
 
@@ -165,7 +159,7 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
     // This ensures consistent notification policy with non-touch path:
     // - Copy action: always show notification on success
     // - Type action: never show code notification (user sees code being typed)
-    m_actionCoordinator->executeActionWithNotification(code, formattedTitle, actionId);
+    m_actionCoordinator->executeActionWithNotification(code, formattedTitle, actionId, m_pendingDeviceModel);
 
     // Clear pending action and device
     m_pendingActionId.clear();
@@ -228,6 +222,7 @@ void TouchWorkflowCoordinator::cleanupTouchWorkflow()
     m_notificationOrchestrator->closeTouchNotification();
     m_pendingActionId.clear();
     m_pendingDeviceId.clear();
+    m_pendingDeviceModel = 0;
 }
 
 } // namespace Daemon

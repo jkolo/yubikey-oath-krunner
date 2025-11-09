@@ -13,6 +13,9 @@ set(krunner_yubikey_SRCS
     ../shared/ui/password_dialog_helper.cpp
     ../shared/ui/logging_categories.cpp
 
+    # Shared utilities
+    ../shared/utils/yubikey_icon_resolver.cpp
+
     # Action components (action_manager only - manages UI metadata)
     actions/action_manager.cpp
 

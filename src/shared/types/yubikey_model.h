@@ -151,17 +151,35 @@ bool isFIPS(YubiKeyModel model);
 bool supportsOATH(YubiKeyModel model);
 
 /**
- * @brief Detects YubiKey model from firmware version and ykman output
- * @param firmware Firmware version from OATH TAG_VERSION
+ * @brief Converts capabilities bitfield to list of human-readable strings
+ * @param capabilities Capabilities bitfield
+ * @return List of capability names (e.g., ["FIDO2", "OATH-TOTP", "PIV"])
+ */
+QStringList capabilitiesToStringList(YubiKeyCapabilities capabilities);
+
+/**
+ * @brief Converts form factor byte to human-readable string
+ * @param formFactor Form factor code (0x00-0x07)
+ * @return Human-readable form factor string (e.g., "USB-A Keychain", "USB-C NFC")
+ */
+QString formFactorToString(quint8 formFactor);
+
+/**
+ * @brief Detects YubiKey model from firmware version, optional ykman output, form factor, and NFC support
+ * @param firmware Firmware version from OATH TAG_VERSION or Management Interface
  * @param ykmanOutput Output from "ykman list" (e.g., "YubiKey 5C NFC (5.4.3) [OTP+FIDO+CCID]")
+ * @param formFactor FormFactor from Management Interface GET_DEVICE_INFO (0x00=unknown, 0x01=USB-A, 0x03=USB-C, etc.)
+ * @param nfcSupported NFC interfaces supported from Management Interface (2-byte bitfield, 0x0000=no NFC, non-zero=NFC present)
  * @return Detected model as encoded uint32, or 0x00000000 (Unknown) if detection fails
  *
  * Detection algorithm:
  * 1. If ykmanOutput available: parse model name, detect ports from name, detect capabilities from brackets
  * 2. If ykmanOutput unavailable: fallback to firmware version ranges for series detection
+ *    - Use formFactor to determine USB port type (USB-A vs USB-C) if available
+ *    - Use nfcSupported to add NFC port if device has NFC capability
  * 3. Combine series + variant + ports + capabilities into single uint32
  */
-YubiKeyModel detectModel(const Version& firmware, const QString& ykmanOutput = QString());
+YubiKeyModel detectModel(const Version& firmware, const QString& ykmanOutput = QString(), quint8 formFactor = 0, quint16 nfcSupported = 0);
 
 /**
  * @brief Creates YubiKeyModel from components

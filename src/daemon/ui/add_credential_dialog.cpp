@@ -156,15 +156,15 @@ void AddCredentialDialog::setupUi(const OathCredentialData &initialData,
         qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Received devices list:" << devices.size();
         for (const auto &deviceInfo : devices) {
             QString const displayName = deviceInfo.deviceName.isEmpty()
-                ? i18n("YubiKey (%1)", deviceInfo.deviceId.left(8))
+                ? i18n("YubiKey (%1)", deviceInfo._internalDeviceId.left(8))
                 : deviceInfo.deviceName;
 
             qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Adding device - name:"
-                                      << displayName << "id:" << deviceInfo.deviceId
+                                      << displayName << "id:" << deviceInfo._internalDeviceId
                                       << "firmware:" << deviceInfo.firmwareVersion.toString();
 
             // Show device name, store device ID as data
-            m_deviceCombo->addItem(displayName, deviceInfo.deviceId);
+            m_deviceCombo->addItem(displayName, deviceInfo._internalDeviceId);
         }
 
         // Connect device change signal for firmware validation
@@ -249,8 +249,8 @@ void AddCredentialDialog::onDeviceChanged(int index)
         // Disable checkbox and uncheck it
         m_touchCheckBox->setChecked(false);
 
-        // Build model name for tooltip
-        QString const modelName = Shared::modelToString(deviceInfo.deviceModel);
+        // deviceInfo.deviceModel is already human-readable string
+        const QString &modelName = deviceInfo.deviceModel;
 
         // Set tooltip explaining why it's disabled
         m_touchCheckBox->setToolTip(

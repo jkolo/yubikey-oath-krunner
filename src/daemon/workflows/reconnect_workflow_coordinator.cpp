@@ -89,8 +89,9 @@ void ReconnectWorkflowCoordinator::startReconnectWorkflow(const QString &deviceI
     int const timeoutSeconds = m_config->deviceReconnectTimeout();
     qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Reconnect timeout:" << timeoutSeconds << "seconds";
 
-    // Show reconnect notification
-    m_notificationOrchestrator->showReconnectNotification(deviceName, credentialName, timeoutSeconds);
+    // Show reconnect notification with generic icon (device offline, model unknown)
+    // After reconnect, ActionCoordinator will use correct model-specific icon for code notification
+    m_notificationOrchestrator->showReconnectNotification(deviceName, credentialName, timeoutSeconds, 0);
 
     // Start timeout timer
     m_timeoutTimer->start(timeoutSeconds * 1000);

@@ -7,6 +7,7 @@
 
 #include <QString>
 #include <optional>
+#include "types/yubikey_model.h"
 
 // Forward declaration
 namespace YubiKeyOath {
@@ -28,7 +29,28 @@ class DeviceNameFormatter
 {
 public:
     /**
-     * @brief Generates default device name from device ID
+     * @brief Generates default device name from model and serial number
+     * @param deviceId Device ID (fallback if model unknown)
+     * @param model YubiKey model (e.g., 0x05030402 for YubiKey 5C NFC)
+     * @param serialNumber Device serial number (0 if unavailable)
+     * @param database Database for checking duplicate names
+     * @return Formatted name like "YubiKey 5C NFC - 12345678" or "YubiKey 5C NFC 2"
+     *
+     * Format rules:
+     * - With serial: "YubiKey {MODEL} - {SERIAL}" (e.g., "YubiKey 5C NFC - 12345678")
+     * - Without serial (first): "YubiKey {MODEL}" (e.g., "YubiKey 5C NFC")
+     * - Without serial (duplicate): "YubiKey {MODEL} {N}" (e.g., "YubiKey 5C NFC 2")
+     * - Unknown model: Falls back to device ID format "YubiKey (...4ccb10db)"
+     *
+     * @note Thread-safe: Database operations are thread-safe
+     */
+    static QString generateDefaultName(const QString &deviceId,
+                                      YubiKeyModel model,
+                                      quint32 serialNumber,
+                                      Daemon::YubiKeyDatabase *database);
+
+    /**
+     * @brief Generates default device name from device ID (legacy fallback)
      * @param deviceId Device ID (hex string from YubiKey)
      * @return Formatted default name like "YubiKey (...4ccb10db)"
      *
@@ -36,6 +58,7 @@ public:
      * Example: "28b5c0b54ccb10db" becomes "YubiKey (...4ccb10db)"
      *
      * @note Thread-safe: This is a pure static function with no state
+     * @note Legacy: Prefer using the overload with model/serial when available
      */
     static QString generateDefaultName(const QString &deviceId)
     {

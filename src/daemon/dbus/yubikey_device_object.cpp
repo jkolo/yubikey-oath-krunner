@@ -20,16 +20,18 @@ namespace Daemon {
 
 static constexpr const char *DEVICE_INTERFACE = "pl.jkolo.yubikey.oath.Device";
 
-YubiKeyDeviceObject::YubiKeyDeviceObject(const QString &deviceId,
+YubiKeyDeviceObject::YubiKeyDeviceObject(QString deviceId,
+                                         QString objectPath,
                                          YubiKeyService *service,
                                          QDBusConnection connection,
                                          bool isConnected,
                                          QObject *parent)
     : QObject(parent)
-    , m_deviceId(deviceId)
+    , m_deviceId(std::move(deviceId))
     , m_service(service)
     , m_connection(std::move(connection))
-    , m_objectPath(QString::fromLatin1("/pl/jkolo/yubikey/oath/devices/%1").arg(deviceId))
+    , m_objectPath(std::move(objectPath))
+    , m_id(m_objectPath.section(QLatin1Char('/'), -1))  // Extract last segment of path
     , m_registered(false)
     , m_isConnected(isConnected)
     , m_requiresPassword(false)
@@ -42,12 +44,20 @@ YubiKeyDeviceObject::YubiKeyDeviceObject(const QString &deviceId,
     // Get initial device info from service
     const auto devices = m_service->listDevices();
     for (const auto &devInfo : devices) {
-        if (devInfo.deviceId == m_deviceId) {
+        if (devInfo._internalDeviceId == m_deviceId) {
             m_name = devInfo.deviceName;
             m_requiresPassword = devInfo.requiresPassword;
             m_hasValidPassword = devInfo.hasValidPassword;
             m_firmwareVersion = devInfo.firmwareVersion;
             m_deviceModel = devInfo.deviceModel;
+            m_rawDeviceModel = devInfo.deviceModelCode;  // Numeric model code
+            m_serialNumber = devInfo.serialNumber;
+            m_formFactor = devInfo.formFactor;
+            m_capabilities = devInfo.capabilities;
+
+            // Raw form factor needs to be obtained from daemon's internal structures
+            // For now, initialize with default - it's only used for internal logic
+            m_rawFormFactor = 0;
             break;
         }
     }
@@ -146,9 +156,54 @@ QString YubiKeyDeviceObject::firmwareVersionString() const
     return m_firmwareVersion.toString();
 }
 
-quint32 YubiKeyDeviceObject::deviceModel() const
+quint32 YubiKeyDeviceObject::serialNumber() const
+{
+    return m_serialNumber;
+}
+
+QString YubiKeyDeviceObject::id() const
+{
+    return m_id;
+}
+
+QString YubiKeyDeviceObject::deviceModelString() const
 {
     return m_deviceModel;
+}
+
+quint32 YubiKeyDeviceObject::deviceModelCode() const
+{
+    return m_rawDeviceModel;
+}
+
+QString YubiKeyDeviceObject::formFactorString() const
+{
+    return m_formFactor;
+}
+
+QStringList YubiKeyDeviceObject::capabilitiesList() const
+{
+    return m_capabilities;
+}
+
+// Internal getters for raw values
+Shared::YubiKeyModel YubiKeyDeviceObject::deviceModel() const
+{
+    return m_rawDeviceModel;
+}
+
+quint8 YubiKeyDeviceObject::formFactor() const
+{
+    return m_rawFormFactor;
+}
+
+qint64 YubiKeyDeviceObject::lastSeen() const
+{
+    const QDateTime lastSeenDateTime = m_service->getDeviceLastSeen(m_deviceId);
+    if (lastSeenDateTime.isValid()) {
+        return lastSeenDateTime.toMSecsSinceEpoch();
+    }
+    return 0; // Return 0 if device not in database or invalid timestamp
 }
 
 void YubiKeyDeviceObject::setName(const QString &name)
@@ -408,10 +463,17 @@ QVariantMap YubiKeyDeviceObject::getManagedObjectData() const
     // pl.jkolo.yubikey.oath.Device interface properties
     QVariantMap deviceProps;
     deviceProps.insert(QLatin1String("Name"), m_name);
-    deviceProps.insert(QLatin1String("DeviceId"), m_deviceId);
     deviceProps.insert(QLatin1String("IsConnected"), m_isConnected);
     deviceProps.insert(QLatin1String("RequiresPassword"), m_requiresPassword);
     deviceProps.insert(QLatin1String("HasValidPassword"), m_hasValidPassword);
+    deviceProps.insert(QLatin1String("FirmwareVersion"), m_firmwareVersion.toString());
+    deviceProps.insert(QLatin1String("SerialNumber"), m_serialNumber);
+    deviceProps.insert(QLatin1String("ID"), m_id);
+    deviceProps.insert(QLatin1String("DeviceModel"), deviceModelString());
+    deviceProps.insert(QLatin1String("DeviceModelCode"), m_rawDeviceModel);
+    deviceProps.insert(QLatin1String("FormFactor"), formFactorString());
+    deviceProps.insert(QLatin1String("Capabilities"), capabilitiesList());
+    deviceProps.insert(QLatin1String("LastSeen"), lastSeen());
     // Note: CredentialCount and Credentials properties removed - use GetManagedObjects() instead
 
     result.insert(QLatin1String(DEVICE_INTERFACE), deviceProps);

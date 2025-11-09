@@ -17,8 +17,6 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 static constexpr const char *MANAGER_PATH = "/pl/jkolo/yubikey/oath";
-static constexpr const char *MANAGER_INTERFACE = "pl.jkolo.yubikey.oath.Manager";
-static constexpr const char *OBJECTMANAGER_INTERFACE = "org.freedesktop.DBus.ObjectManager";
 static constexpr const char *DAEMON_VERSION = "1.0"; // Initial release version
 
 YubiKeyManagerObject::YubiKeyManagerObject(YubiKeyService *service,
@@ -102,8 +100,8 @@ ManagedObjectMap YubiKeyManagerObject::GetManagedObjects()
     ManagedObjectMap result;
 
     // Iterate over all device objects
-    for (auto it = m_devices.constBegin(); it != m_devices.constEnd(); ++it) {
-        const YubiKeyDeviceObject * const deviceObj = it.value();
+    for (auto deviceIt = m_devices.constBegin(); deviceIt != m_devices.constEnd(); ++deviceIt) {
+        const YubiKeyDeviceObject * const deviceObj = deviceIt.value();
 
         // Get device object path and properties
         const QString devicePath = deviceObj->objectPath();
@@ -111,8 +109,8 @@ ManagedObjectMap YubiKeyManagerObject::GetManagedObjects()
 
         // Convert QVariantMap to InterfacePropertiesMap (QMap<QString, QVariantMap>)
         InterfacePropertiesMap deviceInterfaces;
-        for (auto it = deviceInterfacesVariant.constBegin(); it != deviceInterfacesVariant.constEnd(); ++it) {
-            deviceInterfaces.insert(it.key(), it.value().toMap());
+        for (auto devIfaceIt = deviceInterfacesVariant.constBegin(); devIfaceIt != deviceInterfacesVariant.constEnd(); ++devIfaceIt) {
+            deviceInterfaces.insert(devIfaceIt.key(), devIfaceIt.value().toMap());
         }
 
         qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: Adding device path:" << devicePath
@@ -131,8 +129,8 @@ ManagedObjectMap YubiKeyManagerObject::GetManagedObjects()
 
             // Convert QVariantMap to InterfacePropertiesMap
             InterfacePropertiesMap credInterfaces;
-            for (auto it = credInterfacesVariant.constBegin(); it != credInterfacesVariant.constEnd(); ++it) {
-                credInterfaces.insert(it.key(), it.value().toMap());
+            for (auto credIfaceIt = credInterfacesVariant.constBegin(); credIfaceIt != credInterfacesVariant.constEnd(); ++credIfaceIt) {
+                credInterfaces.insert(credIfaceIt.key(), credIfaceIt.value().toMap());
             }
 
             qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: Adding credential path:" << credIt.key()
@@ -182,7 +180,13 @@ YubiKeyDeviceObject* YubiKeyManagerObject::addDeviceWithStatus(const QString &de
 
                 const QString path = deviceObj->objectPath();
                 const QDBusObjectPath dbusPath(path);
-                const QVariantMap interfacesAndProperties = deviceObj->getManagedObjectData();
+                const QVariantMap interfacesData = deviceObj->getManagedObjectData();
+
+                // Convert QVariantMap to InterfacePropertiesMap for D-Bus signal
+                InterfacePropertiesMap interfacesAndProperties;
+                for (auto it = interfacesData.constBegin(); it != interfacesData.constEnd(); ++it) {
+                    interfacesAndProperties.insert(it.key(), it.value().toMap());
+                }
                 Q_EMIT InterfacesAdded(dbusPath, interfacesAndProperties);
 
                 // Also emit InterfacesAdded for all credential objects
@@ -190,7 +194,13 @@ YubiKeyDeviceObject* YubiKeyManagerObject::addDeviceWithStatus(const QString &de
                 for (auto credIt = credentialObjects.constBegin();
                      credIt != credentialObjects.constEnd(); ++credIt) {
                     const QDBusObjectPath credDbusPath(credIt.key());
-                    const QVariantMap credInterfacesAndProperties = credIt.value().toMap();
+                    const QVariantMap credData = credIt.value().toMap();
+
+                    // Convert QVariantMap to InterfacePropertiesMap for D-Bus signal
+                    InterfacePropertiesMap credInterfacesAndProperties;
+                    for (auto it = credData.constBegin(); it != credData.constEnd(); ++it) {
+                        credInterfacesAndProperties.insert(it.key(), it.value().toMap());
+                    }
                     Q_EMIT InterfacesAdded(credDbusPath, credInterfacesAndProperties);
                 }
 
@@ -203,8 +213,18 @@ YubiKeyDeviceObject* YubiKeyManagerObject::addDeviceWithStatus(const QString &de
     }
 
     // Create device object with specified connection status
-    const QString path = devicePath(deviceId);
-    auto *deviceObj = new YubiKeyDeviceObject(deviceId, m_service, m_connection, isConnected, this);
+    // Get serialNumber from service for D-Bus path
+    quint32 serialNumber = 0;
+    const auto devices = m_service->listDevices();
+    for (const auto &devInfo : devices) {
+        if (devInfo._internalDeviceId == deviceId) {
+            serialNumber = devInfo.serialNumber;
+            break;
+        }
+    }
+
+    const QString path = devicePath(deviceId, serialNumber);
+    auto *deviceObj = new YubiKeyDeviceObject(deviceId, path, m_service, m_connection, isConnected, this);
 
     if (!deviceObj->registerObject()) {
         qCCritical(YubiKeyDaemonLog) << "YubiKeyManagerObject: Failed to register device object"
@@ -217,7 +237,13 @@ YubiKeyDeviceObject* YubiKeyManagerObject::addDeviceWithStatus(const QString &de
 
     // Emit ObjectManager signal: InterfacesAdded
     const QDBusObjectPath dbusPath(path);
-    const QVariantMap interfacesAndProperties = deviceObj->getManagedObjectData();
+    const QVariantMap interfacesData = deviceObj->getManagedObjectData();
+
+    // Convert QVariantMap to InterfacePropertiesMap for D-Bus signal
+    InterfacePropertiesMap interfacesAndProperties;
+    for (auto it = interfacesData.constBegin(); it != interfacesData.constEnd(); ++it) {
+        interfacesAndProperties.insert(it.key(), it.value().toMap());
+    }
     Q_EMIT InterfacesAdded(dbusPath, interfacesAndProperties);
 
     qCInfo(YubiKeyDaemonLog) << "YubiKeyManagerObject: Device added successfully:" << deviceId
@@ -297,9 +323,16 @@ YubiKeyDeviceObject* YubiKeyManagerObject::getDevice(const QString &deviceId) co
 }
 
 
-QString YubiKeyManagerObject::devicePath(const QString &deviceId)
+QString YubiKeyManagerObject::devicePath(const QString &deviceId, quint32 serialNumber)
 {
-    return QString::fromLatin1("/pl/jkolo/yubikey/oath/devices/%1").arg(deviceId);
+    if (serialNumber > 0) {
+        // Use decimal serialNumber if available
+        return QString::fromLatin1("/pl/jkolo/yubikey/oath/devices/%1")
+            .arg(serialNumber);
+    }
+
+    // Fallback: use deviceId with "dev_" prefix to distinguish from serial numbers
+    return QString::fromLatin1("/pl/jkolo/yubikey/oath/devices/dev_%1").arg(deviceId);
 }
 
 } // namespace Daemon

@@ -43,24 +43,31 @@ class YubiKeyDeviceObject : public QObject
 
     // Properties exposed via D-Bus Properties interface
     Q_PROPERTY(QString Name READ name WRITE setName NOTIFY nameChanged)
-    Q_PROPERTY(QString DeviceId READ deviceId CONSTANT)
     Q_PROPERTY(bool IsConnected READ isConnected NOTIFY isConnectedChanged)
     Q_PROPERTY(bool RequiresPassword READ requiresPassword NOTIFY requiresPasswordChanged)
     Q_PROPERTY(bool HasValidPassword READ hasValidPassword NOTIFY hasValidPasswordChanged)
     Q_PROPERTY(QString FirmwareVersion READ firmwareVersionString CONSTANT)
-    Q_PROPERTY(quint32 DeviceModel READ deviceModel CONSTANT)
+    Q_PROPERTY(quint32 SerialNumber READ serialNumber CONSTANT)
+    Q_PROPERTY(QString ID READ id CONSTANT)
+    Q_PROPERTY(QString DeviceModel READ deviceModelString CONSTANT)
+    Q_PROPERTY(quint32 DeviceModelCode READ deviceModelCode CONSTANT)
+    Q_PROPERTY(QString FormFactor READ formFactorString CONSTANT)
+    Q_PROPERTY(QStringList Capabilities READ capabilitiesList CONSTANT)
+    Q_PROPERTY(qint64 LastSeen READ lastSeen CONSTANT)
     // Note: CredentialCount and Credentials properties removed - use Manager's GetManagedObjects() instead
 
 public:
     /**
      * @brief Constructs Device object
      * @param deviceId Device ID (hex string)
+     * @param objectPath D-Bus object path (e.g., /pl/jkolo/yubikey/oath/devices/20252879)
      * @param service Pointer to YubiKeyService
      * @param connection D-Bus connection
      * @param isConnected Initial connection status
      * @param parent Parent QObject
      */
-    explicit YubiKeyDeviceObject(const QString &deviceId,
+    explicit YubiKeyDeviceObject(QString deviceId,
+                                  QString objectPath,
                                   YubiKeyService *service,
                                   QDBusConnection connection,
                                   bool isConnected,
@@ -80,18 +87,28 @@ public:
 
     /**
      * @brief Gets D-Bus object path
-     * @return /pl/jkolo/yubikey/oath/devices/<deviceId>
+     * @return /pl/jkolo/yubikey/oath/devices/<serialNumber> or /pl/jkolo/yubikey/oath/devices/dev_<deviceId>
      */
     QString objectPath() const;
 
     // Property getters
     QString name() const;
-    QString deviceId() const;
     bool isConnected() const;
     bool requiresPassword() const;
     bool hasValidPassword() const;
     QString firmwareVersionString() const;
-    quint32 deviceModel() const;
+    quint32 serialNumber() const;
+    QString id() const;
+    QString deviceModelString() const;
+    quint32 deviceModelCode() const;
+    QString formFactorString() const;
+    QStringList capabilitiesList() const;
+    qint64 lastSeen() const;
+
+    // Internal getters for raw values (used internally, not exposed via D-Bus)
+    QString deviceId() const;
+    Shared::YubiKeyModel deviceModel() const;
+    quint8 formFactor() const;
 
     // Property setters
     void setName(const QString &name);
@@ -236,6 +253,7 @@ private:
     YubiKeyService *m_service;                          ///< Business logic service (not owned)
     QDBusConnection m_connection;                       ///< D-Bus connection
     QString m_objectPath;                               ///< Our object path
+    QString m_id;                                       ///< Public ID (last segment of path: serialNumber or dev_<deviceId>)
     bool m_registered;                                  ///< Registration state
 
     QMap<QString, YubiKeyCredentialObject*> m_credentials;  ///< Credential ID → CredentialObject
@@ -246,7 +264,14 @@ private:
     bool m_requiresPassword;
     bool m_hasValidPassword;
     Shared::Version m_firmwareVersion;
-    Shared::YubiKeyModel m_deviceModel{0x00000000};
+    quint32 m_serialNumber{0};
+    QString m_deviceModel;        ///< Human-readable model string
+    QString m_formFactor;          ///< Human-readable form factor string
+    QStringList m_capabilities;    ///< List of capability strings
+
+    // Raw values kept for internal use (e.g., building object paths, logic)
+    Shared::YubiKeyModel m_rawDeviceModel{0x00000000};
+    quint8 m_rawFormFactor{0};
 };
 
 } // namespace Daemon

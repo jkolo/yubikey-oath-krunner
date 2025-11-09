@@ -11,6 +11,7 @@
 #include <memory>
 #include <optional>
 #include "action_executor.h"  // Required for ActionExecutor::ActionResult
+#include "../../shared/types/yubikey_model.h"  // Required for YubiKeyModel type
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -88,6 +89,7 @@ public:
      * @param code TOTP/HOTP code to use
      * @param credentialName Credential name for notifications
      * @param actionType "copy" or "type"
+     * @param deviceModel YubiKey model for notification icon (0 = generic icon)
      * @return ActionResult (Success, Failed, WaitingForPermission)
      *
      * Notification policy:
@@ -100,7 +102,8 @@ public:
      */
     ActionExecutor::ActionResult executeActionWithNotification(const QString &code,
                                                                const QString &credentialName,
-                                                               const QString &actionType);
+                                                               const QString &actionType,
+                                                               Shared::YubiKeyModel deviceModel = 0);
 
     /**
      * @brief Shows simple auto-closing notification
