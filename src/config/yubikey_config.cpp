@@ -15,9 +15,6 @@
 #include <QVariantList>
 #include <QDebug>
 
-// Forward declare Qt resource initialization functions
-extern void qInitResources_shared();
-
 namespace YubiKeyOath {
 namespace Config {
 using namespace YubiKeyOath::Shared;
@@ -31,9 +28,6 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
 {
     // Set translation domain for i18n
     KLocalizedString::setApplicationDomain("yubikey_oath");
-
-    // Initialize Qt resources (icons)
-    qInitResources_shared();
 
     auto *layout = new QGridLayout(widget());
     layout->addWidget(m_ui, 0, 0);
@@ -104,9 +98,9 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
 QString YubiKeyConfig::getModelIcon(quint32 deviceModel) const
 {
     qCDebug(YubiKeyConfigLog) << "getModelIcon called with deviceModel:" << deviceModel << "(hex:" << Qt::hex << deviceModel << Qt::dec << ")";
-    QString iconPath = YubiKeyIconResolver::getIconPath(deviceModel);
-    qCDebug(YubiKeyConfigLog) << "getModelIcon returning iconPath:" << iconPath;
-    return iconPath;
+    QString iconName = YubiKeyIconResolver::getIconName(deviceModel);
+    qCDebug(YubiKeyConfigLog) << "getModelIcon returning iconName:" << iconName;
+    return iconName;
 }
 
 YubiKeyConfig::~YubiKeyConfig()

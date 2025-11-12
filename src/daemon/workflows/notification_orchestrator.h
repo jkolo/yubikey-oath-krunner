@@ -11,6 +11,7 @@
 #include <QPointer>
 #include <functional>
 #include "../../shared/types/yubikey_model.h"
+#include "../../shared/types/device_model.h"
 
 // Forward declarations for Qt/KDE classes (must be outside namespace)
 class QTimer;
@@ -87,13 +88,13 @@ public:
      * - TOTP code and credential name
      * - Live countdown timer (updates every second)
      * - Progress bar showing time remaining
-     * - Model-specific YubiKey icon
+     * - Device model-specific icon (YubiKey, Nitrokey, etc.)
      * - Automatically closes when timer reaches 0
      *
      * @param code The TOTP code that was copied (typically 6-8 digits)
      * @param credentialName Credential name to display (e.g., "Google:user@example.com")
      * @param expirationSeconds Seconds until code expires (typically 30)
-     * @param deviceModel YubiKey model for icon (0 = generic icon)
+     * @param deviceModel Device model for brand-specific icon
      *
      * @note Only one code notification can be active at a time. Calling this
      *       again replaces the existing notification.
@@ -104,21 +105,21 @@ public:
     void showCodeNotification(const QString &code,
                              const QString &credentialName,
                              int expirationSeconds,
-                             Shared::YubiKeyModel deviceModel = 0);
+                             const Shared::DeviceModel& deviceModel);
 
     /**
-     * @brief Shows notification requesting YubiKey touch with timeout countdown
+     * @brief Shows notification requesting device touch with timeout countdown
      *
      * Displays persistent notification with:
-     * - Request to touch YubiKey
+     * - Request to touch device (YubiKey/Nitrokey)
      * - Manual countdown timer (bypasses server 10-second limit)
-     * - Model-specific YubiKey icon
+     * - Device model-specific icon
      * - Cancel button that emits touchCancelled() signal
      * - Updates every second with remaining time
      *
      * @param credentialName Credential requiring touch
      * @param timeoutSeconds Touch timeout in seconds (typically 15)
-     * @param deviceModel YubiKey model for icon (0 = generic icon)
+     * @param deviceModel Device model for brand-specific icon
      *
      * @note Notification persists until closeTouchNotification() is called
      *       or user clicks cancel button.
@@ -128,7 +129,7 @@ public:
      */
     void showTouchNotification(const QString &credentialName,
                               int timeoutSeconds,
-                              Shared::YubiKeyModel deviceModel = 0);
+                              const Shared::DeviceModel& deviceModel);
 
     /**
      * @brief Closes active touch notification immediately
@@ -229,15 +230,15 @@ public:
      * @param deviceName Device name to display
      * @param credentialName Credential name to display
      * @param timeoutSeconds Timeout in seconds
-     * @param deviceModel YubiKey model for icon (0 = generic icon)
+     * @param deviceModel Device model for brand-specific icon
      *
-     * Shows notification with message "Connect YubiKey {deviceName} to generate code for {credentialName}"
-     * with Cancel button, countdown timer, and model-specific icon.
+     * Shows notification with message "Connect device {deviceName} to generate code for {credentialName}"
+     * with Cancel button, countdown timer, and device model-specific icon.
      */
     void showReconnectNotification(const QString &deviceName,
                                    const QString &credentialName,
                                    int timeoutSeconds,
-                                   Shared::YubiKeyModel deviceModel = 0);
+                                   const Shared::DeviceModel& deviceModel);
 
     /**
      * @brief Closes reconnect notification if active
@@ -277,6 +278,8 @@ private:
      * @param title Notification title
      * @param bodyFormatter Function to format body text from remaining seconds
      * @param onExpired Callback when timer expires (optional)
+     * @param urgency Notification urgency level (0=Low, 1=Normal, 2=Critical)
+     * @param iconName Optional device-specific icon theme name
      */
     void updateNotificationWithProgress(
         uint& notificationId,
@@ -285,11 +288,19 @@ private:
         int totalSeconds,
         const QString& title,
         const std::function<QString(int)>& bodyFormatter,
-        const std::function<void()>& onExpired = nullptr
+        const std::function<void()>& onExpired = nullptr,
+        uchar urgency = 1,
+        const QString& iconName = QString()
     );
 
     DBusNotificationManager *m_notificationManager;
     const ConfigurationProvider *m_config;
+
+    // Urgency levels for each notification type (for preserving during updates)
+    uchar m_codeNotificationUrgency = 2;      // Critical
+    uchar m_touchNotificationUrgency = 2;     // Critical
+    uchar m_modifierNotificationUrgency = 1;  // Normal
+    uchar m_reconnectNotificationUrgency = 2; // Critical
 
     // Code notification state
     QTimer *m_codeUpdateTimer;
@@ -298,7 +309,8 @@ private:
     int m_codeTotalSeconds = 0;
     QString m_currentCredentialName;
     QString m_currentCode;
-    Shared::YubiKeyModel m_codeDeviceModel = 0;
+    Shared::DeviceModel m_codeDeviceModel;
+    QString m_codeIconName;
 
     // Touch notification state
     QPointer<KNotification> m_touchNotification;
@@ -306,7 +318,8 @@ private:
     QTimer *m_touchUpdateTimer;
     QDateTime m_touchExpirationTime;
     QString m_touchCredentialName;
-    Shared::YubiKeyModel m_touchDeviceModel = 0;
+    Shared::DeviceModel m_touchDeviceModel;
+    QString m_touchIconName;
 
     // Modifier release notification state
     uint m_modifierNotificationId = 0;
@@ -320,7 +333,8 @@ private:
     QDateTime m_reconnectExpirationTime;
     QString m_reconnectDeviceName;
     QString m_reconnectCredentialName;
-    Shared::YubiKeyModel m_reconnectDeviceModel = 0;
+    Shared::DeviceModel m_reconnectDeviceModel;
+    QString m_reconnectIconName;
 };
 
 } // namespace Daemon

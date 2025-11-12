@@ -106,6 +106,16 @@ find_package(ZXing REQUIRED)
 # Add shared/ to include paths globally to avoid ../shared/ in includes
 include_directories(${CMAKE_SOURCE_DIR}/src/shared)
 
+# Generate hicolor theme icons from source PNG/SVG files
+# This creates all required sizes (16-256px) for freedesktop.org hicolor theme
+add_custom_target(generate-icons ALL
+    COMMAND ${CMAKE_COMMAND} -E env CMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}
+            ${CMAKE_SOURCE_DIR}/scripts/generate-icon-sizes.sh
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Generating hicolor theme icons from source files"
+    VERBATIM
+)
+
 add_subdirectory(src)
 
 # Enable testing
@@ -114,5 +124,18 @@ if(BUILD_TESTING)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+# Install generated hicolor theme icons
+# Following freedesktop.org icon theme specification
+set(ICON_SIZES 16 22 32 48 64 128 256)
+foreach(SIZE ${ICON_SIZES})
+    install(DIRECTORY ${CMAKE_BINARY_DIR}/generated-icons/hicolor/${SIZE}x${SIZE}/
+            DESTINATION ${KDE_INSTALL_FULL_ICONDIR}/hicolor/${SIZE}x${SIZE}
+            FILES_MATCHING PATTERN "*.png")
+endforeach()
+
+# Install scalable SVG icon (generic fallback)
+install(FILES ${CMAKE_BINARY_DIR}/generated-icons/hicolor/scalable/devices/yubikey-oath.svg
+        DESTINATION ${KDE_INSTALL_FULL_ICONDIR}/hicolor/scalable/devices)
 
 feature_summary(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES)

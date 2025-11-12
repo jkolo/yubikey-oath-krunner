@@ -89,11 +89,11 @@ public:
      * @param code TOTP/HOTP code to use
      * @param credentialName Credential name for notifications
      * @param actionType "copy" or "type"
-     * @param deviceModel YubiKey model for notification icon (0 = generic icon)
+     * @param deviceModel Device model for brand-specific notification icon
      * @return ActionResult (Success, Failed, WaitingForPermission)
      *
      * Notification policy:
-     * - Copy action: always shows notification on success
+     * - Copy action: always shows notification on success with device-specific icon
      * - Type action: never shows notification (user sees code being typed)
      * - Both: show error notification on failure
      *
@@ -103,7 +103,7 @@ public:
     ActionExecutor::ActionResult executeActionWithNotification(const QString &code,
                                                                const QString &credentialName,
                                                                const QString &actionType,
-                                                               Shared::YubiKeyModel deviceModel = 0);
+                                                               const Shared::DeviceModel& deviceModel);
 
     /**
      * @brief Shows simple auto-closing notification

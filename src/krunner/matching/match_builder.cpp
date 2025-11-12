@@ -142,15 +142,15 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(OathCredentialProxy *cred
 
     qCDebug(MatchBuilderLog) << "Formatted displayName:" << displayName;
 
-    // Use generic YubiKey icon (deviceModel is now a human-readable QString, not uint32)
-    const QString iconPath = YubiKeyIconResolver::getGenericIconPath();
+    // Use generic OATH icon theme name
+    const QString iconName = YubiKeyIconResolver::getGenericIconName();
 
     // Set match data (index: 0=name, 1=display, 2=code, 3=touch, 4=pwdError, 5=deviceId)
     data << credentialName << displayName << code << requiresTouch << isPasswordError << credentialProxy->deviceId();
     match.setData(data);
     match.setText(displayName);
     match.setSubtext(i18n("YubiKey OATH TOTP/HOTP"));
-    match.setIconName(iconPath);
+    match.setIconName(iconName);
     match.setId(QStringLiteral("yubikey_") + credentialProxy->fullName());
 
     // Convert to CredentialInfo for relevance calculation
@@ -189,19 +189,19 @@ KRunner::QueryMatch MatchBuilder::buildPasswordErrorMatch(const DeviceInfo &devi
     const QString displayMessage = i18n("YubiKey password required: %1", device.deviceName);
     const QString subtext = i18n("Device: %1 - Click to enter password", shortId);
 
-    // Use generic YubiKey icon (deviceModel is now a human-readable QString, not uint32)
-    const QString iconPath = YubiKeyIconResolver::getGenericIconPath();
+    // Use generic OATH icon theme name
+    const QString iconName = YubiKeyIconResolver::getGenericIconName();
 
     match.setData(data);
     match.setText(displayMessage);
     match.setSubtext(subtext);
-    match.setIconName(iconPath);
+    match.setIconName(iconName);
     match.setId(QStringLiteral("yubikey_password_error_") + device._internalDeviceId);
     match.setRelevance(1.0);  // Highest priority
     match.setCategoryRelevance(KRunner::QueryMatch::CategoryRelevance::Highest);
 
     qCDebug(MatchBuilderLog) << "Password error match built for" << device.deviceName
-                              << "model:" << device.deviceModel << "icon:" << iconPath;
+                              << "model:" << device.deviceModel << "icon:" << iconName;
 
     return match;
 }

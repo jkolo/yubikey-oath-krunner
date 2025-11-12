@@ -20,12 +20,6 @@ qt6_add_dbus_adaptor(DBUS_ADAPTOR_SRCS
     YubiKeyOath::Daemon::OathCredentialObject
 )
 
-# Add Qt resources for icons
-set(DAEMON_RESOURCES)
-qt6_add_resources(DAEMON_RESOURCES
-    ../shared/resources/shared.qrc
-)
-
 # Daemon executable
 add_executable(yubikey-oath-daemon
     # Main daemon files
@@ -39,7 +33,6 @@ add_executable(yubikey-oath-daemon
     ../shared/utils/version.cpp
     ../shared/utils/yubikey_icon_resolver.cpp
     ${DBUS_ADAPTOR_SRCS}
-    ${DAEMON_RESOURCES}
 
     # New D-Bus object hierarchy
     dbus/oath_manager_object.cpp

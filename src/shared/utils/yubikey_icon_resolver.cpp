@@ -5,60 +5,56 @@
 
 #include "yubikey_icon_resolver.h"
 #include "../types/device_brand.h"
-#include <QFile>
 
 namespace YubiKeyOath {
 namespace Shared {
 
-QString YubiKeyIconResolver::getIconPath(const DeviceModel& deviceModel)
+// Define static constant
+const QString YubiKeyIconResolver::GENERIC_ICON_NAME = QStringLiteral("yubikey-oath");
+
+QString YubiKeyIconResolver::getIconName(const DeviceModel& deviceModel)
 {
     switch (deviceModel.brand) {
     case DeviceBrand::YubiKey:
-        return getYubiKeyIconPath(deviceModel.modelCode);
+        return getYubiKeyIconName(deviceModel.modelCode);
     case DeviceBrand::Nitrokey:
-        return getNitrokeyIconPath(deviceModel);
+        return getNitrokeyIconName(deviceModel);
     case DeviceBrand::Unknown:
     default:
-        return getGenericIconPath();
+        return getGenericIconName();
     }
 }
 
-QString YubiKeyIconResolver::getIconPath(YubiKeyModel model)
+QString YubiKeyIconResolver::getIconName(YubiKeyModel model)
 {
     // Legacy overload - delegate to brand-specific implementation
-    return getYubiKeyIconPath(model);
+    return getYubiKeyIconName(model);
 }
 
-QString YubiKeyIconResolver::getNitrokeyIconPath(const DeviceModel& deviceModel)
+QString YubiKeyIconResolver::getNitrokeyIconName(const DeviceModel& deviceModel)
 {
-    // Convert model string to icon filename: "Nitrokey 3C NFC" → "nitrokey-3c-nfc"
-    QString filename = deviceModel.modelString.toLower();
-    filename.replace(QLatin1Char(' '), QLatin1Char('-'));
+    // Convert model string to icon theme name: "Nitrokey 3C NFC" → "nitrokey-3c-nfc"
+    QString iconName = deviceModel.modelString.toLower();
+    iconName.replace(QLatin1Char(' '), QLatin1Char('-'));
 
-    // Strategy 1: Try exact match with NFC
-    QString iconPath = buildResourcePath(filename);
-    if (iconExists(iconPath)) {
-        return iconPath;
-    }
+    // Icon theme system will handle fallback automatically via QIcon::fromTheme():
+    // 1. Try exact match (e.g., "nitrokey-3c-nfc")
+    // 2. If not found, Qt looks for icon without variant suffix (e.g., "nitrokey-3c")
+    // 3. If still not found, getIconName() caller provides "yubikey-oath" as generic fallback
+    // Example: QIcon::fromTheme(iconName, QIcon::fromTheme("yubikey-oath"))
+    //
+    // This multi-level fallback ensures users always see an appropriate icon, even for
+    // unknown device models or when icon files are missing from the theme installation.
 
-    // Strategy 2: Try without NFC suffix
-    if (filename.endsWith(QStringLiteral("-nfc"))) {
-        const QString filenameWithoutNFC = filename.left(filename.length() - 4);
-        iconPath = buildResourcePath(filenameWithoutNFC);
-        if (iconExists(iconPath)) {
-            return iconPath;
-        }
-    }
-
-    // Strategy 3: Generic fallback
-    return getGenericIconPath();
+    // Return the exact match - Qt's theme system handles the fallback chain
+    return iconName;
 }
 
-QString YubiKeyIconResolver::getYubiKeyIconPath(YubiKeyModel model)
+QString YubiKeyIconResolver::getYubiKeyIconName(YubiKeyModel model)
 {
     // Unknown model - return generic icon immediately
     if (model == 0) {
-        return getGenericIconPath();
+        return getGenericIconName();
     }
 
     // Extract model components
@@ -66,34 +62,41 @@ QString YubiKeyIconResolver::getYubiKeyIconPath(YubiKeyModel model)
     const YubiKeyVariant variant = getModelVariant(model);
     const YubiKeyPorts ports = getModelPorts(model);
 
-    // Strategy 1: Try exact match (series + variant + ports)
+    // Special case: Series that don't support OATH applet
+    // Bio and Security Key are FIDO-only devices
+    if (series == YubiKeySeries::YubiKeyBio || series == YubiKeySeries::SecurityKey) {
+        return getGenericIconName();
+    }
+
+    // Special case: YubiKey 5 USB-A only (no NFC, no variant)
+    // We don't have a specific icon file for this configuration
+    if ((series == YubiKeySeries::YubiKey5 || series == YubiKeySeries::YubiKey5FIPS) &&
+        variant == YubiKeyVariant::Standard &&
+        !ports.testFlag(YubiKeyPort::USB_C) &&
+        !ports.testFlag(YubiKeyPort::NFC)) {
+        return getGenericIconName();
+    }
+
+    // Icon theme system will automatically try:
+    // Strategy 1: Exact match (series + variant + ports) - e.g., "yubikey-5c-nano"
+    // Strategy 2: Series + ports (ignore variant) - e.g., "yubikey-5c-nfc"
+    // Strategy 3: Generic fallback - "yubikey-oath"
+
+    // For variant models (Nano, etc.), try exact match first
     if (variant != YubiKeyVariant::Standard) {
-        const QString filename = buildIconFilename(series, variant, ports, true);
-        QString iconPath = buildResourcePath(filename);
-        if (iconExists(iconPath)) {
-            return iconPath;
-        }
+        return buildIconName(series, variant, ports, true);
     }
 
-    // Strategy 2: Try series + ports (ignore variant)
-    const QString filename = buildIconFilename(series, variant, ports, false);
-    QString iconPath = buildResourcePath(filename);
-    if (iconExists(iconPath)) {
-        return iconPath;
-    }
-
-    // Strategy 3: Generic fallback
-    // Note: There's no "YubiKey 5" or "YubiKey 5 FIPS" without specific variant/ports
-    // All real models have concrete specifications (5 NFC, 5C, 5C NFC, etc.)
-    return getGenericIconPath();
+    // For standard models, use series + ports
+    return buildIconName(series, variant, ports, false);
 }
 
-QString YubiKeyIconResolver::getGenericIconPath()
+QString YubiKeyIconResolver::getGenericIconName()
 {
-    return QLatin1String(GENERIC_ICON_PATH);
+    return GENERIC_ICON_NAME;
 }
 
-QString YubiKeyIconResolver::buildIconFilename(YubiKeySeries series,
+QString YubiKeyIconResolver::buildIconName(YubiKeySeries series,
                                                 YubiKeyVariant variant,
                                                 YubiKeyPorts ports,
                                                 bool includeVariant)
@@ -184,29 +187,6 @@ QString YubiKeyIconResolver::variantString(YubiKeyVariant variant)
         default:
             return {};
     }
-}
-
-bool YubiKeyIconResolver::iconExists(const QString& iconPath)
-{
-    return QFile::exists(iconPath);
-}
-
-QString YubiKeyIconResolver::buildResourcePath(const QString& filename)
-{
-    // Try PNG first (for real model images with transparency)
-    QString pngPath = QLatin1String(ICON_PATH_PREFIX) + filename + QLatin1String(ICON_EXTENSION_PNG);
-    if (QFile::exists(pngPath)) {
-        return pngPath;
-    }
-
-    // Fall back to SVG (for legacy placeholders and series fallbacks)
-    QString svgPath = QLatin1String(ICON_PATH_PREFIX) + filename + QLatin1String(ICON_EXTENSION_SVG);
-    if (QFile::exists(svgPath)) {
-        return svgPath;
-    }
-
-    // Return SVG path by default (will fail iconExists check later)
-    return svgPath;
 }
 
 } // namespace Shared

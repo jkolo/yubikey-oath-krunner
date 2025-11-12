@@ -23,6 +23,6 @@ QString YubiKeyConfigIconResolver::getModelIcon(const QString& modelString,
     deviceModel.formFactor = 0;  // Not used for icon resolution
     deviceModel.capabilities = capabilities;
 
-    // Use multi-brand icon resolver
-    return YubiKeyIconResolver::getIconPath(deviceModel);
+    // Use multi-brand icon resolver (returns theme icon name)
+    return YubiKeyIconResolver::getIconName(deviceModel);
 }

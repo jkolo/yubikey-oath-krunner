@@ -11,6 +11,8 @@
 #include "../logging_categories.h"
 #include "../storage/yubikey_database.h"
 #include "utils/device_name_formatter.h"
+#include "shared/types/device_brand.h"
+#include "shared/types/yubikey_model.h"
 
 #include <KLocalizedString>
 #include <QDebug>
@@ -61,6 +63,79 @@ void ReconnectWorkflowCoordinator::init()
             this, &ReconnectWorkflowCoordinator::onReconnectTimeout);
 }
 
+/**
+ * @brief Reconstructs DeviceModel from database for offline devices
+ *
+ * When a device is disconnected, we can't query it directly for model information.
+ * This helper reconstructs DeviceModel from cached database data using:
+ * - deviceName to detect brand (YubiKey/Nitrokey via pattern matching)
+ * - deviceModel (YubiKeyModel uint32_t) to get full model details
+ *
+ * This allows showing device-specific icons even when device is offline.
+ *
+ * @param deviceId Device ID to look up in database
+ * @return DeviceModel reconstructed from database, or empty if device not found
+ */
+Shared::DeviceModel ReconnectWorkflowCoordinator::deviceModelFromDatabase(const QString &deviceId)
+{
+    // Try to get device from database
+    std::optional<YubiKeyDatabase::DeviceRecord> const record = m_database->getDevice(deviceId);
+
+    if (!record.has_value()) {
+        qCWarning(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Device not found in database:" << deviceId;
+        return Shared::DeviceModel{}; // Return empty model
+    }
+
+    // Detect brand from device name (user-friendly name like "YubiKey 5C NFC" or "Nitrokey 3C")
+    Shared::DeviceBrand const brand = Shared::detectBrandFromModelString(record->deviceName);
+
+    qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Reconstructing DeviceModel from database"
+                              << "deviceName:" << record->deviceName
+                              << "brand:" << Shared::brandName(brand)
+                              << "modelCode:" << QString(QStringLiteral("0x%1")).arg(record->deviceModel, 8, 16, QLatin1Char('0'));
+
+    // Validate brand detection - warn if we have modelCode but couldn't detect brand
+    if (brand == Shared::DeviceBrand::Unknown && record->deviceModel != 0) {
+        qCWarning(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Could not detect brand from device name"
+                                    << record->deviceName
+                                    << "but have valid modelCode"
+                                    << QString(QStringLiteral("0x%1")).arg(record->deviceModel, 8, 16, QLatin1Char('0'))
+                                    << "- device will use generic fallback icon";
+    }
+
+    // Reconstruct DeviceModel based on brand
+    if (brand == Shared::DeviceBrand::YubiKey) {
+        // Use built-in YubiKey conversion function
+        Shared::DeviceModel model = Shared::toDeviceModel(record->deviceModel);
+        qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: YubiKey model:" << model.modelString;
+        return model;
+    }
+
+    // For Nitrokey (or Unknown), construct basic DeviceModel manually
+    // We don't have full Nitrokey model decoder available here, but we can provide basic info
+    Shared::DeviceModel model;
+    model.brand = brand;
+    model.modelCode = record->deviceModel;
+
+    // Use device name as model string (best we can do without full decoder)
+    // This works because deviceName is typically auto-generated as "Nitrokey 3C NFC" etc.
+    model.modelString = record->deviceName;
+
+    // Basic capabilities for Nitrokey 3 (all variants support these)
+    if (brand == Shared::DeviceBrand::Nitrokey) {
+        model.capabilities = {
+            QStringLiteral("FIDO2"),
+            QStringLiteral("OATH-HOTP"),
+            QStringLiteral("OATH-TOTP"),
+            QStringLiteral("OpenPGP"),
+            QStringLiteral("PIV"),
+        };
+    }
+
+    qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Reconstructed model:" << model.modelString;
+    return model;
+}
+
 void ReconnectWorkflowCoordinator::startReconnectWorkflow(const QString &deviceId,
                                                           const QString &credentialName,
                                                           const QString &actionId)
@@ -89,9 +164,10 @@ void ReconnectWorkflowCoordinator::startReconnectWorkflow(const QString &deviceI
     int const timeoutSeconds = m_config->deviceReconnectTimeout();
     qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Reconnect timeout:" << timeoutSeconds << "seconds";
 
-    // Show reconnect notification with generic icon (device offline, model unknown)
-    // After reconnect, ActionCoordinator will use correct model-specific icon for code notification
-    m_notificationOrchestrator->showReconnectNotification(deviceName, credentialName, timeoutSeconds, 0);
+    // Reconstruct DeviceModel from database to show device-specific icon even when offline
+    // This uses cached device information (name, model code) to display the correct icon
+    const Shared::DeviceModel deviceModel = deviceModelFromDatabase(deviceId);
+    m_notificationOrchestrator->showReconnectNotification(deviceName, credentialName, timeoutSeconds, deviceModel);
 
     // Start timeout timer
     m_timeoutTimer->start(timeoutSeconds * 1000);

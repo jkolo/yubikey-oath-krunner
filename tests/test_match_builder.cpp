@@ -291,7 +291,7 @@ void TestMatchBuilder::testBuildPasswordErrorMatch()
     QVERIFY(match.text().contains(device.deviceName)); // Should contain device name
     QVERIFY(!match.subtext().isEmpty());
     QVERIFY(match.subtext().contains("ABC123")); // Should contain short device ID
-    QCOMPARE(match.iconName(), QString(":/icons/yubikey.svg"));
+    QCOMPARE(match.iconName(), QString("yubikey-oath"));
 
     // KRunner automatically prefixes match ID with runner plugin ID
     // Match ID should be unique per device: "yubikey_password_error_" + deviceId

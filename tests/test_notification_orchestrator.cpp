@@ -86,7 +86,7 @@ private Q_SLOTS:
         const QString credential = QStringLiteral("Google:user@example.com");
         const int expiration = 30;
 
-        m_orchestrator->showCodeNotification(code, credential, expiration);
+        m_orchestrator->showCodeNotification(code, credential, expiration, DeviceModel{});
 
         // Verify notification was shown
         QCOMPARE(m_mockNotificationManager->showCallCount(), 1);
@@ -100,7 +100,7 @@ private Q_SLOTS:
         m_mockConfig->setShowNotifications(false);
 
         m_orchestrator->showCodeNotification(QStringLiteral("123456"),
-                                            QStringLiteral("Test"), 30);
+                                            QStringLiteral("Test"), 30, DeviceModel{});
 
         QCOMPARE(m_mockNotificationManager->showCallCount(), 0);
     }
@@ -110,7 +110,7 @@ private Q_SLOTS:
         m_mockNotificationManager->setAvailable(false);
 
         m_orchestrator->showCodeNotification(QStringLiteral("123456"),
-                                            QStringLiteral("Test"), 30);
+                                            QStringLiteral("Test"), 30, DeviceModel{});
 
         QCOMPARE(m_mockNotificationManager->showCallCount(), 0);
     }
@@ -118,7 +118,7 @@ private Q_SLOTS:
     void testShowCodeNotification_StartsTimer()
     {
         m_orchestrator->showCodeNotification(QStringLiteral("123456"),
-                                            QStringLiteral("Test"), 30);
+                                            QStringLiteral("Test"), 30, DeviceModel{});
 
         // Find code update timer and verify it's active
         auto timers = m_orchestrator->findChildren<QTimer*>();
@@ -137,13 +137,13 @@ private Q_SLOTS:
         // Show first notification
         m_mockNotificationManager->setNextNotificationId(100);
         m_orchestrator->showCodeNotification(QStringLiteral("111111"),
-                                            QStringLiteral("First"), 30);
+                                            QStringLiteral("First"), 30, DeviceModel{});
         QCOMPARE(m_mockNotificationManager->showCallCount(), 1);
 
         // Show second notification
         m_mockNotificationManager->setNextNotificationId(101);
         m_orchestrator->showCodeNotification(QStringLiteral("222222"),
-                                            QStringLiteral("Second"), 30);
+                                            QStringLiteral("Second"), 30, DeviceModel{});
 
         // Should have called show twice, second with replaces_id=100
         QCOMPARE(m_mockNotificationManager->showCallCount(), 2);
@@ -157,7 +157,7 @@ private Q_SLOTS:
         const QString credential = QStringLiteral("GitHub:user");
         const int timeout = 15;
 
-        m_orchestrator->showTouchNotification(credential, timeout);
+        m_orchestrator->showTouchNotification(credential, timeout, DeviceModel{});
 
         // Verify notification was shown
         QCOMPARE(m_mockNotificationManager->showCallCount(), 1);
@@ -171,11 +171,11 @@ private Q_SLOTS:
     {
         // Show first touch notification
         m_mockNotificationManager->setNextNotificationId(200);
-        m_orchestrator->showTouchNotification(QStringLiteral("First"), 15);
+        m_orchestrator->showTouchNotification(QStringLiteral("First"), 15, DeviceModel{});
 
         // Show second touch notification
         m_mockNotificationManager->setNextNotificationId(201);
-        m_orchestrator->showTouchNotification(QStringLiteral("Second"), 15);
+        m_orchestrator->showTouchNotification(QStringLiteral("Second"), 15, DeviceModel{});
 
         // First notification should be closed
         QCOMPARE(m_mockNotificationManager->closeCallCount(), 1);
@@ -186,14 +186,14 @@ private Q_SLOTS:
     {
         m_mockConfig->setShowNotifications(false);
 
-        m_orchestrator->showTouchNotification(QStringLiteral("Test"), 15);
+        m_orchestrator->showTouchNotification(QStringLiteral("Test"), 15, DeviceModel{});
 
         QCOMPARE(m_mockNotificationManager->showCallCount(), 0);
     }
 
     void testShowTouchNotification_StartsTimer()
     {
-        m_orchestrator->showTouchNotification(QStringLiteral("Test"), 15);
+        m_orchestrator->showTouchNotification(QStringLiteral("Test"), 15, DeviceModel{});
 
         // Find active timer
         auto timers = m_orchestrator->findChildren<QTimer*>();
@@ -211,7 +211,7 @@ private Q_SLOTS:
     {
         // Show notification first
         m_mockNotificationManager->setNextNotificationId(300);
-        m_orchestrator->showTouchNotification(QStringLiteral("Test"), 15);
+        m_orchestrator->showTouchNotification(QStringLiteral("Test"), 15, DeviceModel{});
 
         // Close it
         m_orchestrator->closeTouchNotification();
@@ -222,7 +222,7 @@ private Q_SLOTS:
 
     void testCloseTouchNotification_StopsTimer()
     {
-        m_orchestrator->showTouchNotification(QStringLiteral("Test"), 15);
+        m_orchestrator->showTouchNotification(QStringLiteral("Test"), 15, DeviceModel{});
         m_orchestrator->closeTouchNotification();
 
         // Verify no active timers
@@ -391,7 +391,7 @@ private Q_SLOTS:
         const QString deviceName = QStringLiteral("My YubiKey");
         const QString credential = QStringLiteral("Google:user");
 
-        m_orchestrator->showReconnectNotification(deviceName, credential, 30);
+        m_orchestrator->showReconnectNotification(deviceName, credential, 30, DeviceModel{});
 
         QCOMPARE(m_mockNotificationManager->showCallCount(), 1);
         QVERIFY(m_mockNotificationManager->lastTitle().contains(deviceName));
@@ -402,11 +402,11 @@ private Q_SLOTS:
     {
         m_mockNotificationManager->setNextNotificationId(800);
         m_orchestrator->showReconnectNotification(QStringLiteral("Device1"),
-                                                  QStringLiteral("Cred1"), 30);
+                                                  QStringLiteral("Cred1"), 30, DeviceModel{});
 
         m_mockNotificationManager->setNextNotificationId(801);
         m_orchestrator->showReconnectNotification(QStringLiteral("Device2"),
-                                                  QStringLiteral("Cred2"), 30);
+                                                  QStringLiteral("Cred2"), 30, DeviceModel{});
 
         QCOMPARE(m_mockNotificationManager->closeCallCount(), 1);
         QCOMPARE(m_mockNotificationManager->lastClosedId(), 800u);
@@ -415,7 +415,7 @@ private Q_SLOTS:
     void testShowReconnectNotification_StartsTimer()
     {
         m_orchestrator->showReconnectNotification(QStringLiteral("Device"),
-                                                  QStringLiteral("Cred"), 30);
+                                                  QStringLiteral("Cred"), 30, DeviceModel{});
 
         auto timers = m_orchestrator->findChildren<QTimer*>();
         bool foundActiveTimer = false;
@@ -432,7 +432,7 @@ private Q_SLOTS:
     {
         m_mockNotificationManager->setNextNotificationId(900);
         m_orchestrator->showReconnectNotification(QStringLiteral("Device"),
-                                                  QStringLiteral("Cred"), 30);
+                                                  QStringLiteral("Cred"), 30, DeviceModel{});
 
         m_orchestrator->closeReconnectNotification();
 
@@ -443,7 +443,7 @@ private Q_SLOTS:
     void testCloseReconnectNotification_StopsTimer()
     {
         m_orchestrator->showReconnectNotification(QStringLiteral("Device"),
-                                                  QStringLiteral("Cred"), 30);
+                                                  QStringLiteral("Cred"), 30, DeviceModel{});
         m_orchestrator->closeReconnectNotification();
 
         // Verify timer stopped
@@ -463,7 +463,7 @@ private Q_SLOTS:
     {
         // Show touch notification
         m_mockNotificationManager->setNextNotificationId(1000);
-        m_orchestrator->showTouchNotification(QStringLiteral("Test"), 15);
+        m_orchestrator->showTouchNotification(QStringLiteral("Test"), 15, DeviceModel{});
 
         // Setup signal spy
         QSignalSpy spy(m_orchestrator, &NotificationOrchestrator::touchCancelled);
@@ -482,7 +482,7 @@ private Q_SLOTS:
         // Show reconnect notification
         m_mockNotificationManager->setNextNotificationId(1100);
         m_orchestrator->showReconnectNotification(QStringLiteral("Device"),
-                                                  QStringLiteral("Cred"), 30);
+                                                  QStringLiteral("Cred"), 30, DeviceModel{});
 
         // Setup signal spy
         QSignalSpy spy(m_orchestrator, &NotificationOrchestrator::reconnectCancelled);
@@ -503,7 +503,7 @@ private Q_SLOTS:
         // Show code notification
         m_mockNotificationManager->setNextNotificationId(1200);
         m_orchestrator->showCodeNotification(QStringLiteral("123456"),
-                                            QStringLiteral("Test"), 30);
+                                            QStringLiteral("Test"), 30, DeviceModel{});
 
         // Simulate notification closed
         m_mockNotificationManager->simulateNotificationClosed(1200, 1);
@@ -523,7 +523,7 @@ private Q_SLOTS:
     void testOnNotificationClosed_TouchNotification_StopsTimer()
     {
         m_mockNotificationManager->setNextNotificationId(1300);
-        m_orchestrator->showTouchNotification(QStringLiteral("Test"), 15);
+        m_orchestrator->showTouchNotification(QStringLiteral("Test"), 15, DeviceModel{});
 
         m_mockNotificationManager->simulateNotificationClosed(1300, 1);
 

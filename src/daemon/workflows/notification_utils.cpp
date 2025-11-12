@@ -4,15 +4,33 @@
  */
 
 #include "notification_utils.h"
+#include <QVariant>
 
 namespace YubiKeyOath {
 namespace Daemon {
 
-QVariantMap NotificationUtils::createNotificationHints(int urgency, int progressValue)
+QVariantMap NotificationUtils::createNotificationHints(uchar urgency,
+                                                        int progressValue,
+                                                        const QString& iconName)
 {
     QVariantMap hints;
-    hints[QStringLiteral("urgency")] = urgency;
+
+    // CRITICAL: D-Bus notification spec requires 'urgency' hint as BYTE type (D-Bus signature 'y')
+    // QVariant::fromValue<uchar> preserves the byte type; direct assignment would create INT type
+    // Wrong type causes D-Bus errors: "Expected 'y' (byte), got 'i' (int32)" in notification daemon
+    // Example of WRONG approach: hints["urgency"] = urgency;  // Would be int, breaks D-Bus!
+    hints[QStringLiteral("urgency")] = QVariant::fromValue(urgency);
+
+    // Progress value (0-100 percent)
     hints[QStringLiteral("value")] = progressValue;
+
+    // Optional image-path hint for device-specific icons
+    // Uses freedesktop.org icon theme name (e.g., "yubikey-5c-nfc")
+    // System automatically selects appropriate size and fallback
+    if (!iconName.isEmpty()) {
+        hints[QStringLiteral("image-path")] = iconName;
+    }
+
     return hints;
 }
 

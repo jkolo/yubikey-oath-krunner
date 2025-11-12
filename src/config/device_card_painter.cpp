@@ -39,12 +39,13 @@ void DeviceCardPainter::drawCardBackground(QPainter *painter,
 }
 
 void DeviceCardPainter::drawDeviceIcon(QPainter *painter,
-                                       const QString &iconPath,
+                                       const QString &iconName,
                                        const QRect &rect)
 {
     painter->save();
 
-    const QIcon icon = QIcon::fromTheme(iconPath);
+    // Load icon from theme (automatic size/fallback selection)
+    const QIcon icon = QIcon::fromTheme(iconName);
     if (!icon.isNull()) {
         icon.paint(painter, rect);
     }

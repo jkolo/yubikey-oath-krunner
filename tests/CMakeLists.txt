@@ -271,6 +271,7 @@ if(KF6_GuiAddons_FOUND AND X11_FOUND)
                 ../src/daemon/logging_categories.cpp
                 ../src/shared/utils/yubikey_icon_resolver.cpp
                 ../src/shared/types/yubikey_model.cpp
+                ../src/shared/types/device_brand.cpp
                 ../src/shared/utils/version.cpp
         LIBRARIES Qt6::Gui Qt6::Widgets Qt6::DBus KF6::I18n KF6::Notifications KF6::GuiAddons PkgConfig::X11
     )
@@ -295,6 +296,7 @@ add_yubikey_test(test_touch_workflow_coordinator
             ../src/daemon/logging_categories.cpp
             ../src/shared/utils/yubikey_icon_resolver.cpp
             ../src/shared/types/yubikey_model.cpp
+            ../src/shared/types/device_brand.cpp
             ../src/shared/utils/version.cpp
     LIBRARIES Qt6::Core Qt6::DBus KF6::I18n KF6::Notifications
 )
@@ -325,6 +327,7 @@ add_yubikey_test(test_notification_orchestrator
             ../src/daemon/logging_categories.cpp
             ../src/shared/utils/yubikey_icon_resolver.cpp
             ../src/shared/types/yubikey_model.cpp
+            ../src/shared/types/device_brand.cpp
             ../src/shared/utils/version.cpp
     LIBRARIES Qt6::Core Qt6::DBus KF6::I18n KF6::Notifications
 )

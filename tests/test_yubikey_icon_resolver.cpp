@@ -26,7 +26,7 @@ private Q_SLOTS:
     void testGetIconPath_UnknownModel_ReturnsGeneric();
     void testGetIconPath_ZeroModel_ReturnsGeneric();
 
-    // Naming convention tests (via getIconPath)
+    // Naming convention tests (via getIconName)
     void testGetIconPath_YubiKey5_USB_A();
     void testGetIconPath_YubiKey5_USB_C();
     void testGetIconPath_YubiKey5_USB_A_NFC();
@@ -65,12 +65,11 @@ private:
 
 void TestYubiKeyIconResolver::testGetGenericIconPath()
 {
-    QString genericPath = YubiKeyIconResolver::getGenericIconPath();
+    QString genericName = YubiKeyIconResolver::getGenericIconName();
 
-    QVERIFY(!genericPath.isEmpty());
-    QVERIFY(genericPath.contains("yubikey"));
-    QVERIFY(genericPath.endsWith(".svg"));
-    QCOMPARE(genericPath, QString(":/icons/yubikey.svg"));
+    QVERIFY(!genericName.isEmpty());
+    QVERIFY(genericName.contains("yubikey"));
+    QCOMPARE(genericName, QStringLiteral("yubikey-oath"));
 }
 
 // ========== Unknown/Invalid Model Tests ==========
@@ -81,20 +80,20 @@ void TestYubiKeyIconResolver::testGetIconPath_UnknownModel_ReturnsGeneric()
                                             YubiKeyVariant::Standard,
                                             YubiKeyPort::USB_A);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(unknownModel);
+    QString iconName = YubiKeyIconResolver::getIconName(unknownModel);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // Should eventually fall back to generic icon
-    QVERIFY(iconPath.contains("yubikey"));
+    QVERIFY(iconName.contains("yubikey"));
 }
 
 void TestYubiKeyIconResolver::testGetIconPath_ZeroModel_ReturnsGeneric()
 {
     YubiKeyModel zeroModel = 0;
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(zeroModel);
+    QString iconName = YubiKeyIconResolver::getIconName(zeroModel);
 
-    QCOMPARE(iconPath, YubiKeyIconResolver::getGenericIconPath());
+    QCOMPARE(iconName, YubiKeyIconResolver::getGenericIconName());
 }
 
 // ========== Naming Convention Tests ==========
@@ -106,12 +105,12 @@ void TestYubiKeyIconResolver::testGetIconPath_YubiKey5_USB_A()
                                      YubiKeyVariant::Standard,
                                      YubiKeyPort::USB_A);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(model);
+    QString iconName = YubiKeyIconResolver::getIconName(model);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // Path should contain "yubikey-5" (no 'c' for USB-A, no '-nfc', no variant)
     // May be specific icon or fallback to generic
-    QVERIFY(iconPath.contains("yubikey"));
+    QVERIFY(iconName.contains("yubikey"));
 }
 
 void TestYubiKeyIconResolver::testGetIconPath_YubiKey5_USB_C()
@@ -121,11 +120,11 @@ void TestYubiKeyIconResolver::testGetIconPath_YubiKey5_USB_C()
                                      YubiKeyVariant::Standard,
                                      YubiKeyPort::USB_C);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(model);
+    QString iconName = YubiKeyIconResolver::getIconName(model);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // Path should contain "5c" (USB-C indicator)
-    QVERIFY(iconPath.contains("yubikey"));
+    QVERIFY(iconName.contains("yubikey"));
 }
 
 void TestYubiKeyIconResolver::testGetIconPath_YubiKey5_USB_A_NFC()
@@ -135,11 +134,11 @@ void TestYubiKeyIconResolver::testGetIconPath_YubiKey5_USB_A_NFC()
                                      YubiKeyVariant::Standard,
                                      YubiKeyPorts(YubiKeyPort::USB_A) | YubiKeyPort::NFC);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(model);
+    QString iconName = YubiKeyIconResolver::getIconName(model);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // Path should contain "yubikey-5" and "-nfc"
-    QVERIFY(iconPath.contains("yubikey"));
+    QVERIFY(iconName.contains("yubikey"));
 }
 
 void TestYubiKeyIconResolver::testGetIconPath_YubiKey5C_NFC()
@@ -149,11 +148,11 @@ void TestYubiKeyIconResolver::testGetIconPath_YubiKey5C_NFC()
                                      YubiKeyVariant::Standard,
                                      YubiKeyPorts(YubiKeyPort::USB_C) | YubiKeyPort::NFC);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(model);
+    QString iconName = YubiKeyIconResolver::getIconName(model);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // Path should contain "5c" and "nfc"
-    QVERIFY(iconPath.contains("yubikey"));
+    QVERIFY(iconName.contains("yubikey"));
 }
 
 void TestYubiKeyIconResolver::testGetIconPath_YubiKey5_Nano()
@@ -163,11 +162,11 @@ void TestYubiKeyIconResolver::testGetIconPath_YubiKey5_Nano()
                                      YubiKeyVariant::Nano,
                                      YubiKeyPort::USB_A);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(model);
+    QString iconName = YubiKeyIconResolver::getIconName(model);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // Path should contain "yubikey-5" and "nano"
-    QVERIFY(iconPath.contains("yubikey"));
+    QVERIFY(iconName.contains("yubikey"));
 }
 
 void TestYubiKeyIconResolver::testGetIconPath_YubiKey5C_Nano()
@@ -177,11 +176,11 @@ void TestYubiKeyIconResolver::testGetIconPath_YubiKey5C_Nano()
                                      YubiKeyVariant::Nano,
                                      YubiKeyPort::USB_C);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(model);
+    QString iconName = YubiKeyIconResolver::getIconName(model);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // Path should contain "5c" and "nano"
-    QVERIFY(iconPath.contains("yubikey"));
+    QVERIFY(iconName.contains("yubikey"));
 }
 
 void TestYubiKeyIconResolver::testGetIconPath_YubiKey5Ci()
@@ -191,11 +190,11 @@ void TestYubiKeyIconResolver::testGetIconPath_YubiKey5Ci()
                                      YubiKeyVariant::DualConnector,
                                      YubiKeyPorts(YubiKeyPort::USB_C) | YubiKeyPort::Lightning);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(model);
+    QString iconName = YubiKeyIconResolver::getIconName(model);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // Path should contain "5ci" (special dual connector naming)
-    QVERIFY(iconPath.contains("yubikey"));
+    QVERIFY(iconName.contains("yubikey"));
 }
 
 void TestYubiKeyIconResolver::testGetIconPath_YubiKeyBio()
@@ -206,13 +205,13 @@ void TestYubiKeyIconResolver::testGetIconPath_YubiKeyBio()
                                      YubiKeyPort::USB_A,
                                      YubiKeyCapabilities(YubiKeyCapability::FIDO2) | YubiKeyCapability::FIDO_U2F);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(model);
+    QString iconName = YubiKeyIconResolver::getIconName(model);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // Bio doesn't support OATH applet - no specific icon files exist
     // Should fallback to generic icon
-    QVERIFY(iconPath.contains("yubikey"));
-    QVERIFY(iconPath.contains("generic") || iconPath.endsWith(".svg"));
+    QVERIFY(iconName.contains("yubikey"));
+    QVERIFY(iconName == QStringLiteral("yubikey-oath"));
 }
 
 void TestYubiKeyIconResolver::testGetIconPath_YubiKeyNEO_NoNFCSuffix()
@@ -222,14 +221,14 @@ void TestYubiKeyIconResolver::testGetIconPath_YubiKeyNEO_NoNFCSuffix()
                                      YubiKeyVariant::Standard,
                                      YubiKeyPorts(YubiKeyPort::USB_A) | YubiKeyPort::NFC);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(model);
+    QString iconName = YubiKeyIconResolver::getIconName(model);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // Path should contain "neo" but NOT "-nfc" (NEO always has NFC, no suffix needed)
-    QVERIFY(iconPath.contains("yubikey"));
+    QVERIFY(iconName.contains("yubikey"));
     // If it's the specific NEO icon (not generic fallback), verify no -nfc
-    if (iconPath.contains("neo") && !iconPath.contains("generic")) {
-        QVERIFY(!iconPath.contains("-nfc"));
+    if (iconName.contains("neo") && !iconName.contains("generic")) {
+        QVERIFY(!iconName.contains("-nfc"));
     }
 }
 
@@ -240,14 +239,14 @@ void TestYubiKeyIconResolver::testGetIconPath_YubiKey5FIPS()
                                      YubiKeyVariant::Standard,
                                      YubiKeyPort::USB_A);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(model);
+    QString iconName = YubiKeyIconResolver::getIconName(model);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // FIPS models use same icons as non-FIPS counterparts
     // No separate FIPS icon files exist - fallbacks to generic
-    QVERIFY(iconPath.contains("yubikey"));
+    QVERIFY(iconName.contains("yubikey"));
     // Should fallback to generic since no "yubikey-5.png" exists (no USB-A only model)
-    QVERIFY(iconPath.contains("generic") || iconPath.endsWith(".svg"));
+    QVERIFY(iconName == QStringLiteral("yubikey-oath"));
 }
 
 void TestYubiKeyIconResolver::testGetIconPath_YubiKey5FIPS_NFC()
@@ -257,13 +256,13 @@ void TestYubiKeyIconResolver::testGetIconPath_YubiKey5FIPS_NFC()
                                      YubiKeyVariant::Standard,
                                      YubiKeyPorts(YubiKeyPort::USB_A) | YubiKeyPort::NFC);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(model);
+    QString iconName = YubiKeyIconResolver::getIconName(model);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // FIPS models use same icons as non-FIPS counterparts
     // Either finds yubikey-5-nfc.png or falls back to generic (yubikey.svg)
-    QVERIFY(iconPath.contains("yubikey"));
-    QVERIFY(iconPath.contains("yubikey-5-nfc") || iconPath.endsWith(".svg"));
+    QVERIFY(iconName.contains("yubikey"));
+    QVERIFY(iconName == QStringLiteral("yubikey-5-nfc") || iconName == QStringLiteral("yubikey-oath"));
 }
 
 void TestYubiKeyIconResolver::testGetIconPath_YubiKey5FIPS_USB_C_NFC()
@@ -273,13 +272,13 @@ void TestYubiKeyIconResolver::testGetIconPath_YubiKey5FIPS_USB_C_NFC()
                                      YubiKeyVariant::Standard,
                                      YubiKeyPorts(YubiKeyPort::USB_C) | YubiKeyPort::NFC);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(model);
+    QString iconName = YubiKeyIconResolver::getIconName(model);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // FIPS models use same icons as non-FIPS counterparts
     // Either finds yubikey-5c-nfc.png or falls back to generic (yubikey.svg)
-    QVERIFY(iconPath.contains("yubikey"));
-    QVERIFY(iconPath.contains("yubikey-5c-nfc") || iconPath.endsWith(".svg"));
+    QVERIFY(iconName.contains("yubikey"));
+    QVERIFY(iconName == QStringLiteral("yubikey-5c-nfc") || iconName == QStringLiteral("yubikey-oath"));
 }
 
 void TestYubiKeyIconResolver::testGetIconPath_YubiKey4FIPS()
@@ -289,13 +288,13 @@ void TestYubiKeyIconResolver::testGetIconPath_YubiKey4FIPS()
                                      YubiKeyVariant::Standard,
                                      YubiKeyPort::USB_A);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(model);
+    QString iconName = YubiKeyIconResolver::getIconName(model);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // FIPS models use same icons as non-FIPS counterparts
     // Either finds yubikey-4.png or falls back to generic (yubikey.svg)
-    QVERIFY(iconPath.contains("yubikey"));
-    QVERIFY(iconPath.contains("yubikey-4") || iconPath.endsWith(".svg"));
+    QVERIFY(iconName.contains("yubikey"));
+    QVERIFY(iconName == QStringLiteral("yubikey-4") || iconName == QStringLiteral("yubikey-oath"));
 }
 
 void TestYubiKeyIconResolver::testGetIconPath_SecurityKey()
@@ -306,13 +305,13 @@ void TestYubiKeyIconResolver::testGetIconPath_SecurityKey()
                                      YubiKeyPort::USB_A,
                                      YubiKeyCapabilities(YubiKeyCapability::FIDO2) | YubiKeyCapability::FIDO_U2F);
 
-    QString iconPath = YubiKeyIconResolver::getIconPath(model);
+    QString iconName = YubiKeyIconResolver::getIconName(model);
 
-    QVERIFY(!iconPath.isEmpty());
+    QVERIFY(!iconName.isEmpty());
     // Security Key doesn't support OATH applet - no specific icon files exist
     // Should fallback to generic icon
-    QVERIFY(iconPath.contains("yubikey"));
-    QVERIFY(iconPath.contains("generic") || iconPath.endsWith(".svg"));
+    QVERIFY(iconName.contains("yubikey"));
+    QVERIFY(iconName == QStringLiteral("yubikey-oath"));
 }
 
 // ========== Fallback Strategy Tests ==========
@@ -331,9 +330,9 @@ void TestYubiKeyIconResolver::testGetIconPath_AlwaysReturnsNonEmpty()
     };
 
     for (const auto& model : testModels) {
-        QString iconPath = YubiKeyIconResolver::getIconPath(model);
-        QVERIFY2(!iconPath.isEmpty(), "Icon path must never be empty");
-        QVERIFY2(iconPath.contains("yubikey"), "Icon path must contain 'yubikey'");
+        QString iconName = YubiKeyIconResolver::getIconName(model);
+        QVERIFY2(!iconName.isEmpty(), "Icon path must never be empty");
+        QVERIFY2(iconName.contains("yubikey"), "Icon path must contain 'yubikey'");
     }
 }
 
@@ -346,12 +345,12 @@ void TestYubiKeyIconResolver::testGetIconPath_MultipleCallsSameModel_Consistent(
                                      YubiKeyVariant::Standard,
                                      YubiKeyPorts(YubiKeyPort::USB_C) | YubiKeyPort::NFC);
 
-    QString iconPath1 = YubiKeyIconResolver::getIconPath(model);
-    QString iconPath2 = YubiKeyIconResolver::getIconPath(model);
-    QString iconPath3 = YubiKeyIconResolver::getIconPath(model);
+    QString iconName1 = YubiKeyIconResolver::getIconName(model);
+    QString iconName2 = YubiKeyIconResolver::getIconName(model);
+    QString iconName3 = YubiKeyIconResolver::getIconName(model);
 
-    QCOMPARE(iconPath1, iconPath2);
-    QCOMPARE(iconPath2, iconPath3);
+    QCOMPARE(iconName1, iconName2);
+    QCOMPARE(iconName2, iconName3);
 }
 
 QTEST_MAIN(TestYubiKeyIconResolver)

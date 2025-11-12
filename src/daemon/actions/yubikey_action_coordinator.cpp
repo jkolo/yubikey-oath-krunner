@@ -94,11 +94,12 @@ bool YubiKeyActionCoordinator::typeCode(const QString &deviceId, const QString &
 ActionExecutor::ActionResult YubiKeyActionCoordinator::executeActionWithNotification(const QString &code,
                                                                                     const QString &credentialName,
                                                                                     const QString &actionType,
-                                                                                    Shared::YubiKeyModel deviceModel)
+                                                                                    const Shared::DeviceModel& deviceModel)
 {
     qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: executeActionWithNotification"
                                 << "action:" << actionType << "credential:" << credentialName
-                                << "deviceModel:" << QString::number(deviceModel, 16);
+                                << "brand:" << brandName(deviceModel.brand)
+                                << "model:" << deviceModel.modelString;
 
     // Execute action based on type
     ActionExecutor::ActionResult result = ActionExecutor::ActionResult::Failed;
@@ -220,8 +221,8 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
     // If touch required, start async touch workflow to avoid blocking
     if (requiresTouch) {
         qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Touch required, starting async touch workflow";
-        const Shared::YubiKeyModel deviceModelCode = device->deviceModel().modelCode;
-        m_touchWorkflowCoordinator->startTouchWorkflow(credentialName, actionType, actualDeviceId, deviceModelCode);
+        const Shared::DeviceModel deviceModel = device->deviceModel();
+        m_touchWorkflowCoordinator->startTouchWorkflow(credentialName, actionType, actualDeviceId, deviceModel);
         return true; // Workflow started successfully
     }
 
@@ -234,11 +235,11 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
 
     const QString code = codeResult.value();
 
-    // Get device model code for notification icon
-    const Shared::YubiKeyModel deviceModelCode = device->deviceModel().modelCode;
+    // Get device model for notification icon
+    const Shared::DeviceModel deviceModel = device->deviceModel();
 
     // Use unified action execution with notification handling (pass formatted title and device model)
-    const ActionExecutor::ActionResult result = executeActionWithNotification(code, formattedTitle, actionType, deviceModelCode);
+    const ActionExecutor::ActionResult result = executeActionWithNotification(code, formattedTitle, actionType, deviceModel);
     return result == ActionExecutor::ActionResult::Success;
 }
 

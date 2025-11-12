@@ -102,7 +102,7 @@ public:
      * @param credentialName Full credential name (e.g., "Google:user@example.com")
      * @param actionId Action to execute after touch: "copy" or "type"
      * @param deviceId Device ID for multi-device support. If empty, uses default device.
-     * @param deviceModel YubiKey model for notification icon (0 = generic icon)
+     * @param deviceModel Device model for brand-specific notification icon
      *
      * @note Only one workflow can be active at a time. Calling this while
      *       another workflow is in progress cancels the previous one.
@@ -110,7 +110,7 @@ public:
      * @par Thread Safety
      * Must be called from main/UI thread.
      */
-    void startTouchWorkflow(const QString &credentialName, const QString &actionId, const QString &deviceId, Shared::YubiKeyModel deviceModel = 0);
+    void startTouchWorkflow(const QString &credentialName, const QString &actionId, const QString &deviceId, const Shared::DeviceModel& deviceModel);
 
 private Q_SLOTS:
     void onCodeGenerated(const QString &credentialName, const QString &code);
@@ -147,7 +147,7 @@ private:
 
     QString m_pendingActionId; // Action to execute after touch
     QString m_pendingDeviceId; // Device ID for pending touch operation
-    Shared::YubiKeyModel m_pendingDeviceModel{0}; // Device model for notifications
+    Shared::DeviceModel m_pendingDeviceModel; // Device model for notifications
 };
 
 } // namespace Daemon

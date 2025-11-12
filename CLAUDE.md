@@ -114,7 +114,7 @@ YkOathSession (base protocol)
 
 **CredentialFinder** (`src/shared/utils/credential_finder.{h,cpp}` ~25 lines): findCredential() using OathCredential::matches()
 
-**YubiKeyIconResolver** (`src/shared/utils/yubikey_icon_resolver.{h,cpp}` ~185 lines): fallback hierarchy, `:/icons/models/*.png`, FIPS same as non-FIPS
+**YubiKeyIconResolver** (`src/shared/utils/yubikey_icon_resolver.{h,cpp}` ~175 lines): Returns hicolor theme icon names (e.g., "yubikey-5c-nfc"), fallback hierarchy, icons installed in `/usr/share/icons/hicolor/`, FIPS same as non-FIPS, generic fallback "yubikey-oath"
 
 ### UI Components
 
@@ -156,7 +156,7 @@ TextInputFactory → Portal (libportal, xdp_session_keyboard_key, all Wayland) �
 
 **YubiKeyDeviceModel**: QAbstractListModel, v2.0.0 roles: DeviceModelStringRole, CapabilitiesRole
 
-**yubikey_config.ui**: Qt Widgets (NOT QML), MUST call `qInitResources_shared()` in constructor
+**yubikey_config.ui**: Qt Widgets (NOT QML)
 
 ## Design Patterns
 
@@ -178,7 +178,20 @@ TextInputFactory → Portal (libportal, xdp_session_keyboard_key, all Wayland) �
 Fluent API: `FormatOptionsBuilder().withUsername().withDevice(name).withDeviceCount(count).onlyWhenMultipleDevices().build()`
 
 ### Notification Management
-`timeout=0` (manual countdown QTimer 1s), updateNotification() NOT showNotification()
+
+**NotificationUrgency** (`src/daemon/workflows/notification_utils.h`): Low=0, Normal=1, Critical=2 (follows freedesktop.org spec)
+
+**Critical notifications bypass "Do Not Disturb" mode:**
+- Touch request (`showTouchNotification`) - requires physical user interaction
+- Device reconnect (`showReconnectNotification`) - requires device insertion
+- TOTP code display (`showCodeNotification`) - time-sensitive (30s window)
+
+**Device-specific icons in notifications:**
+- Uses `image-path` hint with theme icon names (e.g., "yubikey-5c-nfc")
+- Automatically displays device model icon alongside notification text
+- Fallback to "yubikey-oath" if specific model icon unavailable
+
+**Implementation:** `timeout=0` (manual countdown QTimer 1s), updateNotification() NOT showNotification(), proper D-Bus type handling (uchar for urgency via `QVariant::fromValue()`)
 
 ### Touch Workflow
 1. Show notification + countdown, 2. Poll 500ms, 3. Success: close, execute, show code | Timeout: cancel
@@ -209,7 +222,27 @@ Fluent API: `FormatOptionsBuilder().withUsername().withDevice(name).withDeviceCo
 
 ## Dependencies
 
-Qt 6.7+ (Core, Widgets, Qml, Quick, QuickWidgets, Gui, DBus, Concurrent, Sql), KDE Frameworks 6.0+ (Runner, I18n, Config, ConfigWidgets, Notifications, CoreAddons, Wallet, KCMUtils, WidgetsAddons), PC/SC Lite, xkbcommon, libportal-qt6, KWayland, ZXing-C++
+**Runtime:** Qt 6.7+ (Core, Widgets, Qml, Quick, QuickWidgets, Gui, DBus, Concurrent, Sql), KDE Frameworks 6.0+ (Runner, I18n, Config, ConfigWidgets, Notifications, CoreAddons, Wallet, KCMUtils, WidgetsAddons), PC/SC Lite, xkbcommon, libportal-qt6, KWayland, ZXing-C++
+
+**Build-time only:** ImageMagick 7+ (for icon generation), optipng (optional, for icon optimization)
+
+## Icon System
+
+**Hicolor Theme Integration** (v2.0.0+): Icons follow freedesktop.org hicolor theme standard
+
+**Installation:** Icons installed to `/usr/share/icons/hicolor/{SIZE}/devices/` during build
+- **Sizes:** 16×16, 22×22, 32×32, 48×48, 64×64, 128×128, 256×256 (PNG), scalable (SVG)
+- **Generated automatically:** ImageMagick script (`scripts/generate-icon-sizes.sh`) converts source 1000px PNGs → 7 standard sizes
+- **Build integration:** CMake custom target `generate-icons` runs before compilation
+- **Total files:** 85 icons (12 models × 7 sizes + 1 SVG generic)
+
+**Naming convention:** `{brand}-{series}[{usb}][-{variant}][-nfc]` (no extension)
+- Examples: `yubikey-5c-nfc`, `yubikey-5-nano`, `nitrokey-3c`, `yubikey-oath` (generic fallback)
+- **No Qt resources:** All icons loaded via `QIcon::fromTheme()` - system handles size selection and fallback
+
+**API:** `YubiKeyIconResolver::getIconName(deviceModel)` returns theme name (not path)
+
+**Multi-brand support:** YubiKey (9 models), Nitrokey (3 models), extensible for additional brands
 
 ## Code Style
 

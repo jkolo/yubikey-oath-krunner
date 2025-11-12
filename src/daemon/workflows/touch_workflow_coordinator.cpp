@@ -52,11 +52,12 @@ void TouchWorkflowCoordinator::init()
             this, &TouchWorkflowCoordinator::onTouchCancelled);
 }
 
-void TouchWorkflowCoordinator::startTouchWorkflow(const QString &credentialName, const QString &actionId, const QString &deviceId, Shared::YubiKeyModel deviceModel)
+void TouchWorkflowCoordinator::startTouchWorkflow(const QString &credentialName, const QString &actionId, const QString &deviceId, const Shared::DeviceModel& deviceModel)
 {
     qCDebug(TouchWorkflowCoordinatorLog) << "Starting touch workflow for:" << credentialName
              << "action:" << actionId << "device:" << deviceId
-             << "deviceModel:" << QString::number(deviceModel, 16);
+             << "brand:" << brandName(deviceModel.brand)
+             << "model:" << deviceModel.modelString;
 
     m_pendingActionId = actionId;
     m_pendingDeviceId = deviceId;
@@ -222,7 +223,7 @@ void TouchWorkflowCoordinator::cleanupTouchWorkflow()
     m_notificationOrchestrator->closeTouchNotification();
     m_pendingActionId.clear();
     m_pendingDeviceId.clear();
-    m_pendingDeviceModel = 0;
+    m_pendingDeviceModel = Shared::DeviceModel{};
 }
 
 } // namespace Daemon

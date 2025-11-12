@@ -20,13 +20,8 @@ set(kcm_krunner_yubikey_SRCS
     ../shared/utils/yubikey_icon_resolver.cpp
 )
 
-# Wrap UI files BEFORE adding resources
+# Wrap UI files
 ki18n_wrap_ui(kcm_krunner_yubikey_SRCS yubikey_config.ui)
-
-# Add Qt resources for icons (shared)
-qt6_add_resources(kcm_krunner_yubikey_SRCS
-    ../shared/resources/shared.qrc
-)
 
 add_library(kcm_krunner_yubikey MODULE ${kcm_krunner_yubikey_SRCS})
 

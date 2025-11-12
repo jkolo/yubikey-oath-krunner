@@ -159,13 +159,13 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
             deviceModel.modelString = device->deviceModel();
             deviceModel.capabilities = device->capabilities();
 
-            // Get device-specific icon
-            const QString iconPath = YubiKeyIconResolver::getIconPath(deviceModel);
+            // Get device-specific icon theme name
+            const QString iconName = YubiKeyIconResolver::getIconName(deviceModel);
 
             KRunner::QueryMatch match(this);
             match.setId(QStringLiteral("add-oath-to-") + device->deviceId());
             match.setText(i18n("Add OATH to %1", device->name()));
-            match.setIcon(QIcon(iconPath));  // Use device-specific icon
+            match.setIcon(QIcon::fromTheme(iconName));  // Use device-specific icon from theme
 
             if (device->isConnected()) {
                 match.setSubtext(i18n("Device is connected - ready to add"));

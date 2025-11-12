@@ -26,8 +26,6 @@ set(krunner_yubikey_SRCS
     logging_categories.cpp
 )
 
-qt6_add_resources(krunner_yubikey_SRCS ../shared/resources/shared.qrc)
-
 # Use add_library MODULE like other KRunner plugins
 add_library(krunner_yubikey MODULE ${krunner_yubikey_SRCS})
 

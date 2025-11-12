@@ -140,6 +140,21 @@ private:
     void init();
 
     /**
+     * @brief Reconstructs DeviceModel from database for offline devices
+     *
+     * When a device is disconnected, we can't query it for model information.
+     * This helper reconstructs DeviceModel from cached database data to enable
+     * device-specific icon display in reconnect notifications.
+     *
+     * Uses device name pattern matching to detect brand (YubiKey/Nitrokey),
+     * then converts stored modelCode (YubiKeyModel uint32_t) to full DeviceModel.
+     *
+     * @param deviceId Device ID to look up in database
+     * @return DeviceModel reconstructed from database, or empty if device not found
+     */
+    Shared::DeviceModel deviceModelFromDatabase(const QString &deviceId);
+
+    /**
      * @brief Cleanup reconnect workflow state
      *
      * Centralized cleanup logic that:

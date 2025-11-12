@@ -39,11 +39,11 @@ public:
     /**
      * @brief Draws device icon
      * @param painter QPainter for drawing
-     * @param iconPath Icon resource path
+     * @param iconName Icon theme name (e.g., "yubikey-5c-nfc")
      * @param rect Rectangle for icon
      */
     static void drawDeviceIcon(QPainter *painter,
-                               const QString &iconPath,
+                               const QString &iconName,
                                const QRect &rect);
 
     /**

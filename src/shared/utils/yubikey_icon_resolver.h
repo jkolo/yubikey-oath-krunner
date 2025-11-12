@@ -13,133 +13,122 @@ namespace YubiKeyOath {
 namespace Shared {
 
 /**
- * @brief Resolves model-specific icon paths for OATH devices (YubiKey, Nitrokey, etc.)
+ * @brief Resolves model-specific icon theme names for OATH devices (YubiKey, Nitrokey, etc.)
  *
  * This class provides a centralized mechanism for selecting appropriate
- * icons based on YubiKey model information. It implements a fallback
- * strategy to ensure an icon is always available.
+ * icon theme names based on device model information. Icons are installed
+ * in the standard freedesktop.org hicolor theme following best practices.
  *
  * Icon Selection Algorithm:
- * 1. Try exact match: series + variant + ports (e.g., "yubikey-5c-nano.png")
- * 2. Try series + ports: (e.g., "yubikey-5c-nfc.png")
- * 3. Use generic fallback: "yubikey.svg"
+ * 1. Try exact match: series + variant + ports (e.g., "yubikey-5c-nano")
+ * 2. Try series + ports: (e.g., "yubikey-5c-nfc")
+ * 3. Use generic fallback: "yubikey-oath"
  *
- * Note: There's no series-only fallback (e.g., no "yubikey-5.svg") because
+ * Icons are installed in /usr/share/icons/hicolor/{SIZE}/devices/
+ * and the Qt icon theme system handles automatic fallback and size selection.
+ *
+ * Note: There's no series-only fallback (e.g., no "yubikey-5") because
  * all real YubiKey models have concrete specifications (5 NFC, 5C, etc.)
  *
  * Icon Naming Convention:
  * - All lowercase, hyphen-separated
  * - Format: "yubikey-{series}{usb_type}[-{variant}][-nfc]"
- * - File format: PNG (with transparency) for real models, SVG for generic fallback
+ * - No file extension (theme system handles PNG/SVG selection)
  * - Examples:
- *   - "yubikey-5-nfc.png" (YubiKey 5 NFC, USB-A + NFC)
- *   - "yubikey-5c-nfc.png" (YubiKey 5C NFC, USB-C + NFC)
- *   - "yubikey-5-nano.png" (YubiKey 5 Nano, USB-A)
- *   - "yubikey-5c-nano.png" (YubiKey 5C Nano, USB-C)
- *   - "yubikey-5ci.png" (YubiKey 5Ci, USB-C + Lightning)
- *   - "yubikey-bio.png" (YubiKey Bio USB-A)
- *   - "yubikey-bio-c.png" (YubiKey Bio USB-C)
- *   - "yubikey-neo.png" (YubiKey NEO)
+ *   - "yubikey-5-nfc" (YubiKey 5 NFC, USB-A + NFC)
+ *   - "yubikey-5c-nfc" (YubiKey 5C NFC, USB-C + NFC)
+ *   - "yubikey-5-nano" (YubiKey 5 Nano, USB-A)
+ *   - "yubikey-5c-nano" (YubiKey 5C Nano, USB-C)
+ *   - "yubikey-5ci" (YubiKey 5Ci, USB-C + Lightning)
+ *   - "nitrokey-3c" (Nitrokey 3C)
+ *   - "yubikey-oath" (generic fallback)
  *
  * Usage Example:
  * @code
- * YubiKeyModel model = ...; // From D-Bus or detection
- * QString iconPath = YubiKeyIconResolver::getIconPath(model);
- * // iconPath = ":/icons/models/yubikey-5c-nfc.svg" or fallback
+ * DeviceModel model = ...; // From D-Bus or detection
+ * QString iconName = YubiKeyIconResolver::getIconName(model);
+ * QIcon icon = QIcon::fromTheme(iconName);
+ * // icon will automatically select appropriate size and fallback
  * @endcode
  */
 class YubiKeyIconResolver
 {
 public:
     /**
-     * @brief Gets icon path for device model (multi-brand support)
+     * @brief Gets icon theme name for device model (multi-brand support)
      * @param deviceModel Device model with brand and model string
-     * @return Qt resource path to model-specific icon, or generic icon if not found
+     * @return Icon theme name for model-specific icon, or generic icon if not found
      *
-     * Returns the most specific available icon for the given device model.
+     * Returns the most specific available icon name for the given device model.
      * Supports multiple brands (YubiKey, Nitrokey, etc.) with brand-specific
      * icon naming conventions and fallback strategies.
      *
-     * @note Always returns a valid path - never returns empty string
-     */
-    static QString getIconPath(const DeviceModel& deviceModel);
-
-    /**
-     * @brief Gets icon path for YubiKey model (legacy overload)
-     * @param model Encoded YubiKey model (0xSSVVPPFF format)
-     * @return Qt resource path to model-specific icon, or generic icon if not found
+     * The returned name can be used with QIcon::fromTheme() and will automatically
+     * select the appropriate size and format (PNG/SVG) from the hicolor theme.
      *
-     * @deprecated Use getIconPath(const DeviceModel&) for multi-brand support
+     * @note Always returns a valid icon name - never returns empty string
      */
-    static QString getIconPath(YubiKeyModel model);
+    static QString getIconName(const DeviceModel& deviceModel);
 
     /**
-     * @brief Gets generic YubiKey icon path (fallback)
-     * @return Qt resource path to generic YubiKey icon
+     * @brief Gets icon theme name for YubiKey model (legacy overload)
+     * @param model Encoded YubiKey model (0xSSVVPPFF format)
+     * @return Icon theme name for model-specific icon, or generic icon if not found
+     *
+     * @deprecated Use getIconName(const DeviceModel&) for multi-brand support
      */
-    static QString getGenericIconPath();
+    static QString getIconName(YubiKeyModel model);
+
+    /**
+     * @brief Gets generic OATH icon theme name (fallback)
+     * @return Icon theme name for generic OATH icon ("yubikey-oath")
+     */
+    static QString getGenericIconName();
 
 private:
     /**
-     * @brief Gets icon path for Nitrokey device
+     * @brief Gets icon theme name for Nitrokey device
      * @param deviceModel Device model with Nitrokey brand
-     * @return Qt resource path to Nitrokey icon with fallback strategy
+     * @return Icon theme name for Nitrokey icon ("nitrokey-3c", "nitrokey-3a", etc.)
      */
-    static QString getNitrokeyIconPath(const DeviceModel& deviceModel);
+    static QString getNitrokeyIconName(const DeviceModel& deviceModel);
 
     /**
-     * @brief Gets icon path for YubiKey device
+     * @brief Gets icon theme name for YubiKey device
      * @param model YubiKey model code
-     * @return Qt resource path to YubiKey icon with fallback strategy
+     * @return Icon theme name for YubiKey icon ("yubikey-5c-nfc", "yubikey-neo", etc.)
      */
-    static QString getYubiKeyIconPath(YubiKeyModel model);
+    static QString getYubiKeyIconName(YubiKeyModel model);
 
     /**
-     * @brief Builds icon filename from model components
+     * @brief Builds icon theme name from model components
      * @param series YubiKey series
      * @param variant YubiKey variant (Standard, Nano, DualConnector)
      * @param ports YubiKey ports (USB-A, USB-C, NFC, Lightning)
-     * @param includeVariant Whether to include variant in filename
-     * @return Icon filename without path or extension (e.g., "yubikey-5c-nfc")
+     * @param includeVariant Whether to include variant in name
+     * @return Icon theme name without extension (e.g., "yubikey-5c-nfc")
      */
-    static QString buildIconFilename(YubiKeySeries series,
-                                     YubiKeyVariant variant,
-                                     YubiKeyPorts ports,
-                                     bool includeVariant);
+    static QString buildIconName(YubiKeySeries series,
+                                  YubiKeyVariant variant,
+                                  YubiKeyPorts ports,
+                                  bool includeVariant);
 
     /**
-     * @brief Converts series enum to string for icon filename
+     * @brief Converts series enum to string for icon theme name
      * @param series YubiKey series
      * @return Lowercase series string (e.g., "5", "bio", "neo")
      */
     static QString seriesString(YubiKeySeries series);
 
     /**
-     * @brief Converts variant enum to string for icon filename
+     * @brief Converts variant enum to string for icon theme name
      * @param variant YubiKey variant
      * @return Lowercase variant string (e.g., "nano", "ci", "") or empty if Standard
      */
     static QString variantString(YubiKeyVariant variant);
 
-    /**
-     * @brief Checks if icon resource exists
-     * @param iconPath Qt resource path (e.g., ":/icons/models/yubikey-5c-nfc.svg")
-     * @return true if resource exists, false otherwise
-     */
-    static bool iconExists(const QString& iconPath);
-
-    /**
-     * @brief Builds full Qt resource path from icon filename
-     * @param filename Icon filename without extension (e.g., "yubikey-5c-nfc")
-     * @return Full Qt resource path (e.g., ":/icons/models/yubikey-5c-nfc.svg")
-     */
-    static QString buildResourcePath(const QString& filename);
-
     // Constants
-    static constexpr const char* ICON_PATH_PREFIX = ":/icons/models/";
-    static constexpr const char* ICON_EXTENSION_PNG = ".png";
-    static constexpr const char* ICON_EXTENSION_SVG = ".svg";
-    static constexpr const char* GENERIC_ICON_PATH = ":/icons/yubikey.svg";
+    static const QString GENERIC_ICON_NAME;
 };
 
 } // namespace Shared
