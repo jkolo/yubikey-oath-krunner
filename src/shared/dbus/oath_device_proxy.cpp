@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "yubikey_device_proxy.h"
+#include "oath_device_proxy.h"
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QDBusConnection>
@@ -13,12 +13,12 @@
 #include <QLoggingCategory>
 #include <KLocalizedString>
 
-Q_LOGGING_CATEGORY(YubiKeyDeviceProxyLog, "pl.jkolo.yubikey.oath.daemon.device.proxy")
+Q_LOGGING_CATEGORY(OathDeviceProxyLog, "pl.jkolo.yubikey.oath.daemon.device.proxy")
 
 namespace YubiKeyOath {
 namespace Shared {
 
-YubiKeyDeviceProxy::YubiKeyDeviceProxy(const QString &objectPath,
+OathDeviceProxy::OathDeviceProxy(const QString &objectPath,
                                        const QVariantMap &deviceProperties,
                                        const QHash<QString, QVariantMap> &credentialObjects,
                                        QObject *parent)
@@ -37,7 +37,7 @@ YubiKeyDeviceProxy::YubiKeyDeviceProxy(const QString &objectPath,
                                      this);
 
     if (!m_interface->isValid()) {
-        qCWarning(YubiKeyDeviceProxyLog) << "Failed to create D-Bus interface for device at"
+        qCWarning(OathDeviceProxyLog) << "Failed to create D-Bus interface for device at"
                                           << objectPath
                                           << "Error:" << m_interface->lastError().message();
     }
@@ -68,7 +68,7 @@ YubiKeyDeviceProxy::YubiKeyDeviceProxy(const QString &objectPath,
     const qint64 lastSeenMsecs = deviceProperties.value(QStringLiteral("LastSeen")).toLongLong();
     m_lastSeen = QDateTime::fromMSecsSinceEpoch(lastSeenMsecs);
 
-    qCDebug(YubiKeyDeviceProxyLog) << "Created device proxy for" << m_name
+    qCDebug(OathDeviceProxyLog) << "Created device proxy for" << m_name
                                     << "SerialNumber:" << m_serialNumber
                                     << "at" << objectPath;
 
@@ -81,12 +81,12 @@ YubiKeyDeviceProxy::YubiKeyDeviceProxy(const QString &objectPath,
     connectToSignals();
 }
 
-YubiKeyDeviceProxy::~YubiKeyDeviceProxy()
+OathDeviceProxy::~OathDeviceProxy()
 {
-    qCDebug(YubiKeyDeviceProxyLog) << "Destroying device proxy for" << m_name;
+    qCDebug(OathDeviceProxyLog) << "Destroying device proxy for" << m_name;
 }
 
-void YubiKeyDeviceProxy::connectToSignals()
+void OathDeviceProxy::connectToSignals()
 {
     if (!m_interface || !m_interface->isValid()) {
         return;
@@ -122,47 +122,47 @@ void YubiKeyDeviceProxy::connectToSignals()
     );
 }
 
-QList<YubiKeyCredentialProxy*> YubiKeyDeviceProxy::credentials() const
+QList<OathCredentialProxy*> OathDeviceProxy::credentials() const
 {
     return m_credentials.values();
 }
 
-YubiKeyCredentialProxy* YubiKeyDeviceProxy::getCredential(const QString &credentialName) const
+OathCredentialProxy* OathDeviceProxy::getCredential(const QString &credentialName) const
 {
     return m_credentials.value(credentialName, nullptr);
 }
 
-bool YubiKeyDeviceProxy::savePassword(const QString &password)
+bool OathDeviceProxy::savePassword(const QString &password)
 {
     if (!m_interface || !m_interface->isValid()) {
-        qCWarning(YubiKeyDeviceProxyLog) << "Cannot save password: D-Bus interface invalid";
+        qCWarning(OathDeviceProxyLog) << "Cannot save password: D-Bus interface invalid";
         return false;
     }
 
     QDBusReply<bool> reply = m_interface->call(QStringLiteral("SavePassword"), password);
 
     if (!reply.isValid()) {
-        qCWarning(YubiKeyDeviceProxyLog) << "SavePassword failed for" << m_name
+        qCWarning(OathDeviceProxyLog) << "SavePassword failed for" << m_name
                                           << "Error:" << reply.error().message();
         return false;
     }
 
     bool const success = reply.value();
-    qCDebug(YubiKeyDeviceProxyLog) << "SavePassword for" << m_name << "Result:" << success;
+    qCDebug(OathDeviceProxyLog) << "SavePassword for" << m_name << "Result:" << success;
     return success;
 }
 
-bool YubiKeyDeviceProxy::changePassword(const QString &oldPassword, const QString &newPassword)
+bool OathDeviceProxy::changePassword(const QString &oldPassword, const QString &newPassword)
 {
     QString errorMessage;  // Unused in this overload
     return changePassword(oldPassword, newPassword, errorMessage);
 }
 
-bool YubiKeyDeviceProxy::changePassword(const QString &oldPassword, const QString &newPassword, QString &errorMessage)
+bool OathDeviceProxy::changePassword(const QString &oldPassword, const QString &newPassword, QString &errorMessage)
 {
     if (!m_interface || !m_interface->isValid()) {
         errorMessage = QStringLiteral("D-Bus interface invalid");
-        qCWarning(YubiKeyDeviceProxyLog) << "Cannot change password:" << errorMessage;
+        qCWarning(OathDeviceProxyLog) << "Cannot change password:" << errorMessage;
         return false;
     }
 
@@ -171,13 +171,13 @@ bool YubiKeyDeviceProxy::changePassword(const QString &oldPassword, const QStrin
 
     if (!reply.isValid()) {
         errorMessage = reply.error().message();
-        qCWarning(YubiKeyDeviceProxyLog) << "ChangePassword failed for" << m_name
+        qCWarning(OathDeviceProxyLog) << "ChangePassword failed for" << m_name
                                           << "Error:" << errorMessage;
         return false;
     }
 
     bool const success = reply.value();
-    qCDebug(YubiKeyDeviceProxyLog) << "ChangePassword for" << m_name << "Result:" << success;
+    qCDebug(OathDeviceProxyLog) << "ChangePassword for" << m_name << "Result:" << success;
 
     if (!success) {
         // D-Bus call succeeded but operation failed
@@ -189,25 +189,25 @@ bool YubiKeyDeviceProxy::changePassword(const QString &oldPassword, const QStrin
     return success;
 }
 
-void YubiKeyDeviceProxy::forget()
+void OathDeviceProxy::forget()
 {
     if (!m_interface || !m_interface->isValid()) {
-        qCWarning(YubiKeyDeviceProxyLog) << "Cannot forget device: D-Bus interface invalid";
+        qCWarning(OathDeviceProxyLog) << "Cannot forget device: D-Bus interface invalid";
         return;
     }
 
     QDBusReply<void> reply = m_interface->call(QStringLiteral("Forget"));
 
     if (!reply.isValid()) {
-        qCWarning(YubiKeyDeviceProxyLog) << "Forget failed for" << m_name
+        qCWarning(OathDeviceProxyLog) << "Forget failed for" << m_name
                                           << "Error:" << reply.error().message();
         return;
     }
 
-    qCDebug(YubiKeyDeviceProxyLog) << "Forgot device" << m_name;
+    qCDebug(OathDeviceProxyLog) << "Forgot device" << m_name;
 }
 
-AddCredentialResult YubiKeyDeviceProxy::addCredential(const QString &name,
+AddCredentialResult OathDeviceProxy::addCredential(const QString &name,
                                                       const QString &secret,
                                                       const QString &type,
                                                       const QString &algorithm,
@@ -217,7 +217,7 @@ AddCredentialResult YubiKeyDeviceProxy::addCredential(const QString &name,
                                                       bool requireTouch)
 {
     if (!m_interface || !m_interface->isValid()) {
-        qCWarning(YubiKeyDeviceProxyLog) << "Cannot add credential: D-Bus interface invalid";
+        qCWarning(OathDeviceProxyLog) << "Cannot add credential: D-Bus interface invalid";
         return AddCredentialResult{QStringLiteral("Error"), QStringLiteral("D-Bus interface invalid")};
     }
 
@@ -227,22 +227,22 @@ AddCredentialResult YubiKeyDeviceProxy::addCredential(const QString &name,
     );
 
     if (!reply.isValid()) {
-        qCWarning(YubiKeyDeviceProxyLog) << "AddCredential failed for" << m_name
+        qCWarning(OathDeviceProxyLog) << "AddCredential failed for" << m_name
                                           << "Error:" << reply.error().message();
         return AddCredentialResult{QStringLiteral("Error"), reply.error().message()};
     }
 
     auto result = reply.value();
-    qCDebug(YubiKeyDeviceProxyLog) << "AddCredential for" << m_name
+    qCDebug(OathDeviceProxyLog) << "AddCredential for" << m_name
                                     << "Status:" << result.status
                                     << "PathOrMessage:" << result.message;
     return result;
 }
 
-bool YubiKeyDeviceProxy::setName(const QString &newName)
+bool OathDeviceProxy::setName(const QString &newName)
 {
     if (!m_interface || !m_interface->isValid()) {
-        qCWarning(YubiKeyDeviceProxyLog) << "Cannot set name: D-Bus interface invalid";
+        qCWarning(OathDeviceProxyLog) << "Cannot set name: D-Bus interface invalid";
         return false;
     }
 
@@ -258,7 +258,7 @@ bool YubiKeyDeviceProxy::setName(const QString &newName)
                                                   QVariant::fromValue(QDBusVariant(newName)));
 
     if (!reply.isValid()) {
-        qCWarning(YubiKeyDeviceProxyLog) << "setName failed for" << m_name
+        qCWarning(OathDeviceProxyLog) << "setName failed for" << m_name
                                           << "Error:" << reply.error().message();
         return false;
     }
@@ -267,11 +267,11 @@ bool YubiKeyDeviceProxy::setName(const QString &newName)
     m_name = newName;
     Q_EMIT nameChanged(newName);
 
-    qCDebug(YubiKeyDeviceProxyLog) << "Updated device name to" << newName;
+    qCDebug(OathDeviceProxyLog) << "Updated device name to" << newName;
     return true;
 }
 
-DeviceInfo YubiKeyDeviceProxy::toDeviceInfo() const
+DeviceInfo OathDeviceProxy::toDeviceInfo() const
 {
     DeviceInfo info;
     info._internalDeviceId = m_deviceId;
@@ -289,10 +289,10 @@ DeviceInfo YubiKeyDeviceProxy::toDeviceInfo() const
     return info;
 }
 
-void YubiKeyDeviceProxy::onCredentialAddedSignal(const QDBusObjectPath &credentialPath)
+void OathDeviceProxy::onCredentialAddedSignal(const QDBusObjectPath &credentialPath)
 {
     QString const path = credentialPath.path();
-    qCDebug(YubiKeyDeviceProxyLog) << "CredentialAdded signal received for" << path;
+    qCDebug(OathDeviceProxyLog) << "CredentialAdded signal received for" << path;
 
     // Fetch credential properties via D-Bus Properties interface
     QDBusInterface propsInterface(QLatin1String(SERVICE_NAME),
@@ -306,7 +306,7 @@ void YubiKeyDeviceProxy::onCredentialAddedSignal(const QDBusObjectPath &credenti
     );
 
     if (!reply.isValid()) {
-        qCWarning(YubiKeyDeviceProxyLog) << "Failed to get credential properties for" << path
+        qCWarning(OathDeviceProxyLog) << "Failed to get credential properties for" << path
                                           << "Error:" << reply.error().message();
         return;
     }
@@ -314,14 +314,14 @@ void YubiKeyDeviceProxy::onCredentialAddedSignal(const QDBusObjectPath &credenti
     addCredentialProxy(path, reply.value());
 }
 
-void YubiKeyDeviceProxy::onCredentialRemovedSignal(const QDBusObjectPath &credentialPath)
+void OathDeviceProxy::onCredentialRemovedSignal(const QDBusObjectPath &credentialPath)
 {
     QString const path = credentialPath.path();
-    qCDebug(YubiKeyDeviceProxyLog) << "CredentialRemoved signal received for" << path;
+    qCDebug(OathDeviceProxyLog) << "CredentialRemoved signal received for" << path;
     removeCredentialProxy(path);
 }
 
-void YubiKeyDeviceProxy::onPropertiesChanged(const QString &interfaceName,
+void OathDeviceProxy::onPropertiesChanged(const QString &interfaceName,
                                             const QVariantMap &changedProperties,
                                             const QStringList &invalidatedProperties)
 {
@@ -331,7 +331,7 @@ void YubiKeyDeviceProxy::onPropertiesChanged(const QString &interfaceName,
         return;
     }
 
-    qCDebug(YubiKeyDeviceProxyLog) << "PropertiesChanged for" << m_name
+    qCDebug(OathDeviceProxyLog) << "PropertiesChanged for" << m_name
                                     << "Changed properties:" << changedProperties.keys();
 
     // Update cached properties
@@ -356,32 +356,32 @@ void YubiKeyDeviceProxy::onPropertiesChanged(const QString &interfaceName,
     }
 }
 
-void YubiKeyDeviceProxy::addCredentialProxy(const QString &objectPath,
+void OathDeviceProxy::addCredentialProxy(const QString &objectPath,
                                            const QVariantMap &properties)
 {
     // Extract credential name from properties
-    QString const credentialName = properties.value(QStringLiteral("Name")).toString();
+    QString const credentialName = properties.value(QStringLiteral("FullName")).toString();
 
     if (credentialName.isEmpty()) {
-        qCWarning(YubiKeyDeviceProxyLog) << "Cannot add credential proxy: name is empty";
+        qCWarning(OathDeviceProxyLog) << "Cannot add credential proxy: name is empty";
         return;
     }
 
     // Check if already exists
     if (m_credentials.contains(credentialName)) {
-        qCDebug(YubiKeyDeviceProxyLog) << "Credential" << credentialName << "already exists, skipping";
+        qCDebug(OathDeviceProxyLog) << "Credential" << credentialName << "already exists, skipping";
         return;
     }
 
     // Create credential proxy (this object becomes parent, so proxy is auto-deleted)
-    auto *credential = new YubiKeyCredentialProxy(objectPath, properties, this);
+    auto *credential = new OathCredentialProxy(objectPath, properties, this);
     m_credentials.insert(credentialName, credential);
 
-    qCDebug(YubiKeyDeviceProxyLog) << "Added credential proxy:" << credentialName;
+    qCDebug(OathDeviceProxyLog) << "Added credential proxy:" << credentialName;
     Q_EMIT credentialAdded(credential);
 }
 
-void YubiKeyDeviceProxy::removeCredentialProxy(const QString &objectPath)
+void OathDeviceProxy::removeCredentialProxy(const QString &objectPath)
 {
     // Find credential by object path
     QString credentialName;
@@ -393,14 +393,14 @@ void YubiKeyDeviceProxy::removeCredentialProxy(const QString &objectPath)
     }
 
     if (credentialName.isEmpty()) {
-        qCDebug(YubiKeyDeviceProxyLog) << "Credential not found for path" << objectPath;
+        qCDebug(OathDeviceProxyLog) << "Credential not found for path" << objectPath;
         return;
     }
 
     // Remove and delete credential proxy
     auto *credential = m_credentials.take(credentialName);
     if (credential) {
-        qCDebug(YubiKeyDeviceProxyLog) << "Removed credential proxy:" << credentialName;
+        qCDebug(OathDeviceProxyLog) << "Removed credential proxy:" << credentialName;
         Q_EMIT credentialRemoved(credentialName);
         credential->deleteLater();
     }

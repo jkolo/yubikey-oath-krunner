@@ -5,13 +5,24 @@
 
 #include "yubikey_config_icon_resolver.h"
 #include "yubikey_config.h"
+#include "../shared/types/device_brand.h"
+#include "../shared/types/device_model.h"
+#include "../shared/utils/yubikey_icon_resolver.h"
 
-YubiKeyConfigIconResolver::YubiKeyConfigIconResolver(YubiKeyOath::Config::YubiKeyConfig *config)
-    : m_config(config)
-{
-}
+using namespace YubiKeyOath::Shared;
 
-QString YubiKeyConfigIconResolver::getModelIcon(quint32 deviceModel) const
+QString YubiKeyConfigIconResolver::getModelIcon(const QString& modelString,
+                                                quint32 modelCode,
+                                                const QStringList& capabilities) const
 {
-    return m_config->getModelIcon(deviceModel);
+    // Reconstruct DeviceModel from available data
+    DeviceModel deviceModel;
+    deviceModel.brand = detectBrandFromModelString(modelString);
+    deviceModel.modelCode = modelCode;
+    deviceModel.modelString = modelString;
+    deviceModel.formFactor = 0;  // Not used for icon resolution
+    deviceModel.capabilities = capabilities;
+
+    // Use multi-brand icon resolver
+    return YubiKeyIconResolver::getIconPath(deviceModel);
 }

@@ -3,13 +3,13 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#ifndef YUBIKEY_MANAGER_PROXY_H
-#define YUBIKEY_MANAGER_PROXY_H
+#ifndef OATH_MANAGER_PROXY_H
+#define OATH_MANAGER_PROXY_H
 
 #include <QObject>
 #include <QString>
 #include <QHash>
-#include "yubikey_device_proxy.h"
+#include "oath_device_proxy.h"
 
 // Forward declarations
 class QDBusInterface;
@@ -38,23 +38,23 @@ namespace Shared {
  *
  * Architecture:
  * ```
- * YubiKeyManagerProxy (singleton) ← YOU ARE HERE
+ * OathManagerProxy (singleton) ← YOU ARE HERE
  *     ↓ owns
- * YubiKeyDeviceProxy (per device)
+ * OathDeviceProxy (per device)
  *     ↓ owns
- * YubiKeyCredentialProxy (per credential)
+ * OathCredentialProxy (per credential)
  * ```
  *
  * Usage:
  * ```cpp
- * auto *manager = YubiKeyManagerProxy::instance();
- * connect(manager, &YubiKeyManagerProxy::deviceConnected, this, &MyClass::onDeviceConnected);
+ * auto *manager = OathManagerProxy::instance();
+ * connect(manager, &OathManagerProxy::deviceConnected, this, &MyClass::onDeviceConnected);
  *
- * QList<YubiKeyDeviceProxy*> devices = manager->devices();
- * QList<YubiKeyCredentialProxy*> allCredentials = manager->getAllCredentials();
+ * QList<OathDeviceProxy*> devices = manager->devices();
+ * QList<OathCredentialProxy*> allCredentials = manager->getAllCredentials();
  * ```
  */
-class YubiKeyManagerProxy : public QObject
+class OathManagerProxy : public QObject
 {
     Q_OBJECT
 
@@ -66,9 +66,9 @@ public:
      *
      * Creates instance on first call and monitors daemon availability.
      */
-    static YubiKeyManagerProxy* instance(QObject *parent = nullptr);
+    static OathManagerProxy* instance(QObject *parent = nullptr);
 
-    ~YubiKeyManagerProxy() override;
+    ~OathManagerProxy() override;
 
     // ========== Manager Properties ==========
 
@@ -82,14 +82,14 @@ public:
      * @brief Gets all device proxies
      * @return List of device proxy pointers (owned by this object)
      */
-    QList<YubiKeyDeviceProxy*> devices() const;
+    QList<OathDeviceProxy*> devices() const;
 
     /**
      * @brief Gets specific device by ID
      * @param deviceId Device ID (hex string)
      * @return Device proxy pointer or nullptr if not found
      */
-    YubiKeyDeviceProxy* getDevice(const QString &deviceId) const;
+    OathDeviceProxy* getDevice(const QString &deviceId) const;
 
     /**
      * @brief Gets all credential proxies from all devices
@@ -97,7 +97,7 @@ public:
      *
      * Aggregates credentials from all connected devices.
      */
-    QList<YubiKeyCredentialProxy*> getAllCredentials() const;
+    QList<OathCredentialProxy*> getAllCredentials() const;
 
     /**
      * @brief Checks if daemon is currently available
@@ -119,7 +119,7 @@ Q_SIGNALS:
      * @brief Emitted when a YubiKey device is connected or discovered
      * @param device Device proxy (owned by ManagerProxy)
      */
-    void deviceConnected(YubiKeyDeviceProxy *device);
+    void deviceConnected(OathDeviceProxy *device);
 
     /**
      * @brief Emitted when a YubiKey device is disconnected
@@ -146,7 +146,7 @@ Q_SIGNALS:
      * @brief Emitted when device properties change (name, connection status, password state)
      * @param device Device proxy with changed properties
      */
-    void devicePropertyChanged(YubiKeyDeviceProxy *device);
+    void devicePropertyChanged(OathDeviceProxy *device);
 
 private Q_SLOTS:
     void onInterfacesAdded(const QDBusMessage &message);
@@ -159,7 +159,7 @@ private Q_SLOTS:
     void onDBusServiceUnregistered(const QString &serviceName);
 
 private:  // NOLINT(readability-redundant-access-specifiers) - Required to close Q_SLOTS section for moc
-    explicit YubiKeyManagerProxy(QObject *parent = nullptr);
+    explicit OathManagerProxy(QObject *parent = nullptr);
 
     void setupServiceWatcher();
     void connectToSignals();
@@ -171,7 +171,7 @@ private:  // NOLINT(readability-redundant-access-specifiers) - Required to close
     void removeDeviceProxy(const QString &devicePath);
 
     // Singleton instance
-    static YubiKeyManagerProxy *s_instance;
+    static OathManagerProxy *s_instance;
 
     QDBusInterface *m_managerInterface{nullptr};
     QDBusInterface *m_objectManagerInterface{nullptr};
@@ -182,7 +182,7 @@ private:  // NOLINT(readability-redundant-access-specifiers) - Required to close
     QString m_version;
 
     // Device proxies (owned by this object via Qt parent-child)
-    QHash<QString, YubiKeyDeviceProxy*> m_devices; // key: device ID
+    QHash<QString, OathDeviceProxy*> m_devices; // key: device ID
 
     static constexpr const char *SERVICE_NAME = "pl.jkolo.yubikey.oath.daemon";
     static constexpr const char *MANAGER_PATH = "/pl/jkolo/yubikey/oath";
@@ -196,4 +196,4 @@ private:  // NOLINT(readability-redundant-access-specifiers) - Required to close
 } // namespace Shared
 } // namespace YubiKeyOath
 
-#endif // YUBIKEY_MANAGER_PROXY_H
+#endif // OATH_MANAGER_PROXY_H

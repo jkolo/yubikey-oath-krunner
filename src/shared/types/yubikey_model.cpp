@@ -393,7 +393,7 @@ YubiKeyPorts formFactorToPorts(quint8 formFactor)
 
 } // anonymous namespace
 
-YubiKeyModel detectModel(const Version& firmware, const QString& ykmanOutput, quint8 formFactor, quint16 nfcSupported)
+YubiKeyModel detectYubiKeyModel(const Version& firmware, const QString& ykmanOutput, quint8 formFactor, quint16 nfcSupported)
 {
     // Try parsing ykman output first (most reliable)
     if (!ykmanOutput.isEmpty()) {
@@ -478,6 +478,51 @@ YubiKeyModel detectModel(const Version& firmware, const QString& ykmanOutput, qu
     }
 
     return createModel(series, variant, ports, capabilities);
+}
+
+DeviceModel toDeviceModel(YubiKeyModel ykModel)
+{
+    DeviceModel model;
+    model.brand = DeviceBrand::YubiKey;
+    model.modelCode = ykModel;
+    model.formFactor = 0; // Not available from encoded model
+
+    // Convert to human-readable string
+    model.modelString = modelToString(ykModel);
+
+    // Extract capabilities from encoding
+    const YubiKeyCapabilities caps = getModelCapabilities(ykModel);
+
+    // Build capabilities list
+    QStringList capList;
+    if (caps & YubiKeyCapability::FIDO2) {
+        capList.append(QStringLiteral("FIDO2"));
+    }
+    if (caps & YubiKeyCapability::FIDO_U2F) {
+        capList.append(QStringLiteral("FIDO U2F"));
+    }
+    if (caps & YubiKeyCapability::YubicoOTP) {
+        capList.append(QStringLiteral("Yubico OTP"));
+    }
+    if (caps & YubiKeyCapability::OATH_HOTP) {
+        capList.append(QStringLiteral("OATH-HOTP"));
+    }
+    if (caps & YubiKeyCapability::OATH_TOTP) {
+        capList.append(QStringLiteral("OATH-TOTP"));
+    }
+    if (caps & YubiKeyCapability::PIV) {
+        capList.append(QStringLiteral("PIV"));
+    }
+    if (caps & YubiKeyCapability::OpenPGP) {
+        capList.append(QStringLiteral("OpenPGP"));
+    }
+    if (caps & YubiKeyCapability::HMAC_SHA1) {
+        capList.append(QStringLiteral("HMAC-SHA1"));
+    }
+
+    model.capabilities = capList;
+
+    return model;
 }
 
 } // namespace Shared

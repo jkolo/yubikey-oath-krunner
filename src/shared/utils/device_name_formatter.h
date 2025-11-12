@@ -7,7 +7,7 @@
 
 #include <QString>
 #include <optional>
-#include "types/yubikey_model.h"
+#include "shared/types/device_model.h"
 
 // Forward declaration
 namespace YubiKeyOath {
@@ -31,21 +31,21 @@ public:
     /**
      * @brief Generates default device name from model and serial number
      * @param deviceId Device ID (fallback if model unknown)
-     * @param model YubiKey model (e.g., 0x05030402 for YubiKey 5C NFC)
+     * @param deviceModel Device model with brand and model string
      * @param serialNumber Device serial number (0 if unavailable)
      * @param database Database for checking duplicate names
-     * @return Formatted name like "YubiKey 5C NFC - 12345678" or "YubiKey 5C NFC 2"
+     * @return Formatted name like "YubiKey 5C NFC - 12345678" or "Nitrokey 3C NFC - 56272111"
      *
      * Format rules:
-     * - With serial: "YubiKey {MODEL} - {SERIAL}" (e.g., "YubiKey 5C NFC - 12345678")
-     * - Without serial (first): "YubiKey {MODEL}" (e.g., "YubiKey 5C NFC")
-     * - Without serial (duplicate): "YubiKey {MODEL} {N}" (e.g., "YubiKey 5C NFC 2")
+     * - With serial: "{BRAND} {MODEL} - {SERIAL}" (e.g., "YubiKey 5C NFC - 12345678")
+     * - Without serial (first): "{BRAND} {MODEL}" (e.g., "Nitrokey 3C NFC")
+     * - Without serial (duplicate): "{BRAND} {MODEL} {N}" (e.g., "YubiKey 5C NFC 2")
      * - Unknown model: Falls back to device ID format "YubiKey (...4ccb10db)"
      *
      * @note Thread-safe: Database operations are thread-safe
      */
     static QString generateDefaultName(const QString &deviceId,
-                                      YubiKeyModel model,
+                                      const DeviceModel& deviceModel,
                                       quint32 serialNumber,
                                       Daemon::YubiKeyDatabase *database);
 

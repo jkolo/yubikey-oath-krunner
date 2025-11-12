@@ -4,20 +4,20 @@
 # New hierarchical D-Bus interfaces
 qt6_add_dbus_adaptor(DBUS_ADAPTOR_SRCS
     dbus/pl.jkolo.yubikey.oath.Manager.xml
-    dbus/yubikey_manager_object.h
-    YubiKeyOath::Daemon::YubiKeyManagerObject
+    dbus/oath_manager_object.h
+    YubiKeyOath::Daemon::OathManagerObject
 )
 
 qt6_add_dbus_adaptor(DBUS_ADAPTOR_SRCS
     dbus/pl.jkolo.yubikey.oath.Device.xml
-    dbus/yubikey_device_object.h
-    YubiKeyOath::Daemon::YubiKeyDeviceObject
+    dbus/oath_device_object.h
+    YubiKeyOath::Daemon::OathDeviceObject
 )
 
 qt6_add_dbus_adaptor(DBUS_ADAPTOR_SRCS
     dbus/pl.jkolo.yubikey.oath.Credential.xml
-    dbus/yubikey_credential_object.h
-    YubiKeyOath::Daemon::YubiKeyCredentialObject
+    dbus/oath_credential_object.h
+    YubiKeyOath::Daemon::OathCredentialObject
 )
 
 # Add Qt resources for icons
@@ -32,6 +32,8 @@ add_executable(yubikey-oath-daemon
     main.cpp
     yubikey_dbus_service.cpp
     ../shared/types/yubikey_value_types.cpp
+    ../shared/types/device_brand.cpp
+    ../shared/types/device_capabilities.cpp
     ../shared/utils/credential_finder.cpp
     ../shared/utils/device_name_formatter.cpp
     ../shared/utils/version.cpp
@@ -40,16 +42,22 @@ add_executable(yubikey-oath-daemon
     ${DAEMON_RESOURCES}
 
     # New D-Bus object hierarchy
-    dbus/yubikey_manager_object.cpp
-    dbus/yubikey_device_object.cpp
-    dbus/yubikey_credential_object.cpp
+    dbus/oath_manager_object.cpp
+    dbus/oath_device_object.cpp
+    dbus/oath_credential_object.cpp
 
     # OATH components (PC/SC communication)
+    oath/oath_device.cpp
     oath/yubikey_device_manager.cpp
     oath/yubikey_oath_device.cpp
+    oath/nitrokey_oath_device.cpp
     oath/oath_protocol.cpp
-    oath/oath_session.cpp
+    oath/yk_oath_protocol.cpp
+    oath/nitrokey_secrets_oath_protocol.cpp
+    oath/yk_oath_session.cpp
+    oath/nitrokey_oath_session.cpp
     oath/management_protocol.cpp
+    oath/nitrokey_model_detector.cpp
 
     # Storage components
     storage/yubikey_database.cpp

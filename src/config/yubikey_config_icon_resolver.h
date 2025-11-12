@@ -14,28 +14,26 @@ class YubiKeyConfig;
 }
 
 /**
- * @brief Adapter that implements IDeviceIconResolver by delegating to YubiKeyConfig
+ * @brief Adapter that implements IDeviceIconResolver for multi-brand icon resolution
  *
- * This adapter allows DeviceDelegate to use YubiKeyConfig's icon resolution
+ * This adapter allows DeviceDelegate to use YubiKeyIconResolver's multi-brand icon resolution
  * functionality through a minimal interface, following the Interface Segregation Principle.
  *
- * The adapter holds a pointer to YubiKeyConfig and delegates getModelIcon() calls.
- *
- * Lifetime: The adapter does NOT own the YubiKeyConfig pointer - caller must ensure
- * YubiKeyConfig outlives this adapter.
+ * The adapter reconstructs DeviceModel from available data and delegates to
+ * YubiKeyIconResolver::getIconPath() static method.
  */
 class YubiKeyConfigIconResolver : public IDeviceIconResolver
 {
 public:
     /**
-     * @brief Constructs adapter with YubiKeyConfig instance
-     * @param config Pointer to YubiKeyConfig (must outlive this adapter)
+     * @brief Constructs adapter for icon resolution
+     *
+     * No configuration needed - uses static YubiKeyIconResolver methods.
      */
-    explicit YubiKeyConfigIconResolver(YubiKeyOath::Config::YubiKeyConfig *config);
+    YubiKeyConfigIconResolver() = default;
 
     // IDeviceIconResolver interface
-    QString getModelIcon(quint32 deviceModel) const override;
-
-private:
-    YubiKeyOath::Config::YubiKeyConfig *m_config;  // Not owned
+    QString getModelIcon(const QString& modelString,
+                        quint32 modelCode,
+                        const QStringList& capabilities) const override;
 };

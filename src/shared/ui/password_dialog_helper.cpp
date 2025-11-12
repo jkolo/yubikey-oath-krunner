@@ -6,8 +6,8 @@
 #include "password_dialog_helper.h"
 #include "password_dialog.h"
 #include "logging_categories.h"
-#include "../dbus/yubikey_manager_proxy.h"
-#include "../dbus/yubikey_device_proxy.h"
+#include "../dbus/oath_manager_proxy.h"
+#include "../dbus/oath_device_proxy.h"
 
 #include <QPointer>
 #include <KLocalizedString>
@@ -19,7 +19,7 @@ namespace PasswordDialogHelper {
 void showDialog(
     const QString &deviceId,
     const QString &deviceName,
-    YubiKeyManagerProxy *manager,
+    OathManagerProxy *manager,
     QObject *parent,
     const std::function<void()> &onPasswordSuccess)
 {

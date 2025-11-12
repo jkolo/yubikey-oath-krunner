@@ -1,6 +1,6 @@
 #include "yubikey_config.h"
 #include "logging_categories.h"
-#include "dbus/yubikey_manager_proxy.h"
+#include "dbus/oath_manager_proxy.h"
 #include "yubikey_device_model.h"
 #include "device_delegate.h"
 #include "yubikey_config_icon_resolver.h"
@@ -25,7 +25,9 @@ using namespace YubiKeyOath::Shared;
 YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
     : KCModule(qobject_cast<QWidget *>(parent))
     , m_ui(new YubiKeyConfigForm(widget()))
-    , m_manager(YubiKeyManagerProxy::instance(this))
+    , m_config(KSharedConfig::openConfig(QStringLiteral("yubikey-oathrc"))->group(QStringLiteral("General")))
+    , m_manager(OathManagerProxy::instance(this))
+    , m_deviceModel(std::make_unique<YubiKeyDeviceModel>(OathManagerProxy::instance(this), nullptr))
 {
     // Set translation domain for i18n
     KLocalizedString::setApplicationDomain("yubikey_oath");
@@ -36,23 +38,12 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
     auto *layout = new QGridLayout(widget());
     layout->addWidget(m_ui, 0, 0);
 
-    // Load config
-    auto config = KSharedConfig::openConfig(QStringLiteral("yubikey-oathrc"));
-    m_config = config->group(QStringLiteral("General"));
-
-    // Create device model using manager proxy - NO Qt parent, managed solely by unique_ptr
-    // This prevents double-deletion (unique_ptr + Qt parent-child)
-    m_deviceModel = std::make_unique<YubiKeyDeviceModel>(
-        m_manager,
-        nullptr  // No Qt parent - sole ownership by unique_ptr
-    );
-
     // Setup device list view with custom delegate
     if (m_ui->deviceListView) {
         qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: Setting up device list view";
 
         // Create icon resolver adapter and delegate
-        auto *iconResolver = new YubiKeyConfigIconResolver(this);
+        auto *iconResolver = new YubiKeyConfigIconResolver();
         auto *delegate = new DeviceDelegate(iconResolver, this);
         m_ui->deviceListView->setModel(m_deviceModel.get());
         m_ui->deviceListView->setItemDelegate(delegate);

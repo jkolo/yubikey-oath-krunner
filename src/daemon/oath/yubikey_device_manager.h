@@ -19,7 +19,7 @@
 
 // Local includes
 #include "types/oath_credential.h"
-#include "yubikey_oath_device.h"
+#include "oath_device.h"
 #include "../pcsc/card_reader_monitor.h"
 #include "common/result.h"
 
@@ -32,7 +32,12 @@
 #endif
 
 namespace YubiKeyOath {
+namespace Shared {
+    enum class DeviceBrand : uint8_t;  // Forward declaration
+}
 namespace Daemon {
+    class YkOathSession;  // Forward declaration
+    class OathDevice;     // Forward declaration (already in oath_device.h but needed here)
 
 /**
  * @brief Manages multiple YubiKey devices for OATH (TOTP/HOTP) operations
@@ -118,7 +123,7 @@ public:
      *
      * Use this method to access device-specific operations.
      */
-    YubiKeyOathDevice* getDevice(const QString &deviceId);
+    OathDevice* getDevice(const QString &deviceId);
 
     /**
      * @brief Gets device by ID or first available device if ID is empty
@@ -132,7 +137,7 @@ public:
      *
      * This eliminates the repetitive pattern found throughout the codebase.
      */
-    YubiKeyOathDevice* getDeviceOrFirst(const QString &deviceId);
+    OathDevice* getDeviceOrFirst(const QString &deviceId);
 
     /**
      * @brief Removes device from memory (called when device is forgotten)
@@ -273,6 +278,43 @@ private:
      */
     void disconnectDevice(const QString &deviceId);
 
+    /**
+     * @brief Factory method: Creates appropriate OathSession for device brand
+     * @param brand Device brand (YubiKey, Nitrokey, etc.)
+     * @param cardHandle PC/SC card handle
+     * @param protocol PC/SC protocol (T=0 or T=1)
+     * @param deviceId Device ID for logging
+     * @return Brand-specific session instance (YkOathSession or NitrokeyOathSession)
+     *
+     * This factory method implements Dependency Inversion Principle:
+     * - Manager depends on abstraction (YkOathSession base class)
+     * - Concrete session types are selected at runtime based on brand
+     * - Easy to extend for new brands without modifying manager
+     */
+    std::unique_ptr<YkOathSession> createSession(Shared::DeviceBrand brand,
+                                                 SCARDHANDLE cardHandle,
+                                                 DWORD protocol,
+                                                 const QString &deviceId);
+
+    /**
+     * @brief Factory method: Creates appropriate OathDevice for device brand
+     * @param brand Device brand (YubiKey, Nitrokey, etc.)
+     * @param deviceId Device ID
+     * @param readerName PC/SC reader name
+     * @param cardHandle PC/SC card handle
+     * @param protocol PC/SC protocol
+     * @param challenge Challenge from SELECT response
+     * @param requiresPassword Password requirement flag
+     * @return Brand-specific device instance (YubiKeyOathDevice or NitrokeyOathDevice)
+     */
+    std::unique_ptr<OathDevice> createDevice(Shared::DeviceBrand brand,
+                                            const QString &deviceId,
+                                            const QString &readerName,
+                                            SCARDHANDLE cardHandle,
+                                            DWORD protocol,
+                                            const QByteArray &challenge,
+                                            bool requiresPassword);
+
     // Member variables
     CardReaderMonitor *m_readerMonitor;
     mutable QMutex m_devicesMutex;  ///< Protects m_devices map from concurrent access
@@ -283,7 +325,7 @@ private:
             return qHash(key);
         }
     };
-    std::unordered_map<QString, std::unique_ptr<YubiKeyOathDevice>, QStringHash> m_devices;  ///< deviceId → device instance mapping for multi-device support
+    std::unordered_map<QString, std::unique_ptr<OathDevice>, QStringHash> m_devices;  ///< deviceId → device instance mapping for multi-device support
 
     SCARDCONTEXT m_context = 0;  ///< PC/SC context (shared by all devices)
     bool m_initialized = false;  ///< Tracks initialization state

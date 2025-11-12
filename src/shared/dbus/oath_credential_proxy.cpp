@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "yubikey_credential_proxy.h"
+#include "oath_credential_proxy.h"
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QDBusConnection>
@@ -12,7 +12,7 @@
 #include <QLoggingCategory>
 #include <QDateTime>
 
-Q_LOGGING_CATEGORY(YubiKeyCredentialProxyLog, "pl.jkolo.yubikey.oath.daemon.credential.proxy")
+Q_LOGGING_CATEGORY(OathCredentialProxyLog, "pl.jkolo.yubikey.oath.daemon.credential.proxy")
 
 namespace YubiKeyOath {
 namespace Shared {
@@ -27,7 +27,7 @@ static void registerDBusTypes()
     }
 }
 
-YubiKeyCredentialProxy::YubiKeyCredentialProxy(const QString &objectPath,
+OathCredentialProxy::OathCredentialProxy(const QString &objectPath,
                                                const QVariantMap &properties,
                                                QObject *parent)
     : QObject(parent)
@@ -45,15 +45,15 @@ YubiKeyCredentialProxy::YubiKeyCredentialProxy(const QString &objectPath,
                                      this);
 
     if (!m_interface->isValid()) {
-        qCWarning(YubiKeyCredentialProxyLog) << "Failed to create D-Bus interface for credential at"
+        qCWarning(OathCredentialProxyLog) << "Failed to create D-Bus interface for credential at"
                                               << objectPath
                                               << "Error:" << m_interface->lastError().message();
     }
 
     // Extract and cache properties from GetManagedObjects() result
-    m_name = properties.value(QStringLiteral("Name")).toString();
+    m_fullName = properties.value(QStringLiteral("FullName")).toString();
     m_issuer = properties.value(QStringLiteral("Issuer")).toString();
-    m_account = properties.value(QStringLiteral("Account")).toString();
+    m_username = properties.value(QStringLiteral("Username")).toString();
     m_requiresTouch = properties.value(QStringLiteral("RequiresTouch")).toBool();
     m_type = properties.value(QStringLiteral("Type")).toString();
     m_algorithm = properties.value(QStringLiteral("Algorithm")).toString();
@@ -61,19 +61,28 @@ YubiKeyCredentialProxy::YubiKeyCredentialProxy(const QString &objectPath,
     m_period = properties.value(QStringLiteral("Period")).toInt();
     m_deviceId = properties.value(QStringLiteral("DeviceId")).toString();
 
-    qCDebug(YubiKeyCredentialProxyLog) << "Created credential proxy for" << m_name
+    qCDebug(OathCredentialProxyLog) << "Created credential proxy for" << m_fullName
                                        << "at" << objectPath;
 }
 
-YubiKeyCredentialProxy::~YubiKeyCredentialProxy()
+OathCredentialProxy::~OathCredentialProxy()
 {
-    qCDebug(YubiKeyCredentialProxyLog) << "Destroying credential proxy for" << m_name;
+    qCDebug(OathCredentialProxyLog) << "Destroying credential proxy for" << m_fullName;
 }
 
-GenerateCodeResult YubiKeyCredentialProxy::generateCode()
+QString OathCredentialProxy::parentDeviceId() const
+{
+    // Extract device ID from object path
+    // Path format: /pl/jkolo/yubikey/oath/devices/<deviceId>/credentials/<credentialId>
+    // Segments:     0   1     2       3    4       5           6            7
+    // We want segment 6 (0-indexed from root)
+    return m_objectPath.section(QLatin1Char('/'), 6, 6);
+}
+
+GenerateCodeResult OathCredentialProxy::generateCode()
 {
     if (!m_interface || !m_interface->isValid()) {
-        qCWarning(YubiKeyCredentialProxyLog) << "Cannot generate code: D-Bus interface invalid";
+        qCWarning(OathCredentialProxyLog) << "Cannot generate code: D-Bus interface invalid";
         return GenerateCodeResult{.code = QString(), .validUntil = 0};
     }
 
@@ -82,28 +91,28 @@ GenerateCodeResult YubiKeyCredentialProxy::generateCode()
     qint64 const currentTime = QDateTime::currentSecsSinceEpoch();
 
     if (!m_cachedCode.isEmpty() && m_cachedValidUntil > currentTime) {
-        qCDebug(YubiKeyCredentialProxyLog) << "Returning cached code for" << m_name
+        qCDebug(OathCredentialProxyLog) << "Returning cached code for" << m_fullName
                                            << "Valid for" << (m_cachedValidUntil - currentTime) << "more seconds";
         return GenerateCodeResult{.code = m_cachedCode, .validUntil = m_cachedValidUntil};
     }
 
     // Cache miss or expired - call D-Bus
-    qCDebug(YubiKeyCredentialProxyLog) << "Cache miss/expired for" << m_name << "- calling D-Bus";
+    qCDebug(OathCredentialProxyLog) << "Cache miss/expired for" << m_fullName << "- calling D-Bus";
     QDBusReply<GenerateCodeResult> reply = m_interface->call(QStringLiteral("GenerateCode"));
 
     if (!reply.isValid()) {
-        qCWarning(YubiKeyCredentialProxyLog) << "GenerateCode failed for" << m_name
+        qCWarning(OathCredentialProxyLog) << "GenerateCode failed for" << m_fullName
                                               << "Error:" << reply.error().message();
         // Don't clear cache on error - return old cached code if available
         if (!m_cachedCode.isEmpty()) {
-            qCWarning(YubiKeyCredentialProxyLog) << "Returning stale cached code due to D-Bus error";
+            qCWarning(OathCredentialProxyLog) << "Returning stale cached code due to D-Bus error";
             return GenerateCodeResult{.code = m_cachedCode, .validUntil = m_cachedValidUntil};
         }
         return GenerateCodeResult{.code = QString(), .validUntil = 0};
     }
 
     auto result = reply.value();
-    qCDebug(YubiKeyCredentialProxyLog) << "Generated code for" << m_name
+    qCDebug(OathCredentialProxyLog) << "Generated code for" << m_fullName
                                        << "Valid until:" << result.validUntil;
 
     // Update cache
@@ -113,73 +122,73 @@ GenerateCodeResult YubiKeyCredentialProxy::generateCode()
     return result;
 }
 
-bool YubiKeyCredentialProxy::copyToClipboard()
+bool OathCredentialProxy::copyToClipboard()
 {
     if (!m_interface || !m_interface->isValid()) {
-        qCWarning(YubiKeyCredentialProxyLog) << "Cannot copy to clipboard: D-Bus interface invalid";
+        qCWarning(OathCredentialProxyLog) << "Cannot copy to clipboard: D-Bus interface invalid";
         return false;
     }
 
     QDBusReply<bool> reply = m_interface->call(QStringLiteral("CopyToClipboard"));
 
     if (!reply.isValid()) {
-        qCWarning(YubiKeyCredentialProxyLog) << "CopyToClipboard failed for" << m_name
+        qCWarning(OathCredentialProxyLog) << "CopyToClipboard failed for" << m_fullName
                                               << "Error:" << reply.error().message();
         return false;
     }
 
     bool const success = reply.value();
-    qCDebug(YubiKeyCredentialProxyLog) << "CopyToClipboard for" << m_name
+    qCDebug(OathCredentialProxyLog) << "CopyToClipboard for" << m_fullName
                                        << "Result:" << success;
     return success;
 }
 
-bool YubiKeyCredentialProxy::typeCode(bool fallbackToCopy)
+bool OathCredentialProxy::typeCode(bool fallbackToCopy)
 {
     if (!m_interface || !m_interface->isValid()) {
-        qCWarning(YubiKeyCredentialProxyLog) << "Cannot type code: D-Bus interface invalid";
+        qCWarning(OathCredentialProxyLog) << "Cannot type code: D-Bus interface invalid";
         return false;
     }
 
     QDBusReply<bool> reply = m_interface->call(QStringLiteral("TypeCode"), fallbackToCopy);
 
     if (!reply.isValid()) {
-        qCWarning(YubiKeyCredentialProxyLog) << "TypeCode failed for" << m_name
+        qCWarning(OathCredentialProxyLog) << "TypeCode failed for" << m_fullName
                                               << "Error:" << reply.error().message();
         return false;
     }
 
     bool const success = reply.value();
-    qCDebug(YubiKeyCredentialProxyLog) << "TypeCode for" << m_name
+    qCDebug(OathCredentialProxyLog) << "TypeCode for" << m_fullName
                                        << "Result:" << success
                                        << "Fallback to copy:" << fallbackToCopy;
     return success;
 }
 
-void YubiKeyCredentialProxy::deleteCredential()
+void OathCredentialProxy::deleteCredential()
 {
     if (!m_interface || !m_interface->isValid()) {
-        qCWarning(YubiKeyCredentialProxyLog) << "Cannot delete credential: D-Bus interface invalid";
+        qCWarning(OathCredentialProxyLog) << "Cannot delete credential: D-Bus interface invalid";
         return;
     }
 
     QDBusReply<void> reply = m_interface->call(QStringLiteral("Delete"));
 
     if (!reply.isValid()) {
-        qCWarning(YubiKeyCredentialProxyLog) << "Delete failed for" << m_name
+        qCWarning(OathCredentialProxyLog) << "Delete failed for" << m_fullName
                                               << "Error:" << reply.error().message();
         return;
     }
 
-    qCDebug(YubiKeyCredentialProxyLog) << "Deleted credential" << m_name;
+    qCDebug(OathCredentialProxyLog) << "Deleted credential" << m_fullName;
 }
 
-CredentialInfo YubiKeyCredentialProxy::toCredentialInfo() const
+CredentialInfo OathCredentialProxy::toCredentialInfo() const
 {
     CredentialInfo info;
-    info.name = m_name;
+    info.name = m_fullName;
     info.issuer = m_issuer;
-    info.account = m_account;
+    info.account = m_username;
     info.requiresTouch = m_requiresTouch;
     info.validUntil = 0; // Not available in proxy (only in GenerateCodeResult)
     info.deviceId = m_deviceId;

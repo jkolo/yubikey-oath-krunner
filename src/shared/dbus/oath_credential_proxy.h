@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#ifndef YUBIKEY_CREDENTIAL_PROXY_H
-#define YUBIKEY_CREDENTIAL_PROXY_H
+#ifndef OATH_CREDENTIAL_PROXY_H
+#define OATH_CREDENTIAL_PROXY_H
 
 #include <QObject>
 #include <QString>
@@ -31,14 +31,14 @@ namespace Shared {
  *
  * Architecture:
  * ```
- * YubiKeyManagerProxy (singleton)
+ * OathManagerProxy (singleton)
  *     ↓ owns
- * YubiKeyDeviceProxy (per device)
+ * OathDeviceProxy (per device)
  *     ↓ owns
- * YubiKeyCredentialProxy (per credential) ← YOU ARE HERE
+ * OathCredentialProxy (per credential) ← YOU ARE HERE
  * ```
  */
-class YubiKeyCredentialProxy : public QObject
+class OathCredentialProxy : public QObject
 {
     Q_OBJECT
 
@@ -47,29 +47,43 @@ public:
      * @brief Constructs credential proxy from D-Bus object path and properties
      * @param objectPath D-Bus object path (e.g. /pl/jkolo/yubikey/oath/devices/<id>/credentials/<id>)
      * @param properties Property map from GetManagedObjects() for pl.jkolo.yubikey.oath.Credential interface
-     * @param parent Parent object (typically YubiKeyDeviceProxy)
+     * @param parent Parent object (typically OathDeviceProxy)
      *
      * Properties are cached on construction (all credential properties are const).
      * Creates QDBusInterface for method calls.
      */
-    explicit YubiKeyCredentialProxy(const QString &objectPath,
-                                    const QVariantMap &properties,
-                                    QObject *parent = nullptr);
+    explicit OathCredentialProxy(const QString &objectPath,
+                                  const QVariantMap &properties,
+                                  QObject *parent = nullptr);
 
-    ~YubiKeyCredentialProxy() override;
+    ~OathCredentialProxy() override;
 
     // ========== Cached Properties (read-only) ==========
 
-    QString objectPath() const { return m_objectPath; }
-    QString name() const { return m_name; }
-    QString issuer() const { return m_issuer; }
-    QString account() const { return m_account; }
-    bool requiresTouch() const { return m_requiresTouch; }
-    QString type() const { return m_type; }
-    QString algorithm() const { return m_algorithm; }
-    int digits() const { return m_digits; }
-    int period() const { return m_period; }
-    QString deviceId() const { return m_deviceId; }
+    [[nodiscard]] QString objectPath() const { return m_objectPath; }
+    [[nodiscard]] QString fullName() const { return m_fullName; }
+    [[nodiscard]] QString issuer() const { return m_issuer; }
+    [[nodiscard]] QString username() const { return m_username; }
+    [[nodiscard]] bool requiresTouch() const { return m_requiresTouch; }
+    [[nodiscard]] QString type() const { return m_type; }
+    [[nodiscard]] QString algorithm() const { return m_algorithm; }
+    [[nodiscard]] int digits() const { return m_digits; }
+    [[nodiscard]] int period() const { return m_period; }
+    [[nodiscard]] QString deviceId() const { return m_deviceId; }
+
+    /**
+     * @brief Returns parent device's public ID (extracted from object path)
+     * @return Device ID as used in D-Bus paths (serial number or "dev_<hex>")
+     *
+     * Extracts device ID from object path segment:
+     * /pl/jkolo/yubikey/oath/devices/<parentDeviceId>/credentials/<credId>
+     *
+     * @note This is different from deviceId() which returns the credential's
+     * DeviceId property (internal hex hash used by daemon).
+     * parentDeviceId() returns the public device identifier matching the
+     * device's D-Bus "ID" property.
+     */
+    [[nodiscard]] QString parentDeviceId() const;
 
     // ========== D-Bus Methods ==========
 
@@ -125,9 +139,9 @@ private:
     QDBusInterface *m_interface{nullptr};
 
     // Cached properties (all const - never change after construction)
-    QString m_name;
+    QString m_fullName;
     QString m_issuer;
-    QString m_account;
+    QString m_username;
     bool m_requiresTouch{false};
     QString m_type;
     QString m_algorithm;
@@ -148,4 +162,4 @@ private:
 } // namespace Shared
 } // namespace YubiKeyOath
 
-#endif // YUBIKEY_CREDENTIAL_PROXY_H
+#endif // OATH_CREDENTIAL_PROXY_H

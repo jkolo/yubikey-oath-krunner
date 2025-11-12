@@ -14,7 +14,7 @@
 namespace YubiKeyOath {
 namespace Daemon {
     class YubiKeyService;
-    class YubiKeyManagerObject;
+    class OathManagerObject;
 }
 }
 
@@ -55,7 +55,7 @@ public:
 
 private:
     std::unique_ptr<YubiKeyService> m_service;
-    YubiKeyManagerObject *m_manager;  // Owned by QObject hierarchy (parent = this)
+    OathManagerObject *m_manager;  // Owned by QObject hierarchy (parent = this)
 };
 
 } // namespace Daemon

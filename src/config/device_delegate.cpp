@@ -122,7 +122,9 @@ void DeviceDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option
     const bool requiresPassword = index.data(YubiKeyDeviceModel::RequiresPasswordRole).toBool();
     const bool hasValidPassword = index.data(YubiKeyDeviceModel::HasValidPasswordRole).toBool();
     const bool showAuthorizeButton = index.data(YubiKeyDeviceModel::ShowAuthorizeButtonRole).toBool();
-    const uint32_t deviceModel = index.data(YubiKeyDeviceModel::DeviceModelRole).toUInt();
+    const QString modelString = index.data(YubiKeyDeviceModel::DeviceModelStringRole).toString();
+    const uint32_t modelCode = index.data(YubiKeyDeviceModel::DeviceModelRole).toUInt();
+    const QStringList capabilities = index.data(YubiKeyDeviceModel::CapabilitiesRole).toStringList();
 
     // Calculate button positions
     const DeviceCardLayout::ButtonRects rects = DeviceCardLayout::calculateButtonRects(option);
@@ -130,8 +132,8 @@ void DeviceDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option
     // Draw card background
     DeviceCardPainter::drawCardBackground(painter, option, option.rect);
 
-    // Draw device icon
-    const QString iconPath = m_iconResolver->getModelIcon(deviceModel);
+    // Draw device icon (multi-brand)
+    const QString iconPath = m_iconResolver->getModelIcon(modelString, modelCode, capabilities);
     DeviceCardPainter::drawDeviceIcon(painter, iconPath, rects.iconRect);
 
     // Draw device name

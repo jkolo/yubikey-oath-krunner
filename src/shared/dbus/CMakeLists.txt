@@ -4,11 +4,14 @@
 
 # Static library for D-Bus client (shared by krunner and config)
 add_library(yubikey_dbus_client STATIC
-    yubikey_credential_proxy.cpp
-    yubikey_device_proxy.cpp
-    yubikey_manager_proxy.cpp
+    oath_credential_proxy.cpp
+    oath_device_proxy.cpp
+    oath_manager_proxy.cpp
+    ../types/oath_credential.cpp
     ../types/yubikey_value_types.cpp
     ../types/yubikey_model.cpp
+    ../types/device_brand.cpp
+    ../types/device_capabilities.cpp
     ../utils/version.cpp
     ../formatting/credential_formatter.cpp
 )

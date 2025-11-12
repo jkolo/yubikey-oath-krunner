@@ -11,30 +11,10 @@ namespace Shared {
 QString CredentialFormatter::formatDisplayName(const OathCredential &credential,
                                                 const FormatOptions &options)
 {
-    // Start with issuer (or account if no issuer)
-    QString result = credential.issuer.isEmpty() ? credential.account : credential.issuer;
-
-    // Add account if requested
-    if (options.showUsername && !credential.account.isEmpty()) {
-        result += QStringLiteral(" (%1)").arg(credential.account);
-    }
-
-    // Add code if requested and available (only for non-touch credentials)
-    if (options.showCode && !credential.requiresTouch && !credential.code.isEmpty()) {
-        result += QStringLiteral(" - %1").arg(credential.code);
-    }
-
-    // Add device name if requested
-    if (options.showDeviceName && !options.deviceName.isEmpty()) {
-        // Check if we should only show when multiple devices
-        const bool shouldShowDevice = !options.showDeviceOnlyWhenMultiple || options.connectedDeviceCount > 1;
-
-        if (shouldShowDevice) {
-            result += QStringLiteral(" @ %1").arg(options.deviceName);
-        }
-    }
-
-    return result;
+    // Delegate to rich domain model method (Tell, Don't Ask principle)
+    // This eliminates the anemic model anti-pattern where business logic
+    // was scattered in utility classes instead of domain objects
+    return credential.getDisplayName(options);
 }
 
 QString CredentialFormatter::formatDisplayName(const CredentialInfo &credential,
@@ -58,36 +38,8 @@ QString CredentialFormatter::formatWithCode(const OathCredential &credential,
                                              bool requiresTouch,
                                              const FormatOptions &options)
 {
-    // Start with issuer (or account if no issuer)
-    QString result = credential.issuer.isEmpty() ? credential.account : credential.issuer;
-
-    // Add account if requested
-    if (options.showUsername && !credential.account.isEmpty()) {
-        result += QStringLiteral(" (%1)").arg(credential.account);
-    }
-
-    // Add code or touch indicator if requested
-    if (options.showCode) {
-        if (requiresTouch) {
-            // Show touch required emoji
-            result += QStringLiteral(" 👆");
-        } else if (!code.isEmpty()) {
-            // Show actual code
-            result += QStringLiteral(" - %1").arg(code);
-        }
-    }
-
-    // Add device name if requested
-    if (options.showDeviceName && !options.deviceName.isEmpty()) {
-        // Check if we should only show when multiple devices
-        const bool shouldShowDevice = !options.showDeviceOnlyWhenMultiple || options.connectedDeviceCount > 1;
-
-        if (shouldShowDevice) {
-            result += QStringLiteral(" @ %1").arg(options.deviceName);
-        }
-    }
-
-    return result;
+    // Delegate to rich domain model method (Tell, Don't Ask principle)
+    return credential.getDisplayNameWithCode(code, requiresTouch, options);
 }
 
 } // namespace Shared

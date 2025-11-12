@@ -5,7 +5,7 @@
 
 #include "password_service.h"
 #include "../oath/yubikey_device_manager.h"
-#include "../oath/yubikey_oath_device.h"
+#include "../oath/oath_device.h"
 #include "../storage/yubikey_database.h"
 #include "../storage/secret_storage.h"
 #include "../logging_categories.h"

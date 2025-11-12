@@ -12,10 +12,10 @@
 #include <QTimer>
 #include <memory>
 
-#include "../src/shared/dbus/yubikey_manager_proxy.h"
-#include "../src/shared/dbus/yubikey_device_proxy.h"
-#include "../src/shared/dbus/yubikey_credential_proxy.h"
-#include "../src/daemon/dbus/yubikey_manager_object.h"  // For ManagedObjectMap
+#include "../src/shared/dbus/oath_manager_proxy.h"
+#include "../src/shared/dbus/oath_device_proxy.h"
+#include "../src/shared/dbus/oath_credential_proxy.h"
+#include "../src/daemon/dbus/oath_manager_object.h"  // For ManagedObjectMap
 
 using namespace YubiKeyOath::Shared;
 
@@ -51,8 +51,8 @@ private:
     bool isDaemonAvailable();
 
     // Helper to get manager proxy
-    YubiKeyManagerProxy* managerProxy() {
-        return YubiKeyManagerProxy::instance();
+    OathManagerProxy* managerProxy() {
+        return OathManagerProxy::instance();
     }
 };
 
@@ -109,9 +109,9 @@ void TestYubiKeyProxy::printDebugInfo()
     const auto credentials = managerProxy()->getAllCredentials();
     int count = 0;
     for (auto *cred : credentials) {
-        qDebug() << "Credential" << ++count << ":" << cred->name();
+        qDebug() << "Credential" << ++count << ":" << cred->fullName();
         qDebug() << "  Issuer:" << cred->issuer();
-        qDebug() << "  Username:" << cred->account();
+        qDebug() << "  Username:" << cred->username();
         qDebug() << "  Type:" << cred->type();
         qDebug() << "  Requires touch:" << cred->requiresTouch();
         qDebug() << "  Device:" << cred->deviceId();
@@ -193,7 +193,7 @@ void TestYubiKeyProxy::testManagerProxyCredentialList()
 
     for (auto *cred : credentials) {
         QVERIFY(cred != nullptr);
-        QVERIFY(!cred->name().isEmpty());
+        QVERIFY(!cred->fullName().isEmpty());
         QVERIFY(!cred->deviceId().isEmpty());
     }
 }
@@ -205,7 +205,7 @@ void TestYubiKeyProxy::testDeviceProxyProperties()
     const auto devices = managerProxy()->devices();
     QVERIFY(devices.size() > 0);
 
-    YubiKeyDeviceProxy *device = devices.first();
+    OathDeviceProxy *device = devices.first();
     QVERIFY(device != nullptr);
 
     qDebug() << "Testing device:" << device->serialNumber();
@@ -229,7 +229,7 @@ void TestYubiKeyProxy::testDeviceProxyCredentials()
     const auto devices = managerProxy()->devices();
     QVERIFY(devices.size() > 0);
 
-    YubiKeyDeviceProxy *device = devices.first();
+    OathDeviceProxy *device = devices.first();
     const auto credentials = device->credentials();
 
     qDebug() << "Device" << device->serialNumber() << "has" << credentials.size() << "credentials";
@@ -237,9 +237,9 @@ void TestYubiKeyProxy::testDeviceProxyCredentials()
 
     for (auto *cred : credentials) {
         QVERIFY(cred != nullptr);
-        QVERIFY(!cred->name().isEmpty());
+        QVERIFY(!cred->fullName().isEmpty());
         QVERIFY(!cred->deviceId().isEmpty());  // Credential has device reference (internal ID)
-        qDebug() << "  Credential:" << cred->name();
+        qDebug() << "  Credential:" << cred->fullName();
     }
 }
 
@@ -250,7 +250,7 @@ void TestYubiKeyProxy::testDeviceProxyMethods()
     const auto devices = managerProxy()->devices();
     QVERIFY(devices.size() > 0);
 
-    YubiKeyDeviceProxy *device = devices.first();
+    OathDeviceProxy *device = devices.first();
 
     // Test toDeviceInfo conversion
     DeviceInfo info = device->toDeviceInfo();
@@ -270,19 +270,19 @@ void TestYubiKeyProxy::testCredentialProxyProperties()
     const auto credentials = managerProxy()->getAllCredentials();
     QVERIFY(credentials.size() > 0);
 
-    YubiKeyCredentialProxy *cred = credentials.first();
+    OathCredentialProxy *cred = credentials.first();
     QVERIFY(cred != nullptr);
 
-    qDebug() << "Testing credential:" << cred->name();
+    qDebug() << "Testing credential:" << cred->fullName();
 
     // Test all properties
-    QVERIFY(!cred->name().isEmpty());
+    QVERIFY(!cred->fullName().isEmpty());
     QVERIFY(!cred->deviceId().isEmpty());
     QVERIFY(!cred->type().isEmpty());
 
-    qDebug() << "  name:" << cred->name();
+    qDebug() << "  name:" << cred->fullName();
     qDebug() << "  issuer:" << cred->issuer();
-    qDebug() << "  username:" << cred->account();
+    qDebug() << "  username:" << cred->username();
     qDebug() << "  type:" << cred->type();
     qDebug() << "  algorithm:" << cred->algorithm();
     qDebug() << "  digits:" << cred->digits();
@@ -310,7 +310,7 @@ void TestYubiKeyProxy::testCredentialProxyGenerateCode()
     QVERIFY(credentials.size() > 0);
 
     // Find a non-touch credential
-    YubiKeyCredentialProxy *cred = nullptr;
+    OathCredentialProxy *cred = nullptr;
     for (auto *c : credentials) {
         if (!c->requiresTouch()) {
             cred = c;
@@ -322,7 +322,7 @@ void TestYubiKeyProxy::testCredentialProxyGenerateCode()
         QSKIP("No non-touch credentials found. Cannot test generateCode without user interaction.");
     }
 
-    qDebug() << "Testing generateCode for:" << cred->name();
+    qDebug() << "Testing generateCode for:" << cred->fullName();
 
     GenerateCodeResult result = cred->generateCode();
 
@@ -351,7 +351,7 @@ void TestYubiKeyProxy::testDeviceConnectedSignal()
     qDebug() << "\n=== Test: Device Connected Signal ===";
     qDebug() << "Note: This test only verifies signal setup, not actual connection events.";
 
-    QSignalSpy spy(managerProxy(), &YubiKeyManagerProxy::deviceConnected);
+    QSignalSpy spy(managerProxy(), &OathManagerProxy::deviceConnected);
     QVERIFY(spy.isValid());
 
     qDebug() << "  deviceConnected signal is properly configured";
@@ -362,7 +362,7 @@ void TestYubiKeyProxy::testCredentialsChangedSignal()
     qDebug() << "\n=== Test: Credentials Changed Signal ===";
     qDebug() << "Note: This test only verifies signal setup, not actual change events.";
 
-    QSignalSpy spy(managerProxy(), &YubiKeyManagerProxy::credentialsChanged);
+    QSignalSpy spy(managerProxy(), &OathManagerProxy::credentialsChanged);
     QVERIFY(spy.isValid());
 
     qDebug() << "  credentialsChanged signal is properly configured";

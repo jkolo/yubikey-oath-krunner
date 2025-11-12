@@ -1,7 +1,11 @@
 #include "yubikey_device_manager.h"
-#include "oath_session.h"
+#include "yubikey_oath_device.h"
+#include "nitrokey_oath_device.h"
+#include "yk_oath_session.h"
+#include "nitrokey_oath_session.h"
 #include "oath_protocol.h"
 #include "../logging_categories.h"
+#include "../../shared/types/device_brand.h"
 
 #include <QDebug>
 #include <QDateTime>
@@ -39,6 +43,10 @@ YubiKeyDeviceManager::YubiKeyDeviceManager(QObject* parent)
     , m_readerMonitor(new CardReaderMonitor(this))
 {
     qCDebug(YubiKeyDeviceManagerLog) << "Constructor called";
+
+    // Register metatypes for cross-thread signal/slot connections
+    qRegisterMetaType<QList<OathCredential>>("QList<OathCredential>");
+    qCDebug(YubiKeyDeviceManagerLog) << "Registered QList<OathCredential> metatype for cross-thread signals";
 
     // Connect card reader monitor signals
     connect(m_readerMonitor, &CardReaderMonitor::readerListChanged,
@@ -183,24 +191,37 @@ QString YubiKeyDeviceManager::connectToDevice(const QString &readerName) {
 
     qCDebug(YubiKeyDeviceManagerLog) << "Step 2: Attempting to SELECT OATH application";
 
-    // Select OATH application to get device ID using OathSession
+    // Select OATH application to get device ID using brand-specific OathSession
     QByteArray challenge;
     QString deviceId;
     Version firmwareVersion;  // Firmware version from SELECT response
+    bool requiresPassword = false;  // Password requirement from SELECT response
+    bool hasSelectSerial = false;   // TAG_SERIAL_NUMBER present in SELECT response
 
     {
-        // Create temporary OathSession for initial SELECT
-        OathSession tempSession(cardHandle, protocol, QString(), this);
-        const auto selectResult = tempSession.selectOathApplication(challenge, firmwareVersion);
+        // Detect brand based on reader name (fast, preliminary detection)
+        // Note: Will be refined after SELECT with firmware version and serial number presence
+        using namespace YubiKeyOath::Shared;
+        const DeviceBrand preliminaryBrand = detectBrand(readerName, Version(), false);
+
+        qCDebug(YubiKeyDeviceManagerLog) << "Preliminary brand detection:" << brandName(preliminaryBrand)
+                                         << "(based on reader name:" << readerName << ")";
+
+        // Create brand-specific session for initial SELECT
+        auto tempSession = createSession(preliminaryBrand, cardHandle, protocol, QString());
+
+        const auto selectResult = tempSession->selectOathApplication(challenge, firmwareVersion);
 
         if (selectResult.isError()) {
-            qCDebug(YubiKeyDeviceManagerLog) << "Card does not support OATH application:" << selectResult.error() << "- this is normal for non-YubiKey cards";
+            qCDebug(YubiKeyDeviceManagerLog) << "Card does not support OATH application:" << selectResult.error() << "- this is normal for non-OATH cards";
             SCardDisconnect(cardHandle, SCARD_LEAVE_CARD);
             return {};  // Silently return - this is expected for non-OATH cards
         }
 
-        // Get device ID from session
-        deviceId = tempSession.deviceId();
+        // Get device ID and password requirement from session
+        deviceId = tempSession->deviceId();
+        requiresPassword = tempSession->requiresPassword();
+        hasSelectSerial = tempSession->selectSerialNumber() != 0;  // Check if serial in SELECT
     }
 
     if (deviceId.isEmpty()) {
@@ -223,34 +244,42 @@ QString YubiKeyDeviceManager::connectToDevice(const QString &readerName) {
         disconnectDevice(deviceId);  // disconnectDevice has its own lock
     }
 
-    // Create YubiKeyOathDevice instance
-    auto devicePtr = std::make_unique<YubiKeyOathDevice>(
-        deviceId,
-        readerName,
-        cardHandle,
-        protocol,
-        challenge,
-        m_context,
-        this  // parent
-    );
+    // Final brand detection with all available information
+    using namespace YubiKeyOath::Shared;
+    const DeviceBrand finalBrand = detectBrand(readerName, firmwareVersion, hasSelectSerial);
+
+    qCDebug(YubiKeyDeviceManagerLog) << "Final brand detection:" << brandName(finalBrand)
+                                     << "(reader:" << readerName
+                                     << ", firmware:" << firmwareVersion.toString()
+                                     << ", hasSelectSerial:" << hasSelectSerial << ")";
+
+    // Create brand-specific device instance using factory
+    auto devicePtr = createDevice(finalBrand, deviceId, readerName, cardHandle, protocol, challenge, requiresPassword);
 
     // Get raw pointer for signal connections (before moving ownership to map)
-    YubiKeyOathDevice* const device = devicePtr.get();
+    OathDevice* const device = devicePtr.get();
 
     // Connect device signals - forward for multi-device aggregation
-    connect(device, &YubiKeyOathDevice::touchRequired,
+    connect(device, &OathDevice::touchRequired,
             this, &YubiKeyDeviceManager::touchRequired);
-    connect(device, &YubiKeyOathDevice::errorOccurred,
+    connect(device, &OathDevice::errorOccurred,
             this, &YubiKeyDeviceManager::errorOccurred);
-    connect(device, &YubiKeyOathDevice::credentialsChanged,
+    connect(device, &OathDevice::credentialsChanged,
             this, &YubiKeyDeviceManager::credentialsChanged);
-    connect(device, &YubiKeyOathDevice::credentialCacheFetched,
+
+    const bool connected = connect(device, &OathDevice::credentialCacheFetched,
             this, [this, deviceId](const QList<OathCredential> &credentials) {
+                qWarning() << "YubiKeyDeviceManager: >>> credentialCacheFetched lambda CALLED for device:" << deviceId
+                           << "credentials count:" << credentials.size();
                 Q_EMIT credentialCacheFetchedForDevice(deviceId, credentials);
-            });
+                qWarning() << "YubiKeyDeviceManager: >>> credentialCacheFetchedForDevice signal EMITTED";
+            }, Qt::QueuedConnection);
+
+    qWarning() << "YubiKeyDeviceManager: credentialCacheFetched connection" << (connected ? "SUCCEEDED" : "FAILED")
+               << "for device:" << deviceId << "device ptr:" << device;
 
     // Connect reconnect signals for card reset handling
-    connect(device, &YubiKeyOathDevice::needsReconnect,
+    connect(device, &OathDevice::needsReconnect,
             this, &YubiKeyDeviceManager::reconnectDeviceAsync);
     connect(this, &YubiKeyDeviceManager::reconnectCompleted,
             device, [device, deviceId](const QString &reconnectedDeviceId, bool success) {
@@ -314,7 +343,7 @@ QList<OathCredential> YubiKeyDeviceManager::getCredentials() {
     QList<OathCredential> aggregatedCredentials;
 
     // Copy device list under lock to avoid holding lock during credential fetching
-    QList<YubiKeyOathDevice*> devices;
+    QList<OathDevice*> devices;
     {
         QMutexLocker locker(&m_devicesMutex);  // NOLINT(misc-const-correctness)
         qCDebug(YubiKeyDeviceManagerLog) << "Aggregating credentials from" << m_devices.size() << "devices";
@@ -324,7 +353,7 @@ QList<OathCredential> YubiKeyDeviceManager::getCredentials() {
         }
     }
 
-    for (const YubiKeyOathDevice* const device : devices) {
+    for (const OathDevice* const device : devices) {
         const QString deviceId = device->deviceId();
 
         qCDebug(YubiKeyDeviceManagerLog) << "Processing device" << deviceId
@@ -483,7 +512,7 @@ void YubiKeyDeviceManager::onCredentialCacheFetchedForDevice(const QString &devi
     Q_EMIT credentialsChanged();
 }
 
-YubiKeyOathDevice* YubiKeyDeviceManager::getDevice(const QString &deviceId)
+OathDevice* YubiKeyDeviceManager::getDevice(const QString &deviceId)
 {
     QMutexLocker locker(&m_devicesMutex);  // NOLINT(misc-const-correctness)
     const auto it = m_devices.find(deviceId);
@@ -493,7 +522,7 @@ YubiKeyOathDevice* YubiKeyDeviceManager::getDevice(const QString &deviceId)
     return nullptr;
 }
 
-YubiKeyOathDevice* YubiKeyDeviceManager::getDeviceOrFirst(const QString &deviceId)
+OathDevice* YubiKeyDeviceManager::getDeviceOrFirst(const QString &deviceId)
 {
     if (!deviceId.isEmpty()) {
         // Specific device requested
@@ -513,6 +542,7 @@ void YubiKeyDeviceManager::removeDeviceFromMemory(const QString &deviceId)
 {
     qCDebug(YubiKeyDeviceManagerLog) << "removeDeviceFromMemory() called for device:" << deviceId;
 
+    bool wasInCache = false;
     int remainingDevices = 0;
 
     // Critical section: check and remove from map
@@ -520,28 +550,34 @@ void YubiKeyDeviceManager::removeDeviceFromMemory(const QString &deviceId)
         QMutexLocker locker(&m_devicesMutex);  // NOLINT(misc-const-correctness)
 
         if (!m_devices.contains(deviceId)) {
-            qCDebug(YubiKeyDeviceManagerLog) << "Device" << deviceId << "not found in cache - nothing to remove";
-            return;
+            qCDebug(YubiKeyDeviceManagerLog) << "Device" << deviceId << "not found in cache (likely disconnected)";
+            wasInCache = false;
+        } else {
+            // Device destructor will handle PC/SC disconnection
+            qCDebug(YubiKeyDeviceManagerLog) << "Removing YubiKeyOathDevice instance for" << deviceId << "from memory";
+
+            // Remove from map - unique_ptr destructor automatically deletes device
+            m_devices.erase(deviceId);
+            remainingDevices = static_cast<int>(m_devices.size());
+            wasInCache = true;
+
+            qCDebug(YubiKeyDeviceManagerLog) << "Removed device" << deviceId << "from memory, remaining devices:" << remainingDevices;
         }
-
-        // Device destructor will handle PC/SC disconnection
-        qCDebug(YubiKeyDeviceManagerLog) << "Removing YubiKeyOathDevice instance for" << deviceId << "from memory";
-
-        // Remove from map - unique_ptr destructor automatically deletes device
-        m_devices.erase(deviceId);
-        remainingDevices = static_cast<int>(m_devices.size());
-
-        qCDebug(YubiKeyDeviceManagerLog) << "Removed device" << deviceId << "from memory, remaining devices:" << remainingDevices;
     }
-    // Lock released here, device already deleted by unique_ptr
+    // Lock released here, device already deleted by unique_ptr (if was in cache)
 
-    qCDebug(YubiKeyDeviceManagerLog) << "Device" << deviceId << "successfully removed from memory";
+    if (wasInCache) {
+        qCDebug(YubiKeyDeviceManagerLog) << "Device" << deviceId << "successfully removed from memory";
+    }
 
-    // Emit deviceForgotten signal (not deviceDisconnected)
-    // deviceForgotten means "remove from D-Bus completely"
-    // deviceDisconnected means "mark as IsConnected=false but keep on D-Bus"
+    // CRITICAL: ALWAYS emit deviceForgotten signal, even if device wasn't in cache
+    // This is necessary because:
+    // - D-Bus objects exist for BOTH connected AND disconnected devices
+    // - deviceForgotten signal triggers D-Bus object removal via OathManagerObject::removeDevice()
+    // - Disconnected devices need D-Bus cleanup too (they're not in cache but still in D-Bus tree)
     Q_EMIT deviceForgotten(deviceId);
-    qCDebug(YubiKeyDeviceManagerLog) << "Emitted deviceForgotten signal for" << deviceId;
+    qCDebug(YubiKeyDeviceManagerLog) << "Emitted deviceForgotten signal for" << deviceId
+                                      << (wasInCache ? "(was in cache)" : "(was NOT in cache - disconnected)");
 
     // Emit credentials changed since this device's credentials are now gone
     Q_EMIT credentialsChanged();
@@ -646,6 +682,52 @@ void YubiKeyDeviceManager::onReconnectTimer()
     m_reconnectCommand.clear();
 }
 
+// Factory Methods (private)
+
+std::unique_ptr<YkOathSession> YubiKeyDeviceManager::createSession(
+    Shared::DeviceBrand brand,
+    SCARDHANDLE cardHandle,
+    DWORD protocol,
+    const QString &deviceId)
+{
+    using namespace YubiKeyOath::Shared;
+
+    switch (brand) {
+    case DeviceBrand::Nitrokey:
+        return std::make_unique<NitrokeyOathSession>(cardHandle, protocol, deviceId, this);
+
+    case DeviceBrand::YubiKey:
+    case DeviceBrand::Unknown:
+    default:
+        return std::make_unique<YkOathSession>(cardHandle, protocol, deviceId, this);
+    }
+}
+
+std::unique_ptr<OathDevice> YubiKeyDeviceManager::createDevice(
+    Shared::DeviceBrand brand,
+    const QString &deviceId,
+    const QString &readerName,
+    SCARDHANDLE cardHandle,
+    DWORD protocol,
+    const QByteArray &challenge,
+    bool requiresPassword)
+{
+    using namespace YubiKeyOath::Shared;
+
+    switch (brand) {
+    case DeviceBrand::Nitrokey:
+        return std::make_unique<NitrokeyOathDevice>(
+            deviceId, readerName, cardHandle, protocol,
+            challenge, requiresPassword, m_context, this);
+
+    case DeviceBrand::YubiKey:
+    case DeviceBrand::Unknown:
+    default:
+        return std::make_unique<YubiKeyOathDevice>(
+            deviceId, readerName, cardHandle, protocol,
+            challenge, requiresPassword, m_context, this);
+    }
+}
 
 } // namespace Daemon
 } // namespace YubiKeyOath

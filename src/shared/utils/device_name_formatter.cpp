@@ -5,42 +5,37 @@
 
 #include "device_name_formatter.h"
 #include "storage/yubikey_database.h"
-#include "types/yubikey_model.h"
+#include "shared/types/device_model.h"
+#include "shared/types/device_brand.h"
 
 namespace YubiKeyOath {
 namespace Shared {
 
 QString DeviceNameFormatter::generateDefaultName(const QString &deviceId,
-                                                  YubiKeyModel model,
+                                                  const DeviceModel& deviceModel,
                                                   quint32 serialNumber,
                                                   Daemon::YubiKeyDatabase *database)
 {
-    // If model is unknown (0), fall back to device ID format
-    if (model == 0) {
+    // If model brand is unknown, fall back to device ID format
+    if (deviceModel.brand == DeviceBrand::Unknown) {
         return generateDefaultName(deviceId);
     }
-
-    // Convert model to human-readable string
-    QString const modelString = modelToString(model);
 
     // If model string is empty or "Unknown", fall back to device ID format
-    if (modelString.isEmpty() || modelString == QStringLiteral("Unknown")) {
+    if (deviceModel.modelString.isEmpty() || deviceModel.modelString == QStringLiteral("Unknown")) {
         return generateDefaultName(deviceId);
     }
 
-    // Remove "YubiKey " prefix if present (we'll add it back ourselves)
-    QString cleanModelString = modelString;
-    if (cleanModelString.startsWith(QStringLiteral("YubiKey "))) {
-        cleanModelString = cleanModelString.mid(8); // Remove "YubiKey " (8 characters)
-    }
+    // Use the model string directly (already formatted with brand, e.g., "YubiKey 5C NFC" or "Nitrokey 3C NFC")
+    const QString& modelString = deviceModel.modelString;
 
     // Format with serial number if available
     if (serialNumber > 0) {
-        return QStringLiteral("YubiKey %1 - %2").arg(cleanModelString).arg(serialNumber);
+        return QStringLiteral("%1 - %2").arg(modelString).arg(serialNumber);
     }
 
     // Without serial number: check for duplicates and add counter if needed
-    QString const baseName = QStringLiteral("YubiKey %1").arg(cleanModelString);
+    const QString baseName = modelString;
 
     // Count existing devices with this name prefix
     int const existingCount = database->countDevicesWithNamePrefix(baseName);

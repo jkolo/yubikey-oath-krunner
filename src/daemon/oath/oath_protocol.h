@@ -17,16 +17,22 @@ namespace Daemon {
 using namespace YubiKeyOath::Shared;
 
 /**
- * @brief Stateless utility class for OATH protocol operations
+ * @brief Base class for brand-specific OATH protocol implementations
  *
- * This class provides pure functions for OATH protocol handling:
+ * This base class provides universal OATH specification methods (85% of protocol logic):
  * - Protocol constants (instruction codes, status words, TLV tags)
- * - APDU command creation
- * - Response parsing
- * - Helper functions (TLV parsing, TOTP counter calculation)
+ * - APDU command creation (SELECT, LIST, CALCULATE, VALIDATE, PUT, DELETE, etc.)
+ * - Response parsing (common TLV parsing, SELECT response, etc.)
+ * - Helper functions (TLV parsing, TOTP counter calculation, Base32 decoding)
  *
- * No state, no I/O - all functions are static.
- * Used by OathSession for actual communication with YubiKey.
+ * Brand-specific classes (YKOathProtocol, NitrokeySecretsOathProtocol) inherit
+ * and override virtual methods for parsing differences (touch detection, response formats).
+ *
+ * Design rationale:
+ * - YubiKey: LIST command has spurious 0x6985 errors, uses CALCULATE_ALL workaround
+ * - Nitrokey: LIST works correctly, supports LIST v1 with properties byte
+ *
+ * Used by brand-specific OathSession implementations (YkOathSession, NitrokeyOathSession).
  */
 class OathProtocol
 {
@@ -68,7 +74,9 @@ public:
     static constexpr quint8 TAG_PROPERTY = 0x78;
     static constexpr quint8 TAG_VERSION = 0x79;
     static constexpr quint8 TAG_IMF = 0x7a;
+    static constexpr quint8 TAG_ALGORITHM = 0x7B;      // YubiKey algorithm tag
     static constexpr quint8 TAG_TOUCH = 0x7c;
+    static constexpr quint8 TAG_SERIAL_NUMBER = 0x8F;  // Nitrokey serial number (4 bytes)
 
     // OATH Application Identifier
     static const QByteArray OATH_AID;
@@ -171,22 +179,35 @@ public:
 
     // Response parsing
     /**
-     * @brief Parses SELECT response to extract device ID, challenge, and firmware version
+     * @brief Parses SELECT response to extract device ID, challenge, firmware version, password requirement, and serial
      * @param response Response data from SELECT command
-     * @param outDeviceId Output parameter for device ID (hex string)
-     * @param outChallenge Output parameter for challenge bytes
+     * @param outDeviceId Output parameter for device ID (hex string, from TAG_SERIAL_NUMBER or TAG_NAME)
+     * @param outChallenge Output parameter for challenge bytes (from TAG_CHALLENGE)
      * @param outFirmwareVersion Output parameter for firmware version (from TAG_VERSION)
+     * @param outRequiresPassword Output parameter for password requirement (true if TAG_CHALLENGE present)
+     * @param outSerialNumber Output parameter for serial number (from TAG_SERIAL_NUMBER 0x8F, 0 if not present)
      * @return true on success, false on parse error
+     *
+     * Brand-specific: Serial number extraction differs
+     * - YubiKey: No TAG_SERIAL_NUMBER in SELECT, uses Management API or OTP/PIV
+     * - Nitrokey: Includes TAG_SERIAL_NUMBER (0x8F) in SELECT response
+     *
+     * NOTE: Base class provides default implementation, brands can override if needed
      */
-    static bool parseSelectResponse(const QByteArray &response,
-                                   QString &outDeviceId,
-                                   QByteArray &outChallenge,
-                                   Version &outFirmwareVersion);
+    virtual bool parseSelectResponse(const QByteArray &response,
+                                    QString &outDeviceId,
+                                    QByteArray &outChallenge,
+                                    Version &outFirmwareVersion,
+                                    bool &outRequiresPassword,
+                                    quint32 &outSerialNumber) const;
 
     /**
      * @brief Parses LIST response to extract credential names
      * @param response Response data from LIST command
      * @return List of credential names
+     *
+     * NOTE: This is the base version (LIST version 0). Brand-specific classes may provide
+     * additional methods like parseCredentialListV1() for extended formats.
      */
     static QList<OathCredential> parseCredentialList(const QByteArray &response);
 
@@ -194,15 +215,23 @@ public:
      * @brief Parses CALCULATE response to extract TOTP/HOTP code
      * @param response Response data from CALCULATE command
      * @return Code string (6-8 digits) or empty on error
+     *
+     * Brand-specific (MUST override): Touch detection status word differs
+     * - YubiKey: 0x6985 = touch required
+     * - Nitrokey: 0x6982 = touch required
      */
-    static QString parseCode(const QByteArray &response);
+    virtual QString parseCode(const QByteArray &response) const = 0;
 
     /**
      * @brief Parses CALCULATE ALL response to extract all codes
      * @param response Response data from CALCULATE ALL command
      * @return List of credentials with codes
+     *
+     * Brand-specific (MUST override): Response format differs between brands
+     * - YubiKey: NAME (0x71) + RESPONSE (0x76) or TOUCH (0x7c) or HOTP (0x77)
+     * - Nitrokey: May use LIST v1 format with properties byte (or empty if CALCULATE_ALL unsupported)
      */
-    static QList<OathCredential> parseCalculateAllResponse(const QByteArray &response);
+    virtual QList<OathCredential> parseCalculateAllResponse(const QByteArray &response) const = 0;
 
     /**
      * @brief Parses SET_CODE response and verifies success
@@ -458,9 +487,12 @@ public:
      */
     static ReaderNameInfo parseReaderNameInfo(const QString &readerName);
 
-private:
-    // Private constructor - utility class only
-    OathProtocol() = delete;
+    // Virtual destructor for polymorphic deletion
+    virtual ~OathProtocol() = default;
+
+protected:
+    // Protected constructor - allow inheritance but prevent direct instantiation
+    OathProtocol() = default;
 };
 
 } // namespace Daemon

@@ -19,7 +19,7 @@ namespace Daemon {
 class YubiKeyDeviceManager;
 class YubiKeyDatabase;
 class DaemonConfiguration;
-class YubiKeyOathDevice;
+class OathDevice;
 class DBusNotificationManager;
 
 /**
@@ -155,9 +155,9 @@ private:
      * @param data Credential data to validate
      * @param selectedDeviceId Device ID
      * @param errorMessage Output parameter for error message
-     * @return YubiKeyOathDevice* if validation passed, nullptr otherwise
+     * @return OathDevice* if validation passed, nullptr otherwise
      */
-    YubiKeyOathDevice* validateCredentialBeforeSave(const Shared::OathCredentialData &data,
+    OathDevice* validateCredentialBeforeSave(const Shared::OathCredentialData &data,
                                                      const QString &selectedDeviceId,
                                                      QString &errorMessage);
 

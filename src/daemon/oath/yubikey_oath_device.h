@@ -6,9 +6,11 @@
 #pragma once
 
 #include "types/oath_credential.h"
-#include "oath_session.h"
+#include "types/oath_credential_data.h"
+#include "oath_device.h"
+#include "yk_oath_session.h"
 #include "common/result.h"
-#include "shared/types/yubikey_model.h"
+#include "shared/types/device_model.h"
 
 #include <QByteArray>
 #include <QList>
@@ -29,16 +31,21 @@ namespace Daemon {
 #endif
 
 /**
- * @brief Represents a single YubiKey OATH device
+ * @brief YubiKey-specific OATH device implementation
  *
  * Single Responsibility: Handles communication with ONE YubiKey OATH application.
  * Each instance manages connection, authentication, and operations for a specific device.
+ *
+ * YubiKey-specific behavior:
+ * - Creates YkOathSession internally (CALCULATE_ALL without fallback)
+ * - Serial number via Management/PIV APIs (not in SELECT response)
+ * - Touch required status word: 0x6985
  *
  * This class encapsulates all state and operations for a single YubiKey device,
  * following the Single Responsibility Principle. Methods do not require deviceId
  * parameter as the instance itself represents a specific device.
  */
-class YubiKeyOathDevice : public QObject
+class YubiKeyOathDevice : public OathDevice
 {
     Q_OBJECT
 
@@ -51,14 +58,16 @@ public:
      * @param cardHandle PC/SC card handle (ownership transferred)
      * @param protocol PC/SC protocol
      * @param challenge Challenge from YubiKey SELECT
+     * @param requiresPassword Whether device requires password (from TAG_CHALLENGE presence in SELECT)
      * @param context PC/SC context (not owned, must outlive this object)
      * @param parent Parent QObject
      */
     explicit YubiKeyOathDevice(const QString &deviceId,
-                               QString readerName,
+                               const QString &readerName,
                                SCARDHANDLE cardHandle,
                                DWORD protocol,
-                               QByteArray challenge,
+                               const QByteArray &challenge,
+                               bool requiresPassword,
                                SCARDCONTEXT context,
                                QObject *parent = nullptr);
 
@@ -67,220 +76,97 @@ public:
      */
     ~YubiKeyOathDevice();
 
-    // Device information
+    // IOathDevice interface implementation - Device information getters
     /**
      * @brief Gets device ID (unique identifier)
      * @return Device ID as hex string
      */
-    QString deviceId() const { return m_deviceId; }
+    QString deviceId() const override { return m_deviceId; }
 
     /**
      * @brief Gets PC/SC reader name
      * @return Reader name
      */
-    QString readerName() const { return m_readerName; }
+    QString readerName() const override { return m_readerName; }
 
     /**
      * @brief Gets firmware version
      * @return Firmware version from TAG_VERSION (0x79)
      */
-    Version firmwareVersion() const { return m_firmwareVersion; }
+    Version firmwareVersion() const override { return m_firmwareVersion; }
 
     /**
      * @brief Gets device model
-     * @return Device model as encoded uint32 (0xSSVVPPFF)
+     * @return Device model with brand information
      */
-    YubiKeyModel deviceModel() const { return m_deviceModel; }
+    DeviceModel deviceModel() const override { return m_deviceModel; }
 
     /**
      * @brief Gets device serial number
      * @return Serial number (0 if unavailable)
      */
-    quint32 serialNumber() const { return m_serialNumber; }
+    quint32 serialNumber() const override { return m_serialNumber; }
+
+    /**
+     * @brief Gets password requirement status
+     * @return true if device requires password (TAG_CHALLENGE present in SELECT), false otherwise
+     */
+    bool requiresPassword() const override { return m_requiresPassword; }
 
     /**
      * @brief Gets device form factor
      * @return Form factor code (0 if unavailable)
      */
-    quint8 formFactor() const { return m_formFactor; }
+    quint8 formFactor() const override { return m_formFactor; }
 
     /**
      * @brief Gets cached credentials
      * @return List of OATH credentials
      */
-    QList<OathCredential> credentials() const { return m_credentials; }
+    QList<OathCredential> credentials() const override { return m_credentials; }
 
     /**
      * @brief Checks if credential cache update is in progress
      * @return true if async update running
      */
-    bool isUpdateInProgress() const { return m_updateInProgress; }
+    bool isUpdateInProgress() const override { return m_updateInProgress; }
 
-    // OATH operations
-    /**
-     * @brief Generates TOTP code for specified credential
-     * @param name Credential name
-     * @return Result containing generated code on success, or error message on failure
-     */
-    Result<QString> generateCode(const QString &name);
+    // NOTE: All OATH operations (generateCode, authenticateWithPassword, addCredential,
+    // deleteCredential, changePassword, setPassword, hasPassword,
+    // updateCredentialCacheAsync, cancelPendingOperation, onReconnectResult,
+    // fetchCredentialsSync, reconnectCardHandle) are now implemented in
+    // OathDevice base class using polymorphic m_session and factory pattern
 
-    /**
-     * @brief Authenticates device with password
-     * @param password Password to use
-     * @return Result indicating success or containing error message
-     */
-    Result<void> authenticateWithPassword(const QString &password);
+    // NOTE: All signals are declared in OathDevice base class
+    // DO NOT redeclare signals here - it causes Qt signal shadowing where:
+    // - Base class signal (OathDevice::credentialCacheFetched) is never emitted
+    // - Derived class shadow signal (YubiKeyOathDevice::credentialCacheFetched) is emitted
+    // - External connections to &OathDevice::credentialCacheFetched receive nothing
+    // See: src/daemon/oath/oath_device.h for signal declarations
 
+    // NOTE: onCardResetDetected slot is now implemented in OathDevice base class
+
+protected:
     /**
-     * @brief Adds or updates OATH credential on device
-     * @param data Credential data (name, secret, algorithm, etc.)
-     * @return Result indicating success or containing error message
+     * @brief Factory method for creating temporary YubiKey session
      *
-     * Requires authentication if device is password protected.
-     * Use setPassword() before calling if authentication needed.
-     */
-    Result<void> addCredential(const OathCredentialData &data);
-
-    /**
-     * @brief Deletes OATH credential from device
-     * @param name Full credential name (issuer:username)
-     * @return Result indicating success or containing error message
+     * Creates a YkOathSession instance for temporary use during reconnect.
+     * Implementation of pure virtual from OathDevice base class.
      *
-     * Requires authentication if device is password protected.
-     * Use setPassword() before calling if authentication needed.
+     * @param handle PC/SC card handle
+     * @param protocol PC/SC protocol
+     * @return YubiKey-specific session instance
      */
-    Result<void> deleteCredential(const QString &name);
-
-    /**
-     * @brief Changes password on YubiKey
-     * @param oldPassword Current password
-     * @param newPassword New password (empty string removes password)
-     * @return Result indicating success or containing error message
-     *
-     * Authenticates with old password, then sets new password.
-     * If newPassword is empty, removes password protection.
-     */
-    Result<void> changePassword(const QString &oldPassword, const QString &newPassword);
-
-    /**
-     * @brief Sets password for this device
-     * @param password Password to set
-     */
-    void setPassword(const QString &password);
-
-    /**
-     * @brief Checks if password is set for this device
-     * @return true if password is set
-     */
-    bool hasPassword() const { return !m_password.isEmpty(); }
-
-    /**
-     * @brief Asynchronously updates credential cache
-     *
-     * Runs credential fetching in background thread.
-     *
-     * @param password Password for authentication if required
-     *
-     * Emits credentialCacheFetched(credentials) on completion
-     */
-    void updateCredentialCacheAsync(const QString &password = QString());
-
-    /**
-     * @brief Cancels pending touch operation
-     *
-     * Sends SELECT command to interrupt pending CALCULATE operation.
-     */
-    void cancelPendingOperation();
-
-    /**
-     * @brief Handles reconnect result from YubiKeyDeviceManager
-     * @param success true if reconnect succeeded, false otherwise
-     *
-     * This method is called by YubiKeyDeviceManager after reconnect attempt.
-     * It emits appropriate signal to OathSession (reconnectReady or reconnectFailed)
-     * to unblock the waiting sendApdu() call.
-     */
-    void onReconnectResult(bool success);
-
-    /**
-     * @brief Reconnects card handle without destroying device object
-     * @param readerName PC/SC reader name to reconnect to
-     * @return Result indicating success or containing error message
-     *
-     * This method performs reconnect by:
-     * 1. Disconnecting old card handle (frees PC/SC resource)
-     * 2. Exponential backoff reconnect with SCardConnect
-     * 3. SELECT OATH applet to verify functionality
-     * 4. Update card handle in OathSession without destroying it
-     *
-     * Used instead of disconnectDevice() + connectToDevice() to avoid
-     * destroying the device object while background threads are using it.
-     */
-    Result<void> reconnectCardHandle(const QString &readerName);
-
-    /**
-     * @brief Fetches credentials synchronously
-     * @param password Password for authentication if required
-     * @return List of credentials or empty on error
-     *
-     * This method performs all YubiKey communication synchronously.
-     * Safe to call from background thread.
-     */
-    QList<OathCredential> fetchCredentialsSync(const QString &password = QString());
-
-Q_SIGNALS:
-    /**
-     * @brief Emitted when YubiKey touch is required
-     */
-    void touchRequired();
-
-    /**
-     * @brief Emitted when an error occurs
-     * @param error Error description
-     */
-    void errorOccurred(const QString &error);
-
-    /**
-     * @brief Emitted when credential list changes
-     */
-    void credentialsChanged();
-
-    /**
-     * @brief Emitted when asynchronous credential cache fetching completes
-     * @param credentials List of fetched credentials
-     */
-    void credentialCacheFetched(const QList<OathCredential> &credentials);
-
-    /**
-     * @brief Emitted when card reset is detected and reconnect is needed
-     * @param deviceId Device ID that needs reconnect
-     * @param readerName PC/SC reader name to reconnect to
-     * @param command APDU command that failed and needs to be retried after reconnect
-     *
-     * This signal is forwarded from OathSession::cardResetDetected to
-     * YubiKeyDeviceManager for reconnect coordination.
-     */
-    void needsReconnect(const QString &deviceId, const QString &readerName, const QByteArray &command);
+    std::unique_ptr<YkOathSession> createTempSession(
+        SCARDHANDLE handle,
+        DWORD protocol) override;
 
 private:
-    // Device state
-    QString m_deviceId;
-    QString m_readerName;
-    SCARDHANDLE m_cardHandle;
-    DWORD m_protocol;
-    SCARDCONTEXT m_context;  // Not owned
-    QByteArray m_challenge;
-    Version m_firmwareVersion;  ///< YubiKey firmware version from TAG_VERSION
-    YubiKeyModel m_deviceModel{0x00000000};  ///< YubiKey model (0xSSVVPPFF)
-    quint32 m_serialNumber{0};  ///< Device serial number (0 if unavailable)
-    quint8 m_formFactor{0};  ///< Form factor code (0 if unavailable)
-    QList<OathCredential> m_credentials;
-    QString m_password;
-    bool m_updateInProgress = false;
-    QMutex m_cardMutex;  // Protects card access from concurrent threads (used by OathSession)
-
-    // OATH session
-    std::unique_ptr<OathSession> m_session;  ///< OATH protocol session handler
+    // Note: All common device state members moved to OathDevice base class
+    // (m_deviceId, m_readerName, m_cardHandle, m_protocol, m_context,
+    //  m_challenge, m_firmwareVersion, m_deviceModel, m_serialNumber,
+    //  m_formFactor, m_requiresPassword, m_credentials, m_password,
+    //  m_updateInProgress, m_cardMutex, m_session)
 };
 
 } // namespace Daemon

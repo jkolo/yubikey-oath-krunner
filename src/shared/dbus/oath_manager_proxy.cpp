@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "yubikey_manager_proxy.h"
-#include "../../daemon/dbus/yubikey_manager_object.h"  // For ManagedObjectMap
+#include "oath_manager_proxy.h"
+#include "../../daemon/dbus/oath_manager_object.h"  // For ManagedObjectMap
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QDBusConnection>
@@ -16,13 +16,13 @@
 #include <QLatin1String>
 #include <QLoggingCategory>
 
-Q_LOGGING_CATEGORY(YubiKeyManagerProxyLog, "pl.jkolo.yubikey.oath.daemon.manager.proxy")
+Q_LOGGING_CATEGORY(OathManagerProxyLog, "pl.jkolo.yubikey.oath.daemon.manager.proxy")
 
 namespace YubiKeyOath {
 namespace Shared {
 
 // Initialize singleton
-YubiKeyManagerProxy *YubiKeyManagerProxy::s_instance = nullptr;
+OathManagerProxy *OathManagerProxy::s_instance = nullptr;
 
 // Register D-Bus types on first use
 static void registerDBusTypes()
@@ -35,22 +35,22 @@ static void registerDBusTypes()
     }
 }
 
-YubiKeyManagerProxy* YubiKeyManagerProxy::instance(QObject *parent)
+OathManagerProxy* OathManagerProxy::instance(QObject *parent)
 {
     if (!s_instance) {
-        s_instance = new YubiKeyManagerProxy(parent);
+        s_instance = new OathManagerProxy(parent);
     }
     return s_instance;
 }
 
-YubiKeyManagerProxy::YubiKeyManagerProxy(QObject *parent)
+OathManagerProxy::OathManagerProxy(QObject *parent)
     : QObject(parent)
     , m_version(QStringLiteral("2.0.0"))
 {
     // Register D-Bus types
     registerDBusTypes();
 
-    qCDebug(YubiKeyManagerProxyLog) << "Creating YubiKeyManagerProxy singleton";
+    qCDebug(OathManagerProxyLog) << "Creating OathManagerProxy singleton";
 
     // Create D-Bus interfaces
     m_managerInterface = new QDBusInterface(QLatin1String(SERVICE_NAME),
@@ -72,20 +72,20 @@ YubiKeyManagerProxy::YubiKeyManagerProxy(QObject *parent)
     m_daemonAvailable = m_managerInterface->isValid() && m_objectManagerInterface->isValid();
 
     if (m_daemonAvailable) {
-        qCDebug(YubiKeyManagerProxyLog) << "Daemon is available on startup";
+        qCDebug(OathManagerProxyLog) << "Daemon is available on startup";
         connectToSignals();
         refreshManagedObjects();
     } else {
-        qCWarning(YubiKeyManagerProxyLog) << "Daemon not available on startup";
+        qCWarning(OathManagerProxyLog) << "Daemon not available on startup";
     }
 }
 
-YubiKeyManagerProxy::~YubiKeyManagerProxy()
+OathManagerProxy::~OathManagerProxy()
 {
-    qCDebug(YubiKeyManagerProxyLog) << "Destroying YubiKeyManagerProxy singleton";
+    qCDebug(OathManagerProxyLog) << "Destroying OathManagerProxy singleton";
 }
 
-void YubiKeyManagerProxy::setupServiceWatcher()
+void OathManagerProxy::setupServiceWatcher()
 {
     m_serviceWatcher = new QDBusServiceWatcher(QLatin1String(SERVICE_NAME),
                                                QDBusConnection::sessionBus(),
@@ -94,12 +94,12 @@ void YubiKeyManagerProxy::setupServiceWatcher()
                                                this);
 
     connect(m_serviceWatcher, &QDBusServiceWatcher::serviceRegistered,
-            this, &YubiKeyManagerProxy::onDBusServiceRegistered);
+            this, &OathManagerProxy::onDBusServiceRegistered);
     connect(m_serviceWatcher, &QDBusServiceWatcher::serviceUnregistered,
-            this, &YubiKeyManagerProxy::onDBusServiceUnregistered);
+            this, &OathManagerProxy::onDBusServiceUnregistered);
 }
 
-void YubiKeyManagerProxy::connectToSignals()
+void OathManagerProxy::connectToSignals()
 {
     if (!m_objectManagerInterface || !m_objectManagerInterface->isValid()) {
         return;
@@ -135,14 +135,14 @@ void YubiKeyManagerProxy::connectToSignals()
     );
 }
 
-void YubiKeyManagerProxy::refreshManagedObjects()
+void OathManagerProxy::refreshManagedObjects()
 {
     if (!m_objectManagerInterface || !m_objectManagerInterface->isValid()) {
-        qCWarning(YubiKeyManagerProxyLog) << "Cannot refresh: ObjectManager interface invalid";
+        qCWarning(OathManagerProxyLog) << "Cannot refresh: ObjectManager interface invalid";
         return;
     }
 
-    qCDebug(YubiKeyManagerProxyLog) << "Calling GetManagedObjects()";
+    qCDebug(OathManagerProxyLog) << "Calling GetManagedObjects()";
 
     // Call GetManagedObjects()
     // Returns: a{oa{sa{sv}}} - ObjectManager signature
@@ -150,7 +150,7 @@ void YubiKeyManagerProxy::refreshManagedObjects()
     QDBusMessage const reply = m_objectManagerInterface->call(QStringLiteral("GetManagedObjects"));
 
     if (reply.type() == QDBusMessage::ErrorMessage) {
-        qCWarning(YubiKeyManagerProxyLog) << "GetManagedObjects failed:"
+        qCWarning(OathManagerProxyLog) << "GetManagedObjects failed:"
                                            << reply.errorMessage();
         return;
     }
@@ -169,7 +169,7 @@ void YubiKeyManagerProxy::refreshManagedObjects()
     using DBusObjectMap = QMap<QDBusObjectPath, InterfacePropertiesMap>;
     auto const dbusObjects = qdbus_cast<DBusObjectMap>(arg);
 
-    qCDebug(YubiKeyManagerProxyLog) << "qdbus_cast returned" << dbusObjects.size() << "objects";
+    qCDebug(OathManagerProxyLog) << "qdbus_cast returned" << dbusObjects.size() << "objects";
 
     // Convert QDBusObjectPath keys to QString for easier handling
     QVariantMap managedObjects;
@@ -184,13 +184,13 @@ void YubiKeyManagerProxy::refreshManagedObjects()
             interfacesMap.insert(intIt.key(), QVariant::fromValue(intIt.value()));
         }
 
-        qCDebug(YubiKeyManagerProxyLog) << "DEBUG: Object path:" << objectPath
+        qCDebug(OathManagerProxyLog) << "DEBUG: Object path:" << objectPath
                                          << "with" << interfacesMap.size() << "interfaces";
 
         managedObjects.insert(objectPath, interfacesMap);
     }
 
-    qCDebug(YubiKeyManagerProxyLog) << "GetManagedObjects returned" << managedObjects.size() << "objects";
+    qCDebug(OathManagerProxyLog) << "GetManagedObjects returned" << managedObjects.size() << "objects";
 
     // First pass: collect all device and credential objects
     QHash<QString, QVariantMap> deviceObjects; // devicePath → device properties
@@ -204,7 +204,7 @@ void YubiKeyManagerProxy::refreshManagedObjects()
         if (interfacesAndProperties.contains(QLatin1String(DEVICE_INTERFACE))) {
             QVariantMap const deviceProps = interfacesAndProperties.value(QLatin1String(DEVICE_INTERFACE)).toMap();
             deviceObjects.insert(objectPath, deviceProps);
-            qCDebug(YubiKeyManagerProxyLog) << "Found device at" << objectPath;
+            qCDebug(OathManagerProxyLog) << "Found device at" << objectPath;
         }
 
         // Check if this is a Credential object
@@ -220,7 +220,7 @@ void YubiKeyManagerProxy::refreshManagedObjects()
 
             if (!devicePath.isEmpty()) {
                 credentialsByDevice[devicePath].insert(objectPath, credProps);
-                qCDebug(YubiKeyManagerProxyLog) << "Found credential at" << objectPath
+                qCDebug(OathManagerProxyLog) << "Found credential at" << objectPath
                                                  << "for device" << devicePath;
             }
         }
@@ -235,30 +235,30 @@ void YubiKeyManagerProxy::refreshManagedObjects()
         addDeviceProxy(devicePath, deviceProps, credentials);
     }
 
-    qCDebug(YubiKeyManagerProxyLog) << "Refresh complete:"
+    qCDebug(OathManagerProxyLog) << "Refresh complete:"
                                      << m_devices.size() << "devices,"
                                      << totalCredentials() << "credentials";
 }
 
-void YubiKeyManagerProxy::refresh()
+void OathManagerProxy::refresh()
 {
-    qCDebug(YubiKeyManagerProxyLog) << "Manual refresh requested";
+    qCDebug(OathManagerProxyLog) << "Manual refresh requested";
     refreshManagedObjects();
 }
 
-QList<YubiKeyDeviceProxy*> YubiKeyManagerProxy::devices() const
+QList<OathDeviceProxy*> OathManagerProxy::devices() const
 {
     return m_devices.values();
 }
 
-YubiKeyDeviceProxy* YubiKeyManagerProxy::getDevice(const QString &deviceId) const
+OathDeviceProxy* OathManagerProxy::getDevice(const QString &deviceId) const
 {
     return m_devices.value(deviceId, nullptr);
 }
 
-QList<YubiKeyCredentialProxy*> YubiKeyManagerProxy::getAllCredentials() const
+QList<OathCredentialProxy*> OathManagerProxy::getAllCredentials() const
 {
-    QList<YubiKeyCredentialProxy*> allCredentials;
+    QList<OathCredentialProxy*> allCredentials;
 
     for (auto *device : m_devices) {
         allCredentials.append(device->credentials());
@@ -267,7 +267,7 @@ QList<YubiKeyCredentialProxy*> YubiKeyManagerProxy::getAllCredentials() const
     return allCredentials;
 }
 
-int YubiKeyManagerProxy::totalCredentials() const
+int OathManagerProxy::totalCredentials() const
 {
     int total = 0;
     for (auto *device : m_devices) {
@@ -276,20 +276,20 @@ int YubiKeyManagerProxy::totalCredentials() const
     return total;
 }
 
-void YubiKeyManagerProxy::onInterfacesAdded(const QDBusMessage &message)
+void OathManagerProxy::onInterfacesAdded(const QDBusMessage &message)
 {
     // Extract arguments from D-Bus message
     // Argument 0: object path (o)
     // Argument 1: interfaces and properties (a{sa{sv}})
     QList<QVariant> const args = message.arguments();
     if (args.size() < 2) {
-        qCWarning(YubiKeyManagerProxyLog) << "InterfacesAdded: Invalid message - expected 2 arguments, got" << args.size();
+        qCWarning(OathManagerProxyLog) << "InterfacesAdded: Invalid message - expected 2 arguments, got" << args.size();
         return;
     }
 
     auto const objectPath = args.at(0).value<QDBusObjectPath>();
     QString const path = objectPath.path();
-    qCDebug(YubiKeyManagerProxyLog) << "InterfacesAdded:" << path;
+    qCDebug(OathManagerProxyLog) << "InterfacesAdded:" << path;
 
     // Manual demarshaling of nested D-Bus structure
     // D-Bus signature: a{sa{sv}} = Map<interface_name, Map<property_name, value>>
@@ -299,7 +299,7 @@ void YubiKeyManagerProxy::onInterfacesAdded(const QDBusMessage &message)
     auto const interfaces = qdbus_cast<InterfacePropertiesMap>(interfacesArg);
 
     // Debug: log all interfaces
-    qCDebug(YubiKeyManagerProxyLog) << "Demarshaled interfaces:" << interfaces.keys();
+    qCDebug(OathManagerProxyLog) << "Demarshaled interfaces:" << interfaces.keys();
 
     // Convert to QVariantMap matching refreshManagedObjects pattern
     // Key insight: each property map must be wrapped in QVariant
@@ -309,15 +309,15 @@ void YubiKeyManagerProxy::onInterfacesAdded(const QDBusMessage &message)
         const QVariantMap &properties = intIt.value();
 
         // Debug: log each property in the map
-        qCDebug(YubiKeyManagerProxyLog) << "Interface" << interfaceName << "properties:";
+        qCDebug(OathManagerProxyLog) << "Interface" << interfaceName << "properties:";
         for (auto propIt = properties.constBegin(); propIt != properties.constEnd(); ++propIt) {
-            qCDebug(YubiKeyManagerProxyLog) << "  " << propIt.key() << "=" << propIt.value();
+            qCDebug(OathManagerProxyLog) << "  " << propIt.key() << "=" << propIt.value();
         }
 
         interfacesMap.insert(interfaceName, QVariant::fromValue(properties));
     }
 
-    qCDebug(YubiKeyManagerProxyLog) << "Total interfaces wrapped:" << interfacesMap.size();
+    qCDebug(OathManagerProxyLog) << "Total interfaces wrapped:" << interfacesMap.size();
 
     // Check if this is a Device object
     if (interfacesMap.contains(QLatin1String(DEVICE_INTERFACE))) {
@@ -325,8 +325,8 @@ void YubiKeyManagerProxy::onInterfacesAdded(const QDBusMessage &message)
         QVariantMap const deviceProps = interfacesMap.value(QLatin1String(DEVICE_INTERFACE)).toMap();
 
         // Debug: log device properties
-        qCDebug(YubiKeyManagerProxyLog) << "Device properties:" << deviceProps;
-        qCDebug(YubiKeyManagerProxyLog) << "DeviceId (ID property):" << deviceProps.value(QLatin1String("ID"));
+        qCDebug(OathManagerProxyLog) << "Device properties:" << deviceProps;
+        qCDebug(OathManagerProxyLog) << "DeviceId (ID property):" << deviceProps.value(QLatin1String("ID"));
 
         QHash<QString, QVariantMap> const emptyCredentials; // New device has no credentials yet
         addDeviceProxy(path, deviceProps, emptyCredentials);
@@ -335,11 +335,11 @@ void YubiKeyManagerProxy::onInterfacesAdded(const QDBusMessage &message)
     // Credential additions are handled by DeviceProxy's CredentialAdded signal
 }
 
-void YubiKeyManagerProxy::onInterfacesRemoved(const QDBusObjectPath &objectPath,
+void OathManagerProxy::onInterfacesRemoved(const QDBusObjectPath &objectPath,
                                              const QStringList &interfaces)
 {
     QString const path = objectPath.path();
-    qCDebug(YubiKeyManagerProxyLog) << "InterfacesRemoved:" << path << "Interfaces:" << interfaces;
+    qCDebug(OathManagerProxyLog) << "InterfacesRemoved:" << path << "Interfaces:" << interfaces;
 
     // Check if Device interface was removed
     if (interfaces.contains(QLatin1String(DEVICE_INTERFACE))) {
@@ -349,7 +349,7 @@ void YubiKeyManagerProxy::onInterfacesRemoved(const QDBusObjectPath &objectPath,
     // Credential removals are handled by DeviceProxy's CredentialRemoved signal
 }
 
-void YubiKeyManagerProxy::onManagerPropertiesChanged(const QString &interfaceName,
+void OathManagerProxy::onManagerPropertiesChanged(const QString &interfaceName,
                                                     const QVariantMap &changedProperties,
                                                     const QStringList &invalidatedProperties)
 {
@@ -359,7 +359,7 @@ void YubiKeyManagerProxy::onManagerPropertiesChanged(const QString &interfaceNam
         return;
     }
 
-    qCDebug(YubiKeyManagerProxyLog) << "Manager PropertiesChanged:" << changedProperties.keys();
+    qCDebug(OathManagerProxyLog) << "Manager PropertiesChanged:" << changedProperties.keys();
 
     // Update cached manager properties
     if (changedProperties.contains(QStringLiteral("Version"))) {
@@ -372,14 +372,14 @@ void YubiKeyManagerProxy::onManagerPropertiesChanged(const QString &interfaceNam
     }
 }
 
-void YubiKeyManagerProxy::onDBusServiceRegistered(const QString &serviceName)
+void OathManagerProxy::onDBusServiceRegistered(const QString &serviceName)
 {
     Q_UNUSED(serviceName)
-    qCDebug(YubiKeyManagerProxyLog) << "Daemon service registered";
+    qCDebug(OathManagerProxyLog) << "Daemon service registered";
 
     // CRITICAL FIX: Recreate D-Bus interfaces for new daemon instance
     // Old interfaces become stale after daemon crash/restart and isValid() returns false
-    qCDebug(YubiKeyManagerProxyLog) << "Recreating D-Bus interfaces for new daemon instance";
+    qCDebug(OathManagerProxyLog) << "Recreating D-Bus interfaces for new daemon instance";
 
     delete m_managerInterface;
     delete m_objectManagerInterface;
@@ -404,10 +404,10 @@ void YubiKeyManagerProxy::onDBusServiceRegistered(const QString &serviceName)
     refreshManagedObjects();
 }
 
-void YubiKeyManagerProxy::onDBusServiceUnregistered(const QString &serviceName)
+void OathManagerProxy::onDBusServiceUnregistered(const QString &serviceName)
 {
     Q_UNUSED(serviceName)
-    qCWarning(YubiKeyManagerProxyLog) << "Daemon service unregistered";
+    qCWarning(OathManagerProxyLog) << "Daemon service unregistered";
 
     m_daemonAvailable = false;
     Q_EMIT daemonUnavailable();
@@ -419,7 +419,7 @@ void YubiKeyManagerProxy::onDBusServiceUnregistered(const QString &serviceName)
     }
 }
 
-void YubiKeyManagerProxy::addDeviceProxy(const QString &devicePath,
+void OathManagerProxy::addDeviceProxy(const QString &devicePath,
                                         const QVariantMap &deviceProperties,
                                         const QHash<QString, QVariantMap> &credentialObjects)
 {
@@ -427,43 +427,43 @@ void YubiKeyManagerProxy::addDeviceProxy(const QString &devicePath,
     QString const deviceId = deviceProperties.value(QStringLiteral("ID")).toString();
 
     if (deviceId.isEmpty()) {
-        qCWarning(YubiKeyManagerProxyLog) << "Cannot add device proxy: ID is empty for path" << devicePath;
+        qCWarning(OathManagerProxyLog) << "Cannot add device proxy: ID is empty for path" << devicePath;
         return;
     }
 
     // Check if already exists
     if (m_devices.contains(deviceId)) {
-        qCDebug(YubiKeyManagerProxyLog) << "Device" << deviceId << "already exists, skipping";
+        qCDebug(OathManagerProxyLog) << "Device" << deviceId << "already exists, skipping";
         return;
     }
 
     // Create device proxy (this object becomes parent, so proxy is auto-deleted)
-    auto *device = new YubiKeyDeviceProxy(devicePath, deviceProperties, credentialObjects, this);
+    auto *device = new OathDeviceProxy(devicePath, deviceProperties, credentialObjects, this);
     m_devices.insert(deviceId, device);
 
     // Connect to device signals for credential changes
-    connect(device, &YubiKeyDeviceProxy::credentialAdded,
-            this, &YubiKeyManagerProxy::credentialsChanged);
-    connect(device, &YubiKeyDeviceProxy::credentialRemoved,
-            this, &YubiKeyManagerProxy::credentialsChanged);
+    connect(device, &OathDeviceProxy::credentialAdded,
+            this, &OathManagerProxy::credentialsChanged);
+    connect(device, &OathDeviceProxy::credentialRemoved,
+            this, &OathManagerProxy::credentialsChanged);
 
     // Forward device property changes
-    connect(device, &YubiKeyDeviceProxy::nameChanged,
+    connect(device, &OathDeviceProxy::nameChanged,
             this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
-    connect(device, &YubiKeyDeviceProxy::connectionChanged,
+    connect(device, &OathDeviceProxy::connectionChanged,
             this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
-    connect(device, &YubiKeyDeviceProxy::requiresPasswordChanged,
+    connect(device, &OathDeviceProxy::requiresPasswordChanged,
             this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
-    connect(device, &YubiKeyDeviceProxy::hasValidPasswordChanged,
+    connect(device, &OathDeviceProxy::hasValidPasswordChanged,
             this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
 
-    qCDebug(YubiKeyManagerProxyLog) << "Added device proxy:" << deviceId
+    qCDebug(OathManagerProxyLog) << "Added device proxy:" << deviceId
                                      << "Name:" << device->name()
                                      << "Credentials:" << device->credentials().size();
     Q_EMIT deviceConnected(device);
 }
 
-void YubiKeyManagerProxy::removeDeviceProxy(const QString &devicePath)
+void OathManagerProxy::removeDeviceProxy(const QString &devicePath)
 {
     // Find device by object path
     QString deviceId;
@@ -475,14 +475,14 @@ void YubiKeyManagerProxy::removeDeviceProxy(const QString &devicePath)
     }
 
     if (deviceId.isEmpty()) {
-        qCDebug(YubiKeyManagerProxyLog) << "Device not found for path" << devicePath;
+        qCDebug(OathManagerProxyLog) << "Device not found for path" << devicePath;
         return;
     }
 
     // Remove and delete device proxy
     auto *device = m_devices.take(deviceId);
     if (device) {
-        qCDebug(YubiKeyManagerProxyLog) << "Removed device proxy:" << deviceId;
+        qCDebug(OathManagerProxyLog) << "Removed device proxy:" << deviceId;
         Q_EMIT deviceDisconnected(deviceId);
         device->deleteLater();
     }

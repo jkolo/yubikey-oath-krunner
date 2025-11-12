@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "yubikey_device_object.h"
-#include "yubikey_credential_object.h"
+#include "oath_device_object.h"
+#include "oath_credential_object.h"
 #include "services/yubikey_service.h"
 #include "logging_categories.h"
+#include "deviceadaptor.h"  // Auto-generated D-Bus adaptor
 
 #include <QDBusConnection>
 #include <QDBusError>
@@ -20,7 +21,7 @@ namespace Daemon {
 
 static constexpr const char *DEVICE_INTERFACE = "pl.jkolo.yubikey.oath.Device";
 
-YubiKeyDeviceObject::YubiKeyDeviceObject(QString deviceId,
+OathDeviceObject::OathDeviceObject(QString deviceId,
                                          QString objectPath,
                                          YubiKeyService *service,
                                          QDBusConnection connection,
@@ -40,6 +41,11 @@ YubiKeyDeviceObject::YubiKeyDeviceObject(QString deviceId,
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Constructing for device:" << m_deviceId
                               << "at path:" << m_objectPath
                               << "isConnected:" << m_isConnected;
+
+    // Create D-Bus adaptor for Device interface
+    // This automatically registers pl.jkolo.yubikey.oath.Device interface
+    new DeviceAdaptor(this);
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: DeviceAdaptor created";
 
     // Get initial device info from service
     const auto devices = m_service->listDevices();
@@ -71,24 +77,23 @@ YubiKeyDeviceObject::YubiKeyDeviceObject(QString deviceId,
             });
 }
 
-YubiKeyDeviceObject::~YubiKeyDeviceObject()
+OathDeviceObject::~OathDeviceObject()
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Destructor for device:" << m_deviceId;
     unregisterObject();
 }
 
-bool YubiKeyDeviceObject::registerObject()
+bool OathDeviceObject::registerObject()
 {
     if (m_registered) {
         qCWarning(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Already registered:" << m_deviceId;
         return true;
     }
 
-    // Register on D-Bus
-    if (!m_connection.registerObject(m_objectPath, this,
-                                     QDBusConnection::ExportAllProperties |
-                                     QDBusConnection::ExportAllSlots |
-                                     QDBusConnection::ExportAllSignals)) {
+    // Register on D-Bus using adaptor (exports interfaces defined in XML)
+    // Using ExportAdaptors ensures we use the interface name from the adaptor's Q_CLASSINFO,
+    // not the C++ class name
+    if (!m_connection.registerObject(m_objectPath, this, QDBusConnection::ExportAdaptors)) {
         qCCritical(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Failed to register at"
                                      << m_objectPath << ":" << m_connection.lastError().message();
         return false;
@@ -104,7 +109,7 @@ bool YubiKeyDeviceObject::registerObject()
     return true;
 }
 
-void YubiKeyDeviceObject::unregisterObject()
+void OathDeviceObject::unregisterObject()
 {
     if (!m_registered) {
         return;
@@ -121,83 +126,83 @@ void YubiKeyDeviceObject::unregisterObject()
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Unregistered:" << m_deviceId;
 }
 
-QString YubiKeyDeviceObject::objectPath() const
+QString OathDeviceObject::objectPath() const
 {
     return m_objectPath;
 }
 
-QString YubiKeyDeviceObject::name() const
+QString OathDeviceObject::name() const
 {
     return m_name;
 }
 
-QString YubiKeyDeviceObject::deviceId() const
+QString OathDeviceObject::deviceId() const
 {
     return m_deviceId;
 }
 
-bool YubiKeyDeviceObject::isConnected() const
+bool OathDeviceObject::isConnected() const
 {
     return m_isConnected;
 }
 
-bool YubiKeyDeviceObject::requiresPassword() const
+bool OathDeviceObject::requiresPassword() const
 {
     return m_requiresPassword;
 }
 
-bool YubiKeyDeviceObject::hasValidPassword() const
+bool OathDeviceObject::hasValidPassword() const
 {
     return m_hasValidPassword;
 }
 
-QString YubiKeyDeviceObject::firmwareVersionString() const
+QString OathDeviceObject::firmwareVersionString() const
 {
     return m_firmwareVersion.toString();
 }
 
-quint32 YubiKeyDeviceObject::serialNumber() const
+quint32 OathDeviceObject::serialNumber() const
 {
     return m_serialNumber;
 }
 
-QString YubiKeyDeviceObject::id() const
+QString OathDeviceObject::id() const
 {
     return m_id;
 }
 
-QString YubiKeyDeviceObject::deviceModelString() const
+QString OathDeviceObject::deviceModelString() const
 {
     return m_deviceModel;
 }
 
-quint32 YubiKeyDeviceObject::deviceModelCode() const
+quint32 OathDeviceObject::deviceModelCode() const
 {
     return m_rawDeviceModel;
 }
 
-QString YubiKeyDeviceObject::formFactorString() const
+QString OathDeviceObject::formFactorString() const
 {
     return m_formFactor;
 }
 
-QStringList YubiKeyDeviceObject::capabilitiesList() const
+QStringList OathDeviceObject::capabilitiesList() const
 {
     return m_capabilities;
 }
 
 // Internal getters for raw values
-Shared::YubiKeyModel YubiKeyDeviceObject::deviceModel() const
+Shared::YubiKeyModel OathDeviceObject::deviceModel() const
 {
     return m_rawDeviceModel;
 }
 
-quint8 YubiKeyDeviceObject::formFactor() const
+quint8 OathDeviceObject::formFactor() const
 {
     return m_rawFormFactor;
 }
 
-qint64 YubiKeyDeviceObject::lastSeen() const
+qint64 OathDeviceObject::lastSeen() const
 {
     const QDateTime lastSeenDateTime = m_service->getDeviceLastSeen(m_deviceId);
     if (lastSeenDateTime.isValid()) {
@@ -206,7 +211,7 @@ qint64 YubiKeyDeviceObject::lastSeen() const
     return 0; // Return 0 if device not in database or invalid timestamp
 }
 
-void YubiKeyDeviceObject::setName(const QString &name)
+void OathDeviceObject::setName(const QString &name)
 {
     if (name.trimmed().isEmpty()) {
         qCWarning(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Cannot set empty name for device:"
@@ -232,7 +237,7 @@ void YubiKeyDeviceObject::setName(const QString &name)
     }
 }
 
-void YubiKeyDeviceObject::setConnected(bool connected)
+void OathDeviceObject::setConnected(bool connected)
 {
     if (m_isConnected == connected) {
         return;
@@ -246,7 +251,7 @@ void YubiKeyDeviceObject::setConnected(bool connected)
                               << "to:" << connected;
 }
 
-bool YubiKeyDeviceObject::SavePassword(const QString &password)
+bool OathDeviceObject::SavePassword(const QString &password)
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: SavePassword for device:" << m_deviceId;
 
@@ -269,7 +274,7 @@ bool YubiKeyDeviceObject::SavePassword(const QString &password)
     return success;
 }
 
-bool YubiKeyDeviceObject::ChangePassword(const QString &oldPassword, const QString &newPassword)
+bool OathDeviceObject::ChangePassword(const QString &oldPassword, const QString &newPassword)
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: ChangePassword for device:" << m_deviceId;
 
@@ -305,7 +310,7 @@ bool YubiKeyDeviceObject::ChangePassword(const QString &oldPassword, const QStri
     return success;
 }
 
-void YubiKeyDeviceObject::Forget()
+void OathDeviceObject::Forget()
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Forget device:" << m_deviceId;
 
@@ -314,7 +319,7 @@ void YubiKeyDeviceObject::Forget()
     // Note: The device object will be removed by Manager when deviceDisconnected signal is emitted
 }
 
-Shared::AddCredentialResult YubiKeyDeviceObject::AddCredential(const QString &name,
+Shared::AddCredentialResult OathDeviceObject::AddCredential(const QString &name,
                                                                const QString &secret,
                                                                const QString &type,
                                                                const QString &algorithm,
@@ -339,7 +344,7 @@ Shared::AddCredentialResult YubiKeyDeviceObject::AddCredential(const QString &na
     return result;
 }
 
-YubiKeyCredentialObject* YubiKeyDeviceObject::addCredential(const Shared::OathCredential &credential)
+OathCredentialObject* OathDeviceObject::addCredential(const Shared::OathCredential &credential)
 {
     const QString credId = encodeCredentialId(credential.originalName);
 
@@ -354,8 +359,8 @@ YubiKeyCredentialObject* YubiKeyDeviceObject::addCredential(const Shared::OathCr
 
     // Create credential object
     const QString path = credentialPath(credId);
-    auto *credObj = new YubiKeyCredentialObject(credential, m_deviceId, m_service,
-                                                 m_connection, this);
+    auto *credObj = new OathCredentialObject(credential, m_deviceId, m_service,
+                                              m_connection, this);
 
     // Set object path before registration
     credObj->setObjectPath(path);
@@ -379,7 +384,7 @@ YubiKeyCredentialObject* YubiKeyDeviceObject::addCredential(const Shared::OathCr
     return credObj;
 }
 
-void YubiKeyDeviceObject::removeCredential(const QString &credentialId)
+void OathDeviceObject::removeCredential(const QString &credentialId)
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Removing credential:" << credentialId
                               << "from device:" << m_deviceId;
@@ -389,7 +394,7 @@ void YubiKeyDeviceObject::removeCredential(const QString &credentialId)
         return;
     }
 
-    YubiKeyCredentialObject *const credObj = m_credentials.value(credentialId);
+    OathCredentialObject *const credObj = m_credentials.value(credentialId);
     const QString path = credObj->objectPath();
 
     // Unregister and delete
@@ -405,12 +410,12 @@ void YubiKeyDeviceObject::removeCredential(const QString &credentialId)
     qCInfo(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Credential removed:" << credentialId;
 }
 
-YubiKeyCredentialObject* YubiKeyDeviceObject::getCredential(const QString &credentialId) const
+OathCredentialObject* OathDeviceObject::getCredential(const QString &credentialId) const
 {
     return m_credentials.value(credentialId, nullptr);
 }
 
-QStringList YubiKeyDeviceObject::credentialPaths() const
+QStringList OathDeviceObject::credentialPaths() const
 {
     QStringList paths;
     for (auto it = m_credentials.constBegin(); it != m_credentials.constEnd(); ++it) {
@@ -419,7 +424,7 @@ QStringList YubiKeyDeviceObject::credentialPaths() const
     return paths;
 }
 
-void YubiKeyDeviceObject::updateCredentials()
+void OathDeviceObject::updateCredentials()
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Updating credentials for device:"
                               << m_deviceId;
@@ -456,7 +461,7 @@ void YubiKeyDeviceObject::updateCredentials()
                               << m_deviceId << "- total:" << m_credentials.size();
 }
 
-QVariantMap YubiKeyDeviceObject::getManagedObjectData() const
+QVariantMap OathDeviceObject::getManagedObjectData() const
 {
     QVariantMap result;
 
@@ -481,7 +486,7 @@ QVariantMap YubiKeyDeviceObject::getManagedObjectData() const
     return result;
 }
 
-QVariantMap YubiKeyDeviceObject::getManagedCredentialObjects() const
+QVariantMap OathDeviceObject::getManagedCredentialObjects() const
 {
     QVariantMap result;
 
@@ -494,7 +499,7 @@ QVariantMap YubiKeyDeviceObject::getManagedCredentialObjects() const
     return result;
 }
 
-QString YubiKeyDeviceObject::encodeCredentialId(const QString &credentialName)
+QString OathDeviceObject::encodeCredentialId(const QString &credentialName)
 {
     // Encode credential name for use in D-Bus object path
     // D-Bus paths allow only: [A-Za-z0-9_/]
@@ -595,12 +600,12 @@ QString YubiKeyDeviceObject::encodeCredentialId(const QString &credentialName)
     return encoded;
 }
 
-QString YubiKeyDeviceObject::credentialPath(const QString &credentialId) const
+QString OathDeviceObject::credentialPath(const QString &credentialId) const
 {
     return QString::fromLatin1("%1/credentials/%2").arg(m_objectPath, credentialId);
 }
 
-void YubiKeyDeviceObject::emitPropertyChanged(const QString &propertyName, const QVariant &value)
+void OathDeviceObject::emitPropertyChanged(const QString &propertyName, const QVariant &value)
 {
     if (!m_registered) {
         return;

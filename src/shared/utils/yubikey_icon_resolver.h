@@ -6,13 +6,14 @@
 #pragma once
 
 #include "../types/yubikey_model.h"
+#include "../types/device_model.h"
 #include <QString>
 
 namespace YubiKeyOath {
 namespace Shared {
 
 /**
- * @brief Resolves model-specific icon paths for YubiKey devices
+ * @brief Resolves model-specific icon paths for OATH devices (YubiKey, Nitrokey, etc.)
  *
  * This class provides a centralized mechanism for selecting appropriate
  * icons based on YubiKey model information. It implements a fallback
@@ -51,15 +52,24 @@ class YubiKeyIconResolver
 {
 public:
     /**
-     * @brief Gets icon path for YubiKey model
-     * @param model Encoded model (0xSSVVPPFF format)
+     * @brief Gets icon path for device model (multi-brand support)
+     * @param deviceModel Device model with brand and model string
      * @return Qt resource path to model-specific icon, or generic icon if not found
      *
-     * Returns the most specific available icon for the given model.
-     * If the exact model icon doesn't exist, falls back progressively
-     * to series-level icons and finally the generic YubiKey icon.
+     * Returns the most specific available icon for the given device model.
+     * Supports multiple brands (YubiKey, Nitrokey, etc.) with brand-specific
+     * icon naming conventions and fallback strategies.
      *
      * @note Always returns a valid path - never returns empty string
+     */
+    static QString getIconPath(const DeviceModel& deviceModel);
+
+    /**
+     * @brief Gets icon path for YubiKey model (legacy overload)
+     * @param model Encoded YubiKey model (0xSSVVPPFF format)
+     * @return Qt resource path to model-specific icon, or generic icon if not found
+     *
+     * @deprecated Use getIconPath(const DeviceModel&) for multi-brand support
      */
     static QString getIconPath(YubiKeyModel model);
 
@@ -70,6 +80,20 @@ public:
     static QString getGenericIconPath();
 
 private:
+    /**
+     * @brief Gets icon path for Nitrokey device
+     * @param deviceModel Device model with Nitrokey brand
+     * @return Qt resource path to Nitrokey icon with fallback strategy
+     */
+    static QString getNitrokeyIconPath(const DeviceModel& deviceModel);
+
+    /**
+     * @brief Gets icon path for YubiKey device
+     * @param model YubiKey model code
+     * @return Qt resource path to YubiKey icon with fallback strategy
+     */
+    static QString getYubiKeyIconPath(YubiKeyModel model);
+
     /**
      * @brief Builds icon filename from model components
      * @param series YubiKey series

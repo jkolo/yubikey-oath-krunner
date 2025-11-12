@@ -5,7 +5,7 @@
 
 #include "yubikey_dbus_service.h"
 #include "services/yubikey_service.h"
-#include "dbus/yubikey_manager_object.h"
+#include "dbus/oath_manager_object.h"
 #include "logging_categories.h"
 
 #include <QDebug>
@@ -24,7 +24,7 @@ YubiKeyDBusService::YubiKeyDBusService(QObject *parent)
 
     // Create and register Manager object at /pl/jkolo/yubikey/oath
     const QDBusConnection connection = QDBusConnection::sessionBus();
-    m_manager = new YubiKeyManagerObject(m_service.get(), connection, this);
+    m_manager = new OathManagerObject(m_service.get(), connection, this);
 
     if (!m_manager->registerObject()) {
         qCCritical(YubiKeyDaemonLog) << "YubiKeyDBusService: Failed to register Manager object - daemon cannot function";

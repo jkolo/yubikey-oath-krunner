@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "yubikey_manager_object.h"
-#include "yubikey_device_object.h"
+#include "oath_manager_object.h"
+#include "oath_device_object.h"
 #include "services/yubikey_service.h"
 #include "logging_categories.h"
+#include "manageradaptor.h"  // Auto-generated D-Bus adaptor
 
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -19,7 +20,7 @@ namespace Daemon {
 static constexpr const char *MANAGER_PATH = "/pl/jkolo/yubikey/oath";
 static constexpr const char *DAEMON_VERSION = "1.0"; // Initial release version
 
-YubiKeyManagerObject::YubiKeyManagerObject(YubiKeyService *service,
+OathManagerObject::OathManagerObject(YubiKeyService *service,
                                            QDBusConnection connection,
                                            QObject *parent)
     : QObject(parent)
@@ -29,35 +30,43 @@ YubiKeyManagerObject::YubiKeyManagerObject(YubiKeyService *service,
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: Constructing at path:" << m_objectPath;
 
+    // Create D-Bus adaptor for Manager interface
+    // This automatically registers pl.jkolo.yubikey.oath.Manager interface
+    new ManagerAdaptor(this);
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: ManagerAdaptor created";
+
     // Register D-Bus meta types for GetManagedObjects return value
     qDBusRegisterMetaType<InterfacePropertiesMap>();
     qDBusRegisterMetaType<ManagedObjectMap>();
 
     // Connect to service signals to track device changes
     connect(m_service, &YubiKeyService::deviceConnected,
-            this, &YubiKeyManagerObject::addDevice);
+            this, &OathManagerObject::addDevice);
     connect(m_service, &YubiKeyService::deviceDisconnected,
-            this, &YubiKeyManagerObject::onDeviceDisconnected);
+            this, &OathManagerObject::onDeviceDisconnected);
     connect(m_service, &YubiKeyService::deviceForgotten,
-            this, &YubiKeyManagerObject::removeDevice);
+            this, &OathManagerObject::removeDevice);
 }
 
-YubiKeyManagerObject::~YubiKeyManagerObject()
+OathManagerObject::~OathManagerObject()
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: Destructor";
     unregisterObject();
 }
 
-bool YubiKeyManagerObject::registerObject()
+bool OathManagerObject::registerObject()
 {
     if (m_registered) {
         qCWarning(YubiKeyDaemonLog) << "YubiKeyManagerObject: Already registered";
         return true;
     }
 
-    // Register on D-Bus
+    // Register on D-Bus using adaptor (exports interfaces defined in XML)
+    // Using ExportAdaptors ensures we use the interface name from the adaptor's Q_CLASSINFO,
+    // not the C++ class name
+    // Also export Q_SLOTS and Q_SIGNALS for ObjectManager interface (GetManagedObjects, InterfacesAdded, InterfacesRemoved)
     if (!m_connection.registerObject(m_objectPath, this,
-                                     QDBusConnection::ExportAllProperties |
+                                     QDBusConnection::ExportAdaptors |
                                      QDBusConnection::ExportAllSlots |
                                      QDBusConnection::ExportAllSignals)) {
         qCCritical(YubiKeyDaemonLog) << "YubiKeyManagerObject: Failed to register object at"
@@ -71,7 +80,7 @@ bool YubiKeyManagerObject::registerObject()
     return true;
 }
 
-void YubiKeyManagerObject::unregisterObject()
+void OathManagerObject::unregisterObject()
 {
     if (!m_registered) {
         return;
@@ -88,12 +97,12 @@ void YubiKeyManagerObject::unregisterObject()
     qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: Unregistered from" << m_objectPath;
 }
 
-QString YubiKeyManagerObject::version() const
+QString OathManagerObject::version() const
 {
     return QString::fromLatin1(DAEMON_VERSION);
 }
 
-ManagedObjectMap YubiKeyManagerObject::GetManagedObjects()
+ManagedObjectMap OathManagerObject::GetManagedObjects()
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: GetManagedObjects() called";
 
@@ -101,7 +110,7 @@ ManagedObjectMap YubiKeyManagerObject::GetManagedObjects()
 
     // Iterate over all device objects
     for (auto deviceIt = m_devices.constBegin(); deviceIt != m_devices.constEnd(); ++deviceIt) {
-        const YubiKeyDeviceObject * const deviceObj = deviceIt.value();
+        const OathDeviceObject * const deviceObj = deviceIt.value();
 
         // Get device object path and properties
         const QString devicePath = deviceObj->objectPath();
@@ -151,13 +160,13 @@ ManagedObjectMap YubiKeyManagerObject::GetManagedObjects()
     return result;
 }
 
-YubiKeyDeviceObject* YubiKeyManagerObject::addDevice(const QString &deviceId)
+OathDeviceObject* OathManagerObject::addDevice(const QString &deviceId)
 {
     // Delegate to addDeviceWithStatus with isConnected=true
     return addDeviceWithStatus(deviceId, true);
 }
 
-YubiKeyDeviceObject* YubiKeyManagerObject::addDeviceWithStatus(const QString &deviceId, bool isConnected)
+OathDeviceObject* OathManagerObject::addDeviceWithStatus(const QString &deviceId, bool isConnected)
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: Adding device:" << deviceId
                               << "isConnected:" << isConnected;
@@ -165,7 +174,7 @@ YubiKeyDeviceObject* YubiKeyManagerObject::addDeviceWithStatus(const QString &de
     // Check if already exists (might be disconnected)
     if (m_devices.contains(deviceId)) {
         qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: Device already exists, updating connection status:" << deviceId;
-        YubiKeyDeviceObject *deviceObj = m_devices.value(deviceId);
+        OathDeviceObject *deviceObj = m_devices.value(deviceId);
         const bool wasConnected = deviceObj->isConnected();
         deviceObj->setConnected(isConnected);
 
@@ -224,7 +233,7 @@ YubiKeyDeviceObject* YubiKeyManagerObject::addDeviceWithStatus(const QString &de
     }
 
     const QString path = devicePath(deviceId, serialNumber);
-    auto *deviceObj = new YubiKeyDeviceObject(deviceId, path, m_service, m_connection, isConnected, this);
+    auto *deviceObj = new OathDeviceObject(deviceId, path, m_service, m_connection, isConnected, this);
 
     if (!deviceObj->registerObject()) {
         qCCritical(YubiKeyDaemonLog) << "YubiKeyManagerObject: Failed to register device object"
@@ -252,11 +261,11 @@ YubiKeyDeviceObject* YubiKeyManagerObject::addDeviceWithStatus(const QString &de
     return deviceObj;
 }
 
-void YubiKeyManagerObject::onDeviceDisconnected(const QString &deviceId)
+void OathManagerObject::onDeviceDisconnected(const QString &deviceId)
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: Device disconnected:" << deviceId;
 
-    YubiKeyDeviceObject *deviceObj = m_devices.value(deviceId, nullptr);
+    OathDeviceObject *deviceObj = m_devices.value(deviceId, nullptr);
     if (!deviceObj) {
         qCWarning(YubiKeyDaemonLog) << "YubiKeyManagerObject: Device not found:" << deviceId;
         return;
@@ -273,7 +282,7 @@ void YubiKeyManagerObject::onDeviceDisconnected(const QString &deviceId)
     qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: Device marked as disconnected and credentials cleared:" << deviceId;
 }
 
-void YubiKeyManagerObject::removeDevice(const QString &deviceId)
+void OathManagerObject::removeDevice(const QString &deviceId)
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: Removing device:" << deviceId;
 
@@ -282,7 +291,7 @@ void YubiKeyManagerObject::removeDevice(const QString &deviceId)
         return;
     }
 
-    YubiKeyDeviceObject *deviceObj = m_devices.value(deviceId);
+    OathDeviceObject *deviceObj = m_devices.value(deviceId);
     const QString path = deviceObj->objectPath();
 
     // Collect all interfaces (device + credential objects)
@@ -317,13 +326,13 @@ void YubiKeyManagerObject::removeDevice(const QString &deviceId)
     qCInfo(YubiKeyDaemonLog) << "YubiKeyManagerObject: Device removed successfully:" << deviceId;
 }
 
-YubiKeyDeviceObject* YubiKeyManagerObject::getDevice(const QString &deviceId) const
+OathDeviceObject* OathManagerObject::getDevice(const QString &deviceId) const
 {
     return m_devices.value(deviceId, nullptr);
 }
 
 
-QString YubiKeyManagerObject::devicePath(const QString &deviceId, quint32 serialNumber)
+QString OathManagerObject::devicePath(const QString &deviceId, quint32 serialNumber)
 {
     if (serialNumber > 0) {
         // Use decimal serialNumber if available

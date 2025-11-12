@@ -12,7 +12,7 @@
 namespace YubiKeyOath {
 namespace Shared {
 
-class YubiKeyManagerProxy;
+class OathManagerProxy;
 
 namespace PasswordDialogHelper {
 
@@ -36,7 +36,7 @@ namespace PasswordDialogHelper {
 void showDialog(
     const QString &deviceId,
     const QString &deviceName,
-    YubiKeyManagerProxy *manager,
+    OathManagerProxy *manager,
     QObject *parent,
     const std::function<void()> &onPasswordSuccess
 );

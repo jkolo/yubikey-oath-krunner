@@ -4,8 +4,8 @@
  */
 
 #include "yubikey_device_model.h"
-#include "dbus/yubikey_manager_proxy.h"
-#include "dbus/yubikey_device_proxy.h"
+#include "dbus/oath_manager_proxy.h"
+#include "dbus/oath_device_proxy.h"
 #include "ui/password_dialog_helper.h"
 #include "ui/change_password_dialog_helper.h"
 #include "logging_categories.h"
@@ -17,20 +17,20 @@ namespace YubiKeyOath {
 namespace Config {
 using namespace YubiKeyOath::Shared;
 
-YubiKeyDeviceModel::YubiKeyDeviceModel(YubiKeyManagerProxy *manager, QObject *parent)
+YubiKeyDeviceModel::YubiKeyDeviceModel(OathManagerProxy *manager, QObject *parent)
     : QAbstractListModel(parent)
     , m_manager(manager)
 {
     qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Initialized with manager proxy";
 
     // Connect to manager proxy signals for real-time updates
-    connect(m_manager, &YubiKeyManagerProxy::deviceConnected,
+    connect(m_manager, &OathManagerProxy::deviceConnected,
             this, &YubiKeyDeviceModel::onDeviceConnected);
-    connect(m_manager, &YubiKeyManagerProxy::deviceDisconnected,
+    connect(m_manager, &OathManagerProxy::deviceDisconnected,
             this, &YubiKeyDeviceModel::onDeviceDisconnected);
-    connect(m_manager, &YubiKeyManagerProxy::credentialsChanged,
+    connect(m_manager, &OathManagerProxy::credentialsChanged,
             this, &YubiKeyDeviceModel::onCredentialsUpdated);
-    connect(m_manager, &YubiKeyManagerProxy::devicePropertyChanged,
+    connect(m_manager, &OathManagerProxy::devicePropertyChanged,
             this, &YubiKeyDeviceModel::onDevicePropertyChanged);
 
     // Initial refresh
@@ -72,10 +72,14 @@ QVariant YubiKeyDeviceModel::data(const QModelIndex &index, int role) const
                                   << "returning deviceModelCode:" << device.deviceModelCode
                                   << "(hex: 0x" << Qt::hex << device.deviceModelCode << Qt::dec << ")";
         return device.deviceModelCode;
+    case DeviceModelStringRole:
+        return device.deviceModel;
     case SerialNumberRole:
         return device.serialNumber;
     case FormFactorRole:
         return device.formFactor;
+    case CapabilitiesRole:
+        return device.capabilities;
     case LastSeenRole:
         return device.lastSeen;
     default:
@@ -93,8 +97,10 @@ QHash<int, QByteArray> YubiKeyDeviceModel::roleNames() const
     roles[HasValidPasswordRole] = "hasValidPassword";
     roles[ShowAuthorizeButtonRole] = "showAuthorizeButton";
     roles[DeviceModelRole] = "deviceModel";
+    roles[DeviceModelStringRole] = "deviceModelString";
     roles[SerialNumberRole] = "serialNumber";
     roles[FormFactorRole] = "formFactor";
+    roles[CapabilitiesRole] = "capabilities";
     roles[LastSeenRole] = "lastSeen";
     return roles;
 }
@@ -116,7 +122,7 @@ void YubiKeyDeviceModel::refreshDevices()
 
     // Get all devices from manager proxy and convert to DeviceInfo
     m_devices.clear();
-    const QList<YubiKeyDeviceProxy*> deviceProxies = m_manager->devices();
+    const QList<OathDeviceProxy*> deviceProxies = m_manager->devices();
     for (const auto *deviceProxy : deviceProxies) {
         m_devices.append(deviceProxy->toDeviceInfo());
     }
@@ -168,7 +174,7 @@ bool YubiKeyDeviceModel::testAndSavePassword(const QString &deviceId, const QStr
     }
 
     // Get device proxy
-    YubiKeyDeviceProxy *deviceProxy = m_manager->getDevice(deviceId);
+    OathDeviceProxy *deviceProxy = m_manager->getDevice(deviceId);
     if (!deviceProxy) {
         qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found:" << deviceId;
         Q_EMIT passwordTestFailed(deviceId, i18n("Device not found"));
@@ -277,7 +283,7 @@ void YubiKeyDeviceModel::forgetDevice(const QString &deviceId)
     }
 
     // Get device proxy
-    YubiKeyDeviceProxy *deviceProxy = m_manager->getDevice(deviceId);
+    OathDeviceProxy *deviceProxy = m_manager->getDevice(deviceId);
     if (!deviceProxy) {
         qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device proxy not found:" << deviceId;
         return;
@@ -313,7 +319,7 @@ bool YubiKeyDeviceModel::setDeviceName(const QString &deviceId, const QString &n
     }
 
     // Get device proxy
-    YubiKeyDeviceProxy *deviceProxy = m_manager->getDevice(deviceId);
+    OathDeviceProxy *deviceProxy = m_manager->getDevice(deviceId);
     if (!deviceProxy) {
         qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device proxy not found:" << deviceId;
         return false;
@@ -343,7 +349,7 @@ bool YubiKeyDeviceModel::setDeviceName(const QString &deviceId, const QString &n
     return true;
 }
 
-void YubiKeyDeviceModel::onDeviceConnected(YubiKeyDeviceProxy *device)
+void YubiKeyDeviceModel::onDeviceConnected(OathDeviceProxy *device)
 {
     if (device) {
         qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device connected:"
@@ -370,7 +376,7 @@ void YubiKeyDeviceModel::onCredentialsUpdated()
     refreshDevices();
 }
 
-void YubiKeyDeviceModel::onDevicePropertyChanged(YubiKeyDeviceProxy *device)
+void YubiKeyDeviceModel::onDevicePropertyChanged(OathDeviceProxy *device)
 {
     if (!device) {
         return;

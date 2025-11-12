@@ -10,11 +10,11 @@
 
 namespace YubiKeyOath {
 namespace Shared {
-class YubiKeyManagerProxy;
+class OathManagerProxy;
 }
 
 namespace Config {
-using Shared::YubiKeyManagerProxy;
+using Shared::OathManagerProxy;
 
 class YubiKeyDeviceModel;
 
@@ -58,7 +58,7 @@ private Q_SLOTS:
 private:
     YubiKeyConfigForm *m_ui;
     KConfigGroup m_config;
-    YubiKeyManagerProxy *m_manager;  // Singleton - not owned
+    OathManagerProxy *m_manager;  // Singleton - not owned
     std::unique_ptr<YubiKeyDeviceModel> m_deviceModel;
 };
 } // namespace Config

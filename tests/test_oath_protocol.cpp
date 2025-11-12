@@ -4,7 +4,9 @@
  */
 
 #include <QtTest>
+#include <memory>
 #include "daemon/oath/oath_protocol.h"
+#include "daemon/oath/yk_oath_protocol.h"
 
 using namespace YubiKeyOath::Shared;
 using namespace YubiKeyOath::Daemon;
@@ -23,6 +25,11 @@ class TestOathProtocol : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void initTestCase()
+    {
+        m_protocol = std::make_unique<YKOathProtocol>();
+    }
+
     // Helper function tests
     void testGetStatusWord();
     void testIsSuccess();
@@ -51,6 +58,9 @@ private Q_SLOTS:
     void testParseCredentialList_EmptyResponse();
     void testParseCode_TouchRequired();
     void testFormatCode_InvalidData();
+
+private:
+    std::unique_ptr<YKOathProtocol> m_protocol;
 };
 
 // ========== Helper Function Tests ==========
@@ -216,9 +226,13 @@ void TestOathProtocol::testCreateSelectCommand()
     // Lc should be length of OATH_AID
     QCOMPARE((quint8)cmd[4], (quint8)OathProtocol::OATH_AID.length());
 
-    // Data should be OATH_AID
-    QByteArray aid = cmd.mid(5);
+    // Data should be OATH_AID + Le (for Nitrokey compatibility)
+    // Format: CLA INS P1 P2 Lc [AID data] Le
+    QByteArray aid = cmd.mid(5, OathProtocol::OATH_AID.length());
     QCOMPARE(aid, OathProtocol::OATH_AID);
+
+    // Verify Le=0x00 is present at the end
+    QCOMPARE((quint8)cmd[cmd.length() - 1], (quint8)0x00);
 }
 
 void TestOathProtocol::testCreateListCommand()
@@ -342,7 +356,10 @@ void TestOathProtocol::testParseSelectResponse()
     QString deviceId;
     QByteArray challenge;
     Version firmwareVersion;
-    bool result = OathProtocol::parseSelectResponse(response, deviceId, challenge, firmwareVersion);
+    bool requiresPassword = false;
+    quint32 serialNumber = 0;
+    bool result = m_protocol->parseSelectResponse(response, deviceId, challenge, firmwareVersion,
+                                                     requiresPassword, serialNumber);
 
     QVERIFY(result);
     QCOMPARE(deviceId, QString("41424344")); // "ABCD" in hex
@@ -404,7 +421,7 @@ void TestOathProtocol::testParseCode()
     response.append((char)0x90);
     response.append((char)0x00);
 
-    QString code = OathProtocol::parseCode(response);
+    QString code = m_protocol->parseCode(response);
     QCOMPARE(code, QString("003906"));
 }
 
@@ -431,7 +448,7 @@ void TestOathProtocol::testParseCalculateAllResponse()
     response.append((char)0x90);
     response.append((char)0x00);
 
-    QList<OathCredential> credentials = OathProtocol::parseCalculateAllResponse(response);
+    QList<OathCredential> credentials = m_protocol->parseCalculateAllResponse(response);
 
     QCOMPARE(credentials.size(), 1);
     QCOMPARE(credentials[0].originalName, QString("Google:user@test"));
@@ -445,20 +462,25 @@ void TestOathProtocol::testParseSelectResponse_InvalidData()
     QString deviceId;
     QByteArray challenge;
     Version firmwareVersion;
+    bool requiresPassword = false;
+    quint32 serialNumber = 0;
 
     // Empty response
-    QVERIFY(!OathProtocol::parseSelectResponse(QByteArray(), deviceId, challenge, firmwareVersion));
+    QVERIFY(!m_protocol->parseSelectResponse(QByteArray(), deviceId, challenge, firmwareVersion,
+                                                requiresPassword, serialNumber));
 
     // Single byte
     QByteArray response;
     response.append((char)0x90);
-    QVERIFY(!OathProtocol::parseSelectResponse(response, deviceId, challenge, firmwareVersion));
+    QVERIFY(!m_protocol->parseSelectResponse(response, deviceId, challenge, firmwareVersion,
+                                                requiresPassword, serialNumber));
 
     // Error status word (0x6982)
     response.clear();
     response.append((char)0x69);
     response.append((char)0x82);
-    QVERIFY(!OathProtocol::parseSelectResponse(response, deviceId, challenge, firmwareVersion));
+    QVERIFY(!m_protocol->parseSelectResponse(response, deviceId, challenge, firmwareVersion,
+                                                requiresPassword, serialNumber));
 }
 
 void TestOathProtocol::testParseCredentialList_EmptyResponse()
@@ -482,7 +504,7 @@ void TestOathProtocol::testParseCode_TouchRequired()
     response.append((char)0x69);
     response.append((char)0x85);
 
-    QString code = OathProtocol::parseCode(response);
+    QString code = m_protocol->parseCode(response);
     QVERIFY(code.isEmpty());
 }
 

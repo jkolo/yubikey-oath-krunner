@@ -13,13 +13,13 @@
 
 namespace YubiKeyOath {
 namespace Shared {
-class YubiKeyManagerProxy;
-class YubiKeyDeviceProxy;
+class OathManagerProxy;
+class OathDeviceProxy;
 }
 
 namespace Config {
-using Shared::YubiKeyManagerProxy;
-using Shared::YubiKeyDeviceProxy;
+using Shared::OathManagerProxy;
+using Shared::OathDeviceProxy;
 using Shared::DeviceInfo;
 
 // Forward declarations
@@ -50,8 +50,10 @@ public:
         HasValidPasswordRole,
         ShowAuthorizeButtonRole,
         DeviceModelRole,  // Encoded model (0xSSVVPPFF) for icon selection
+        DeviceModelStringRole,  // Human-readable model string (e.g., "Nitrokey 3C NFC")
         SerialNumberRole,  // Device serial number
         FormFactorRole,  // Device form factor code
+        CapabilitiesRole,  // Device capabilities (QStringList)
         LastSeenRole  // Last time device was seen (QDateTime)
     };
 
@@ -60,7 +62,7 @@ public:
      * @param manager YubiKeyManagerProxy instance for D-Bus communication with daemon
      * @param parent Parent QObject
      */
-    explicit YubiKeyDeviceModel(YubiKeyManagerProxy *manager, QObject *parent = nullptr);
+    explicit YubiKeyDeviceModel(OathManagerProxy *manager, QObject *parent = nullptr);
 
     // QAbstractListModel interface
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
@@ -158,7 +160,7 @@ private Q_SLOTS:
      * @brief Handles device connection event from daemon
      * @param device Device proxy that was connected
      */
-    void onDeviceConnected(YubiKeyDeviceProxy *device);
+    void onDeviceConnected(OathDeviceProxy *device);
 
     /**
      * @brief Handles device disconnection event from daemon
@@ -178,10 +180,10 @@ private Q_SLOTS:
      * Updates the model for single device when properties change
      * (name, connection status, password state, etc.)
      */
-    void onDevicePropertyChanged(YubiKeyDeviceProxy *device);
+    void onDevicePropertyChanged(OathDeviceProxy *device);
 
 private:
-    YubiKeyManagerProxy *m_manager;
+    OathManagerProxy *m_manager;
     QList<DeviceInfo> m_devices;
 
     /**

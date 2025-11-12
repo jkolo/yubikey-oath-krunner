@@ -6,9 +6,9 @@
 #include "match_builder.h"
 #include "../config/configuration_provider.h"
 #include "formatting/credential_formatter.h"
-#include "dbus/yubikey_manager_proxy.h"
-#include "dbus/yubikey_credential_proxy.h"
-#include "dbus/yubikey_device_proxy.h"
+#include "dbus/oath_manager_proxy.h"
+#include "dbus/oath_credential_proxy.h"
+#include "dbus/oath_device_proxy.h"
 #include "../logging_categories.h"
 #include "../shared/utils/yubikey_icon_resolver.h"
 
@@ -29,16 +29,16 @@ MatchBuilder::MatchBuilder(KRunner::AbstractRunner *runner,
 {
 }
 
-KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *credentialProxy,
+KRunner::QueryMatch MatchBuilder::buildCredentialMatch(OathCredentialProxy *credentialProxy,
                                                        const QString &query,
-                                                       YubiKeyManagerProxy *manager)
+                                                       OathManagerProxy *manager)
 {
     if (!credentialProxy) {
         qCWarning(MatchBuilderLog) << "Cannot build match: credential proxy is null";
         return KRunner::QueryMatch(m_runner);
     }
 
-    qCDebug(MatchBuilderLog) << "Building match for credential:" << credentialProxy->name();
+    qCDebug(MatchBuilderLog) << "Building match for credential:" << credentialProxy->fullName();
 
     KRunner::QueryMatch match(m_runner);
 
@@ -54,12 +54,17 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
              << "onlyWhenMultiple:" << showDeviceOnlyWhenMultiple;
 
     // Get device information from manager
-    const QList<YubiKeyDeviceProxy*> devices = manager->devices();
+    const QList<OathDeviceProxy*> devices = manager->devices();
     QMap<QString, QString> deviceIdToName;
     int connectedDeviceCount = 0;
 
     for (const auto *device : devices) {
-        deviceIdToName[QString::number(device->serialNumber())] = device->name();
+        // Use device ID from D-Bus (serial number or "dev_<hex>") as map key
+        // This matches the device ID extracted from credential's object path
+        // device->deviceId() returns D-Bus property "ID" which is either:
+        // - Serial number as string (e.g., "20252879")
+        // - "dev_<hexhash>" for devices without serial number
+        deviceIdToName[device->deviceId()] = device->name();
         if (device->isConnected()) {
             connectedDeviceCount++;
         }
@@ -67,10 +72,11 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
 
     qCDebug(MatchBuilderLog) << "Found" << devices.size() << "devices,"
              << connectedDeviceCount << "connected";
+    qCDebug(MatchBuilderLog) << "Device ID to name map:" << deviceIdToName;
 
     // Prepare match data
     QStringList data;
-    const QString credentialName = credentialProxy->name();
+    const QString credentialName = credentialProxy->fullName();
     QString displayName;
     QString code;
     const QString requiresTouch = credentialProxy->requiresTouch() ? QStringLiteral("true") : QStringLiteral("false");
@@ -78,7 +84,7 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
 
     // Generate code if requested and credential doesn't require touch
     if (showCode && !credentialProxy->requiresTouch()) {
-        qCDebug(MatchBuilderLog) << "Generating code for non-touch credential:" << credentialProxy->name()
+        qCDebug(MatchBuilderLog) << "Generating code for non-touch credential:" << credentialProxy->fullName()
                  << "on device:" << credentialProxy->deviceId();
         const GenerateCodeResult codeResult = credentialProxy->generateCode();
         if (!codeResult.code.isEmpty()) {
@@ -90,14 +96,20 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
     }
 
     // Get device name for this credential
-    const QString deviceName = deviceIdToName.value(credentialProxy->deviceId(), QString());
-    qCDebug(MatchBuilderLog) << "Device name for credential:" << deviceName;
+    // Use parentDeviceId() which extracts the public device ID from object path
+    // This matches the device ID in our map (serial number or "dev_<hex>")
+    const QString parentDeviceId = credentialProxy->parentDeviceId();
+    const QString deviceName = deviceIdToName.value(parentDeviceId, QString());
+
+    qCDebug(MatchBuilderLog) << "Device lookup for credential" << credentialProxy->fullName()
+                               << "- parent device ID:" << parentDeviceId
+                               << "- found name:" << (deviceName.isEmpty() ? QStringLiteral("(empty)") : deviceName);
 
     // Prepare OathCredential for formatting
     OathCredential tempCred;
-    tempCred.originalName = credentialProxy->name();
+    tempCred.originalName = credentialProxy->fullName();
     tempCred.issuer = credentialProxy->issuer();
-    tempCred.account = credentialProxy->account();
+    tempCred.account = credentialProxy->username();
     tempCred.requiresTouch = credentialProxy->requiresTouch();
 
     // Format display name
@@ -139,7 +151,7 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(YubiKeyCredentialProxy *c
     match.setText(displayName);
     match.setSubtext(i18n("YubiKey OATH TOTP/HOTP"));
     match.setIconName(iconPath);
-    match.setId(QStringLiteral("yubikey_") + credentialProxy->name());
+    match.setId(QStringLiteral("yubikey_") + credentialProxy->fullName());
 
     // Convert to CredentialInfo for relevance calculation
     const CredentialInfo credentialInfo = credentialProxy->toCredentialInfo();

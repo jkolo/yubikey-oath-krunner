@@ -220,8 +220,8 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
     // If touch required, start async touch workflow to avoid blocking
     if (requiresTouch) {
         qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Touch required, starting async touch workflow";
-        const Shared::YubiKeyModel deviceModel = device->deviceModel();
-        m_touchWorkflowCoordinator->startTouchWorkflow(credentialName, actionType, actualDeviceId, deviceModel);
+        const Shared::YubiKeyModel deviceModelCode = device->deviceModel().modelCode;
+        m_touchWorkflowCoordinator->startTouchWorkflow(credentialName, actionType, actualDeviceId, deviceModelCode);
         return true; // Workflow started successfully
     }
 
@@ -234,11 +234,11 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
 
     const QString code = codeResult.value();
 
-    // Get device model for notification icon
-    const Shared::YubiKeyModel deviceModel = device->deviceModel();
+    // Get device model code for notification icon
+    const Shared::YubiKeyModel deviceModelCode = device->deviceModel().modelCode;
 
     // Use unified action execution with notification handling (pass formatted title and device model)
-    const ActionExecutor::ActionResult result = executeActionWithNotification(code, formattedTitle, actionType, deviceModel);
+    const ActionExecutor::ActionResult result = executeActionWithNotification(code, formattedTitle, actionType, deviceModelCode);
     return result == ActionExecutor::ActionResult::Success;
 }
 

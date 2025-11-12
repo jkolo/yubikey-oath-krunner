@@ -12,14 +12,14 @@
 namespace YubiKeyOath {
 namespace Shared {
 class ConfigurationProvider;
-class YubiKeyManagerProxy;
-class YubiKeyCredentialProxy;
+class OathManagerProxy;
+class OathCredentialProxy;
 }
 
 namespace Runner {
 using Shared::ConfigurationProvider;
-using Shared::YubiKeyManagerProxy;
-using Shared::YubiKeyCredentialProxy;
+using Shared::OathManagerProxy;
+using Shared::OathCredentialProxy;
 using Shared::CredentialInfo;
 using Shared::DeviceInfo;
 
@@ -100,9 +100,9 @@ public:
      * @note The credential proxy pointer is used for code generation.
      *       The proxy must remain valid for the lifetime of the match.
      */
-    KRunner::QueryMatch buildCredentialMatch(YubiKeyCredentialProxy *credentialProxy,
+    KRunner::QueryMatch buildCredentialMatch(OathCredentialProxy *credentialProxy,
                                             const QString &query,
-                                            YubiKeyManagerProxy *manager);
+                                            OathManagerProxy *manager);
 
     /**
      * @brief Builds special match for authentication errors

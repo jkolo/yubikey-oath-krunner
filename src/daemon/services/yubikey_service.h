@@ -24,7 +24,7 @@ namespace Daemon {
     class SecretStorage;
     class DaemonConfiguration;
     class YubiKeyActionCoordinator;
-    class YubiKeyOathDevice;
+    class OathDevice;
     class PasswordService;
     class DeviceLifecycleService;
     class CredentialService;
@@ -95,7 +95,7 @@ public:
      * @param deviceId Device ID to retrieve
      * @return Pointer to device or nullptr if not found
      */
-    YubiKeyOathDevice* getDevice(const QString &deviceId);
+    OathDevice* getDevice(const QString &deviceId);
 
     /**
      * @brief Gets IDs of all currently connected devices
@@ -295,7 +295,7 @@ private:
      * @param authError Output parameter set to error message if auth failed
      */
     void checkAuthenticationState(const QString &deviceId,
-                                  YubiKeyOathDevice *device,
+                                  OathDevice *device,
                                   const QList<OathCredential> &credentials,
                                   bool &authenticationFailed,
                                   QString &authError);
@@ -315,7 +315,7 @@ private:
      * @param credentials Fetched credentials list
      */
     void handleAuthenticationSuccess(const QString &deviceId,
-                                     YubiKeyOathDevice *device,
+                                     OathDevice *device,
                                      const QList<OathCredential> &credentials);
 
     /**
@@ -336,9 +336,9 @@ private:
      * @param data Credential data to validate
      * @param selectedDeviceId Device ID
      * @param errorMessage Output parameter for error message
-     * @return YubiKeyOathDevice* if validation passed, nullptr otherwise
+     * @return OathDevice* if validation passed, nullptr otherwise
      */
-    YubiKeyOathDevice* validateCredentialBeforeSave(const OathCredentialData &data,
+    OathDevice* validateCredentialBeforeSave(const OathCredentialData &data,
                                                      const QString &selectedDeviceId,
                                                      QString &errorMessage);
 

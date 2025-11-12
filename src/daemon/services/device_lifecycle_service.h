@@ -10,7 +10,7 @@
 #include <QList>
 #include <QDateTime>
 #include "types/yubikey_value_types.h"
-#include "types/yubikey_model.h"
+#include "shared/types/device_model.h"
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -19,7 +19,7 @@ namespace Daemon {
 class YubiKeyDeviceManager;
 class YubiKeyDatabase;
 class SecretStorage;
-class YubiKeyOathDevice;
+class OathDevice;
 
 /**
  * @brief Service responsible for YubiKey device lifecycle management
@@ -62,7 +62,7 @@ public:
      * @param deviceId Device ID to retrieve
      * @return Pointer to device or nullptr if not found
      */
-    YubiKeyOathDevice* getDevice(const QString &deviceId);
+    OathDevice* getDevice(const QString &deviceId);
 
     /**
      * @brief Gets IDs of all currently connected devices
@@ -155,19 +155,21 @@ private:
     /**
      * @brief Generates default device name from model and serial
      * @param deviceId Device ID (fallback if model unknown)
-     * @param model YubiKey model
+     * @param deviceModel Device model with brand and model string
      * @param serialNumber Device serial number (0 if unavailable)
      * @param database Database for checking duplicate names
-     * @return "YubiKey {MODEL} - {SERIAL}" or "YubiKey {MODEL} {N}"
+     * @return "{BRAND} {MODEL} - {SERIAL}" or "{BRAND} {MODEL} {N}"
      */
     QString generateDefaultDeviceName(const QString &deviceId,
-                                      Shared::YubiKeyModel model,
+                                      const Shared::DeviceModel& deviceModel,
                                       quint32 serialNumber,
                                       YubiKeyDatabase *database) const;
 
     YubiKeyDeviceManager *m_deviceManager;  // Not owned
     YubiKeyDatabase *m_database;            // Not owned
     SecretStorage *m_secretStorage;         // Not owned
+
+    QMap<QString, qint64> m_lastForgetTimestamp;  ///< Debounce: timestamp of last forget per device
 };
 
 } // namespace Daemon

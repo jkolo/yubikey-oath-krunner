@@ -21,7 +21,7 @@ namespace Daemon {
 
 // Forward declarations
 class YubiKeyService;
-class YubiKeyCredentialObject;
+class OathCredentialObject;
 
 /**
  * @brief Device D-Bus object for individual YubiKey
@@ -36,10 +36,10 @@ class YubiKeyCredentialObject;
  * Created when YubiKey is connected, destroyed when disconnected.
  * Owned by YubiKeyManagerObject.
  */
-class YubiKeyDeviceObject : public QObject
+class OathDeviceObject : public QObject
 {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "pl.jkolo.yubikey.oath.Device")
+    // Note: D-Bus interface is handled by DeviceAdaptor (auto-generated from XML)
 
     // Properties exposed via D-Bus Properties interface
     Q_PROPERTY(QString Name READ name WRITE setName NOTIFY nameChanged)
@@ -66,13 +66,13 @@ public:
      * @param isConnected Initial connection status
      * @param parent Parent QObject
      */
-    explicit YubiKeyDeviceObject(QString deviceId,
-                                  QString objectPath,
-                                  YubiKeyService *service,
-                                  QDBusConnection connection,
-                                  bool isConnected,
-                                  QObject *parent = nullptr);
-    ~YubiKeyDeviceObject() override;
+    explicit OathDeviceObject(QString deviceId,
+                               QString objectPath,
+                               YubiKeyService *service,
+                               QDBusConnection connection,
+                               bool isConnected,
+                               QObject *parent = nullptr);
+    ~OathDeviceObject() override;
 
     /**
      * @brief Registers this object on D-Bus
@@ -181,7 +181,7 @@ public:
      * @param credential OathCredential data
      * @return Pointer to created CredentialObject (owned by this device)
      */
-    YubiKeyCredentialObject* addCredential(const Shared::OathCredential &credential);
+    OathCredentialObject* addCredential(const Shared::OathCredential &credential);
 
     /**
      * @brief Removes and unregisters a Credential object
@@ -194,7 +194,7 @@ public:
      * @param credentialId Credential ID
      * @return Pointer to CredentialObject or nullptr
      */
-    YubiKeyCredentialObject* getCredential(const QString &credentialId) const;
+    OathCredentialObject* getCredential(const QString &credentialId) const;
 
     /**
      * @brief Gets all credential object paths
@@ -256,7 +256,7 @@ private:
     QString m_id;                                       ///< Public ID (last segment of path: serialNumber or dev_<deviceId>)
     bool m_registered;                                  ///< Registration state
 
-    QMap<QString, YubiKeyCredentialObject*> m_credentials;  ///< Credential ID → CredentialObject
+    QMap<QString, OathCredentialObject*> m_credentials;  ///< Credential ID → CredentialObject
 
     // Cached properties
     QString m_name;

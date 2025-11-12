@@ -5,7 +5,7 @@
 
 #include "credential_service.h"
 #include "../oath/yubikey_device_manager.h"
-#include "../oath/yubikey_oath_device.h"
+#include "../oath/oath_device.h"
 #include "../storage/yubikey_database.h"
 #include "../config/daemon_configuration.h"
 #include "../logging_categories.h"
@@ -451,7 +451,7 @@ QList<DeviceInfo> CredentialService::getAvailableConnectedDevices()
     return availableDevices;
 }
 
-YubiKeyOathDevice* CredentialService::validateCredentialBeforeSave(const OathCredentialData &data,
+OathDevice* CredentialService::validateCredentialBeforeSave(const OathCredentialData &data,
                                                                     const QString &selectedDeviceId,
                                                                     QString &errorMessage)
 {

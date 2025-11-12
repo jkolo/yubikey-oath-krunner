@@ -3,15 +3,15 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#ifndef YUBIKEY_DEVICE_PROXY_H
-#define YUBIKEY_DEVICE_PROXY_H
+#ifndef OATH_DEVICE_PROXY_H
+#define OATH_DEVICE_PROXY_H
 
 #include <QObject>
 #include <QString>
 #include <QHash>
 #include <QDateTime>
 #include "types/yubikey_value_types.h"
-#include "yubikey_credential_proxy.h"
+#include "oath_credential_proxy.h"
 
 // Forward declarations
 class QDBusInterface;
@@ -37,14 +37,14 @@ namespace Shared {
  *
  * Architecture:
  * ```
- * YubiKeyManagerProxy (singleton)
+ * OathManagerProxy (singleton)
  *     ↓ owns
- * YubiKeyDeviceProxy (per device) ← YOU ARE HERE
+ * OathDeviceProxy (per device) ← YOU ARE HERE
  *     ↓ owns
- * YubiKeyCredentialProxy (per credential)
+ * OathCredentialProxy (per credential)
  * ```
  */
-class YubiKeyDeviceProxy : public QObject
+class OathDeviceProxy : public QObject
 {
     Q_OBJECT
 
@@ -54,34 +54,34 @@ public:
      * @param objectPath D-Bus object path (e.g. /pl/jkolo/yubikey/oath/devices/<deviceId>)
      * @param deviceProperties Property map from GetManagedObjects() for pl.jkolo.yubikey.oath.Device interface
      * @param credentialObjects Map of credential object paths → properties from GetManagedObjects()
-     * @param parent Parent object (typically YubiKeyManagerProxy)
+     * @param parent Parent object (typically OathManagerProxy)
      *
      * Properties are cached on construction.
      * Creates QDBusInterface for method calls and property monitoring.
      * Creates credential proxy objects for all initial credentials.
      * Connects to D-Bus signals: CredentialAdded, CredentialRemoved, PropertiesChanged.
      */
-    explicit YubiKeyDeviceProxy(const QString &objectPath,
-                                const QVariantMap &deviceProperties,
-                                const QHash<QString, QVariantMap> &credentialObjects,
-                                QObject *parent = nullptr);
+    explicit OathDeviceProxy(const QString &objectPath,
+                              const QVariantMap &deviceProperties,
+                              const QHash<QString, QVariantMap> &credentialObjects,
+                              QObject *parent = nullptr);
 
-    ~YubiKeyDeviceProxy() override;
+    ~OathDeviceProxy() override;
 
     // ========== Cached Properties ==========
 
-    QString objectPath() const { return m_objectPath; }
-    QString deviceId() const { return m_deviceId; } // const property - hex device ID
-    QString name() const { return m_name; } // writable property
-    quint32 serialNumber() const { return m_serialNumber; } // const property
-    QString deviceModel() const { return m_deviceModel; } // const property - human-readable
-    YubiKeyModel deviceModelCode() const { return m_deviceModelCode; } // const property - numeric code
-    QString formFactor() const { return m_formFactor; } // const property - human-readable
-    QStringList capabilities() const { return m_capabilities; } // const property
-    bool isConnected() const { return m_isConnected; }
-    bool requiresPassword() const { return m_requiresPassword; }
-    bool hasValidPassword() const { return m_hasValidPassword; }
-    QDateTime lastSeen() const { return m_lastSeen; } // const property - last time seen
+    [[nodiscard]] QString objectPath() const { return m_objectPath; }
+    [[nodiscard]] QString deviceId() const { return m_deviceId; } // const property - hex device ID
+    [[nodiscard]] QString name() const { return m_name; } // writable property
+    [[nodiscard]] quint32 serialNumber() const { return m_serialNumber; } // const property
+    [[nodiscard]] QString deviceModel() const { return m_deviceModel; } // const property - human-readable
+    [[nodiscard]] YubiKeyModel deviceModelCode() const { return m_deviceModelCode; } // const property - numeric code
+    [[nodiscard]] QString formFactor() const { return m_formFactor; } // const property - human-readable
+    [[nodiscard]] QStringList capabilities() const { return m_capabilities; } // const property
+    [[nodiscard]] bool isConnected() const { return m_isConnected; }
+    [[nodiscard]] bool requiresPassword() const { return m_requiresPassword; }
+    [[nodiscard]] bool hasValidPassword() const { return m_hasValidPassword; }
+    [[nodiscard]] QDateTime lastSeen() const { return m_lastSeen; } // const property - last time seen
     // Note: credentialCount() removed - use credentials().size() instead
 
     // ========== Credential Management ==========
@@ -90,14 +90,14 @@ public:
      * @brief Gets all credential proxies
      * @return List of credential proxy pointers (owned by this object)
      */
-    QList<YubiKeyCredentialProxy*> credentials() const;
+    QList<OathCredentialProxy*> credentials() const;
 
     /**
      * @brief Gets specific credential by name
      * @param credentialName Full credential name (issuer:username)
      * @return Credential proxy pointer or nullptr if not found
      */
-    YubiKeyCredentialProxy* getCredential(const QString &credentialName) const;
+    OathCredentialProxy* getCredential(const QString &credentialName) const;
 
     // ========== D-Bus Methods ==========
 
@@ -190,7 +190,7 @@ Q_SIGNALS:
      * @brief Emitted when credential is added
      * @param credential New credential proxy
      */
-    void credentialAdded(YubiKeyCredentialProxy *credential);
+    void credentialAdded(OathCredentialProxy *credential);
 
     /**
      * @brief Emitted when credential is removed
@@ -240,7 +240,7 @@ private:  // NOLINT(readability-redundant-access-specifiers) - Required to close
     QDateTime m_lastSeen; // const - last time device was seen (for offline devices)
 
     // Credential proxies (owned by this object via Qt parent-child)
-    QHash<QString, YubiKeyCredentialProxy*> m_credentials; // key: credential name
+    QHash<QString, OathCredentialProxy*> m_credentials; // key: credential name
 
     static constexpr const char *SERVICE_NAME = "pl.jkolo.yubikey.oath.daemon";
     static constexpr const char *INTERFACE_NAME = "pl.jkolo.yubikey.oath.Device";
@@ -250,4 +250,4 @@ private:  // NOLINT(readability-redundant-access-specifiers) - Required to close
 } // namespace Shared
 } // namespace YubiKeyOath
 
-#endif // YUBIKEY_DEVICE_PROXY_H
+#endif // OATH_DEVICE_PROXY_H

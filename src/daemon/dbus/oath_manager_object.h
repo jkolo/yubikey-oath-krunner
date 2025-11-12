@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#ifndef YUBIKEY_MANAGER_OBJECT_H
-#define YUBIKEY_MANAGER_OBJECT_H
+#ifndef OATH_MANAGER_OBJECT_H
+#define OATH_MANAGER_OBJECT_H
 
 #include <QObject>
 #include <QString>
@@ -25,7 +25,7 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 // Forward declarations
-class YubiKeyDeviceObject;
+class OathDeviceObject;
 class YubiKeyService;
 
 /**
@@ -54,10 +54,11 @@ class YubiKeyService;
  * YubiKeyCredentialObjects (/pl/jkolo/yubikey/oath/devices/<deviceId>/credentials/<credentialId>)
  * ```
  */
-class YubiKeyManagerObject : public QObject
+class OathManagerObject : public QObject
 {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "pl.jkolo.yubikey.oath.Manager")
+    // Note: D-Bus interfaces are handled by ManagerAdaptor (auto-generated from XML)
+    // ObjectManager interface is implemented via Q_SLOTS below
     Q_CLASSINFO("D-Bus Interface", "org.freedesktop.DBus.ObjectManager")
 
     // Properties exposed via D-Bus Properties interface
@@ -72,10 +73,10 @@ public:
      * @param connection D-Bus connection to register on
      * @param parent Parent QObject
      */
-    explicit YubiKeyManagerObject(YubiKeyService *service,
+    explicit OathManagerObject(YubiKeyService *service,
                                    QDBusConnection connection,
                                    QObject *parent = nullptr);
-    ~YubiKeyManagerObject() override;
+    ~OathManagerObject() override;
 
     /**
      * @brief Registers this object on D-Bus
@@ -120,7 +121,7 @@ public:
      * Called when YubiKey is connected.
      * Emits InterfacesAdded signal.
      */
-    YubiKeyDeviceObject* addDevice(const QString &deviceId);
+    OathDeviceObject* addDevice(const QString &deviceId);
 
     /**
      * @brief Creates and registers a Device object with specific connection status
@@ -131,7 +132,7 @@ public:
      * Used during initialization to restore devices from database.
      * Emits InterfacesAdded signal.
      */
-    YubiKeyDeviceObject* addDeviceWithStatus(const QString &deviceId, bool isConnected);
+    OathDeviceObject* addDeviceWithStatus(const QString &deviceId, bool isConnected);
 
     /**
      * @brief Updates device connection status
@@ -158,7 +159,7 @@ public:
      * @param deviceId Device ID
      * @return Pointer to DeviceObject or nullptr if not found
      */
-    YubiKeyDeviceObject* getDevice(const QString &deviceId) const;
+    OathDeviceObject* getDevice(const QString &deviceId) const;
 
 private:
     /**
@@ -175,10 +176,10 @@ private:
     QString m_objectPath;                               ///< Our object path
     bool m_registered{false};                           ///< Registration state
 
-    QMap<QString, YubiKeyDeviceObject*> m_devices;     ///< Device ID → DeviceObject (owned)
+    QMap<QString, OathDeviceObject*> m_devices;     ///< Device ID → DeviceObject (owned)
 };
 
 } // namespace Daemon
 } // namespace YubiKeyOath
 
-#endif // YUBIKEY_MANAGER_OBJECT_H
+#endif // OATH_MANAGER_OBJECT_H

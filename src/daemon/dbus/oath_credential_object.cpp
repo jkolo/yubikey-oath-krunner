@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "yubikey_credential_object.h"
+#include "oath_credential_object.h"
 #include "services/yubikey_service.h"
 #include "logging_categories.h"
+#include "credentialadaptor.h"  // Auto-generated D-Bus adaptor
 
 #include <QDBusConnection>
 #include <QDBusError>
@@ -16,7 +17,7 @@ namespace Daemon {
 
 static constexpr const char *CREDENTIAL_INTERFACE = "pl.jkolo.yubikey.oath.Credential";
 
-YubiKeyCredentialObject::YubiKeyCredentialObject(Shared::OathCredential credential,
+OathCredentialObject::OathCredentialObject(Shared::OathCredential credential,
                                                  QString deviceId,
                                                  YubiKeyService *service,
                                                  QDBusConnection connection,
@@ -35,16 +36,21 @@ YubiKeyCredentialObject::YubiKeyCredentialObject(Shared::OathCredential credenti
 
     qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Constructing for credential:"
                               << m_credential.originalName << "on device:" << m_deviceId;
+
+    // Create D-Bus adaptor for Credential interface
+    // This automatically registers pl.jkolo.yubikey.oath.Credential interface
+    new CredentialAdaptor(this);
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: CredentialAdaptor created";
 }
 
-YubiKeyCredentialObject::~YubiKeyCredentialObject()
+OathCredentialObject::~OathCredentialObject()
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Destructor for credential:"
                               << m_credential.originalName;
     unregisterObject();
 }
 
-void YubiKeyCredentialObject::setObjectPath(const QString &path)
+void OathCredentialObject::setObjectPath(const QString &path)
 {
     if (m_registered) {
         qCWarning(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Cannot change path after registration";
@@ -53,7 +59,7 @@ void YubiKeyCredentialObject::setObjectPath(const QString &path)
     m_objectPath = path;
 }
 
-bool YubiKeyCredentialObject::registerObject()
+bool OathCredentialObject::registerObject()
 {
     if (m_registered) {
         qCWarning(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Already registered:"
@@ -67,11 +73,10 @@ bool YubiKeyCredentialObject::registerObject()
         return false;
     }
 
-    // Register on D-Bus
-    if (!m_connection.registerObject(m_objectPath, this,
-                                     QDBusConnection::ExportAllProperties |
-                                     QDBusConnection::ExportAllSlots |
-                                     QDBusConnection::ExportAllSignals)) {
+    // Register on D-Bus using adaptor (exports interfaces defined in XML)
+    // Using ExportAdaptors ensures we use the interface name from the adaptor's Q_CLASSINFO,
+    // not the C++ class name
+    if (!m_connection.registerObject(m_objectPath, this, QDBusConnection::ExportAdaptors)) {
         qCCritical(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Failed to register at"
                                      << m_objectPath << ":" << m_connection.lastError().message();
         return false;
@@ -84,7 +89,7 @@ bool YubiKeyCredentialObject::registerObject()
     return true;
 }
 
-void YubiKeyCredentialObject::unregisterObject()
+void OathCredentialObject::unregisterObject()
 {
     if (!m_registered) {
         return;
@@ -95,32 +100,32 @@ void YubiKeyCredentialObject::unregisterObject()
     qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Unregistered:" << m_credential.originalName;
 }
 
-QString YubiKeyCredentialObject::objectPath() const
+QString OathCredentialObject::objectPath() const
 {
     return m_objectPath;
 }
 
-QString YubiKeyCredentialObject::name() const
+QString OathCredentialObject::fullName() const
 {
     return m_credential.originalName;
 }
 
-QString YubiKeyCredentialObject::issuer() const
+QString OathCredentialObject::issuer() const
 {
     return m_credential.issuer;
 }
 
-QString YubiKeyCredentialObject::account() const
+QString OathCredentialObject::username() const
 {
     return m_credential.account;
 }
 
-bool YubiKeyCredentialObject::requiresTouch() const
+bool OathCredentialObject::requiresTouch() const
 {
     return m_credential.requiresTouch;
 }
 
-QString YubiKeyCredentialObject::type() const
+QString OathCredentialObject::type() const
 {
     // Type: 1=HOTP, 2=TOTP
     return m_credential.type == 2
@@ -128,7 +133,7 @@ QString YubiKeyCredentialObject::type() const
            : QString::fromLatin1("HOTP");
 }
 
-QString YubiKeyCredentialObject::algorithm() const
+QString OathCredentialObject::algorithm() const
 {
     // Algorithm: 1=SHA1, 2=SHA256, 3=SHA512
     switch (m_credential.algorithm) {
@@ -142,22 +147,22 @@ QString YubiKeyCredentialObject::algorithm() const
     }
 }
 
-int YubiKeyCredentialObject::digits() const
+int OathCredentialObject::digits() const
 {
     return m_credential.digits;
 }
 
-int YubiKeyCredentialObject::period() const
+int OathCredentialObject::period() const
 {
     return m_credential.period;
 }
 
-QString YubiKeyCredentialObject::deviceId() const
+QString OathCredentialObject::deviceId() const
 {
     return m_deviceId;
 }
 
-Shared::GenerateCodeResult YubiKeyCredentialObject::GenerateCode()
+Shared::GenerateCodeResult OathCredentialObject::GenerateCode()
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: GenerateCode for credential:"
                               << m_credential.originalName << "on device:" << m_deviceId;
@@ -165,7 +170,7 @@ Shared::GenerateCodeResult YubiKeyCredentialObject::GenerateCode()
     return m_service->generateCode(m_deviceId, m_credential.originalName);
 }
 
-bool YubiKeyCredentialObject::CopyToClipboard()
+bool OathCredentialObject::CopyToClipboard()
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: CopyToClipboard for credential:"
                               << m_credential.originalName << "on device:" << m_deviceId;
@@ -173,7 +178,7 @@ bool YubiKeyCredentialObject::CopyToClipboard()
     return m_service->copyCodeToClipboard(m_deviceId, m_credential.originalName);
 }
 
-bool YubiKeyCredentialObject::TypeCode(bool fallbackToCopy)
+bool OathCredentialObject::TypeCode(bool fallbackToCopy)
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: TypeCode for credential:"
                               << m_credential.originalName << "on device:" << m_deviceId
@@ -190,7 +195,7 @@ bool YubiKeyCredentialObject::TypeCode(bool fallbackToCopy)
     return success;
 }
 
-void YubiKeyCredentialObject::Delete()
+void OathCredentialObject::Delete()
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Delete credential:"
                               << m_credential.originalName << "from device:" << m_deviceId;
@@ -204,15 +209,15 @@ void YubiKeyCredentialObject::Delete()
     }
 }
 
-QVariantMap YubiKeyCredentialObject::getManagedObjectData() const
+QVariantMap OathCredentialObject::getManagedObjectData() const
 {
     QVariantMap result;
 
     // pl.jkolo.yubikey.oath.Credential interface properties
     QVariantMap credProps;
-    credProps.insert(QLatin1String("Name"), m_credential.originalName);
+    credProps.insert(QLatin1String("FullName"), m_credential.originalName);
     credProps.insert(QLatin1String("Issuer"), m_credential.issuer);
-    credProps.insert(QLatin1String("Account"), m_credential.account);
+    credProps.insert(QLatin1String("Username"), m_credential.account);
     credProps.insert(QLatin1String("RequiresTouch"), m_credential.requiresTouch);
     credProps.insert(QLatin1String("Type"), type());
     credProps.insert(QLatin1String("Algorithm"), algorithm());

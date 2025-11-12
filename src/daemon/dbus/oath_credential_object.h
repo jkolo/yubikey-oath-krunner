@@ -31,15 +31,15 @@ class YubiKeyService;
  * Created when credential is discovered on YubiKey, destroyed when removed.
  * Owned by YubiKeyDeviceObject.
  */
-class YubiKeyCredentialObject : public QObject
+class OathCredentialObject : public QObject
 {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "pl.jkolo.yubikey.oath.Credential")
+    // Note: D-Bus interface is handled by CredentialAdaptor (auto-generated from XML)
 
     // Properties exposed via D-Bus Properties interface (all const - credentials don't change)
-    Q_PROPERTY(QString Name READ name CONSTANT)
+    Q_PROPERTY(QString FullName READ fullName CONSTANT)
     Q_PROPERTY(QString Issuer READ issuer CONSTANT)
-    Q_PROPERTY(QString Account READ account CONSTANT)
+    Q_PROPERTY(QString Username READ username CONSTANT)
     Q_PROPERTY(bool RequiresTouch READ requiresTouch CONSTANT)
     Q_PROPERTY(QString Type READ type CONSTANT)
     Q_PROPERTY(QString Algorithm READ algorithm CONSTANT)
@@ -56,12 +56,12 @@ public:
      * @param connection D-Bus connection
      * @param parent Parent QObject
      */
-    explicit YubiKeyCredentialObject(Shared::OathCredential credential,
-                                     QString deviceId,
-                                     YubiKeyService *service,
-                                     QDBusConnection connection,
-                                     QObject *parent = nullptr);
-    ~YubiKeyCredentialObject() override;
+    explicit OathCredentialObject(Shared::OathCredential credential,
+                                   QString deviceId,
+                                   YubiKeyService *service,
+                                   QDBusConnection connection,
+                                   QObject *parent = nullptr);
+    ~OathCredentialObject() override;
 
     /**
      * @brief Sets the D-Bus object path
@@ -89,9 +89,9 @@ public:
     QString objectPath() const;
 
     // Property getters
-    QString name() const;
+    QString fullName() const;
     QString issuer() const;
-    QString account() const;
+    QString username() const;
     bool requiresTouch() const;
     QString type() const;
     QString algorithm() const;

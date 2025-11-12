@@ -15,5 +15,10 @@
         <file alias="icons/models/yubikey-neo.png">models/yubikey-neo.png</file>
         <file alias="icons/models/yubikey-neo-n.png">models/yubikey-neo-n.png</file>
         <file alias="icons/models/yubikey-4.png">models/yubikey-4.png</file>
+
+        <!-- Nitrokey 3 Series -->
+        <file alias="icons/models/nitrokey-3a.png">models/nitrokey-3a.png</file>
+        <file alias="icons/models/nitrokey-3a-mini.png">models/nitrokey-3a-mini.png</file>
+        <file alias="icons/models/nitrokey-3c.png">models/nitrokey-3c.png</file>
     </qresource>
 </RCC>

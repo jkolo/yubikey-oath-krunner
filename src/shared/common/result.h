@@ -39,14 +39,14 @@ namespace Shared {
  * @endcode
  */
 template<typename T>
-class Result {
+class [[nodiscard]] Result {
 public:
     /**
      * @brief Creates a successful result with a value
      * @param value The success value
      * @return Result containing the value
      */
-    static Result success(T value) {
+    [[nodiscard]] static Result success(T value) {
         return Result(std::move(value), QString());
     }
 
@@ -55,7 +55,7 @@ public:
      * @param errorMessage Description of the error
      * @return Result containing the error
      */
-    static Result error(const QString &errorMessage) {
+    [[nodiscard]] static Result error(const QString &errorMessage) {
         return Result(T(), errorMessage);
     }
 
@@ -63,7 +63,7 @@ public:
      * @brief Checks if the result represents success
      * @return true if successful, false if error
      */
-    bool isSuccess() const {
+    [[nodiscard]] bool isSuccess() const {
         return m_error.isEmpty();
     }
 
@@ -71,7 +71,7 @@ public:
      * @brief Checks if the result represents an error
      * @return true if error, false if successful
      */
-    bool isError() const {
+    [[nodiscard]] bool isError() const {
         return !m_error.isEmpty();
     }
 
@@ -80,7 +80,7 @@ public:
      * @return The value
      * @warning Only call if isSuccess() returns true. Behavior undefined otherwise.
      */
-    T value() const {
+    [[nodiscard]] T value() const {
         Q_ASSERT(isSuccess());
         return m_value;
     }
@@ -90,7 +90,7 @@ public:
      * @param defaultValue Value to return if this is an error
      * @return The success value or defaultValue
      */
-    T valueOr(const T &defaultValue) const {
+    [[nodiscard]] T valueOr(const T &defaultValue) const {
         return isSuccess() ? m_value : defaultValue;
     }
 
@@ -98,7 +98,7 @@ public:
      * @brief Gets the error message
      * @return Error message, or empty string if successful
      */
-    QString error() const {
+    [[nodiscard]] QString error() const {
         return m_error;
     }
 
@@ -151,13 +151,13 @@ private:
  * @endcode
  */
 template<>
-class Result<void> {
+class [[nodiscard]] Result<void> {
 public:
     /**
      * @brief Creates a successful result (no value)
      * @return Successful result
      */
-    static Result success() {
+    [[nodiscard]] static Result success() {
         return Result(QString());
     }
 
@@ -166,7 +166,7 @@ public:
      * @param errorMessage Description of the error
      * @return Result containing the error
      */
-    static Result error(const QString &errorMessage) {
+    [[nodiscard]] static Result error(const QString &errorMessage) {
         return Result(errorMessage);
     }
 
@@ -174,7 +174,7 @@ public:
      * @brief Checks if the result represents success
      * @return true if successful, false if error
      */
-    bool isSuccess() const {
+    [[nodiscard]] bool isSuccess() const {
         return m_error.isEmpty();
     }
 
@@ -182,7 +182,7 @@ public:
      * @brief Checks if the result represents an error
      * @return true if error, false if successful
      */
-    bool isError() const {
+    [[nodiscard]] bool isError() const {
         return !m_error.isEmpty();
     }
 
@@ -190,7 +190,7 @@ public:
      * @brief Gets the error message
      * @return Error message, or empty string if successful
      */
-    QString error() const {
+    [[nodiscard]] QString error() const {
         return m_error;
     }
 

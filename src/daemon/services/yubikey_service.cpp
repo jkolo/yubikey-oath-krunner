@@ -121,7 +121,7 @@ QList<OathCredential> YubiKeyService::getCredentials()
     return m_credentialService->getCredentials();
 }
 
-YubiKeyOathDevice* YubiKeyService::getDevice(const QString &deviceId)
+OathDevice* YubiKeyService::getDevice(const QString &deviceId)
 {
     return m_deviceLifecycleService->getDevice(deviceId);
 }
@@ -203,8 +203,8 @@ bool YubiKeyService::typeCode(const QString &deviceId, const QString &credential
 void YubiKeyService::onCredentialCacheFetched(const QString &deviceId,
                                              const QList<OathCredential> &credentials)
 {
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Credentials updated for device:" << deviceId
-                              << "count:" << credentials.size();
+    qWarning() << "YubiKeyService: >>> onCredentialCacheFetched CALLED for device:" << deviceId
+               << "count:" << credentials.size();
 
     // Log credential names for debugging
     if (!credentials.isEmpty()) {
@@ -226,20 +226,25 @@ void YubiKeyService::onCredentialCacheFetched(const QString &deviceId,
     // Check authentication state (helper extracts authentication logic)
     bool authenticationFailed = false;
     QString authError;
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: >>> Calling checkAuthenticationState";
     checkAuthenticationState(deviceId, device, credentials, authenticationFailed, authError);
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: >>> checkAuthenticationState returned: authenticationFailed=" << authenticationFailed;
 
     // Handle authentication result - delegates to appropriate handler
     if (authenticationFailed) {
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: >>> Authentication FAILED, calling handleAuthenticationFailure";
         handleAuthenticationFailure(deviceId, authError);
     } else {
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: >>> Authentication SUCCESS, checking rate limit";
         // If rate-limited, still emit signals but skip database save
         if (!shouldSaveCredentialsToCache(deviceId)) {
-            qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Rate-limited - emitting signals without saving";
+            qCDebug(YubiKeyDaemonLog) << "YubiKeyService: >>> Rate-limited - emitting signals without saving";
             Q_EMIT credentialsUpdated(deviceId);
             Q_EMIT deviceConnectedAndAuthenticated(deviceId);
             return;
         }
 
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyService: >>> Not rate-limited, calling handleAuthenticationSuccess";
         handleAuthenticationSuccess(deviceId, device, credentials);
     }
 }
@@ -306,7 +311,7 @@ void YubiKeyService::onConfigurationChanged()
 }
 
 void YubiKeyService::checkAuthenticationState(const QString &deviceId,
-                                               YubiKeyOathDevice *device,
+                                               OathDevice *device,
                                                const QList<OathCredential> &credentials,
                                                bool &authenticationFailed,
                                                QString &authError)
@@ -367,7 +372,7 @@ void YubiKeyService::handleAuthenticationFailure(const QString &deviceId,
 }
 
 void YubiKeyService::handleAuthenticationSuccess(const QString &deviceId,
-                                                 YubiKeyOathDevice *device,
+                                                 OathDevice *device,
                                                  const QList<OathCredential> &credentials)
 {
     Q_UNUSED(device)  // device parameter not used yet, but may be needed for future extensions

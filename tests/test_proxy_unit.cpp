@@ -25,11 +25,11 @@
 #include <QDebug>
 #include <memory>
 
-#include "../src/shared/dbus/yubikey_manager_proxy.h"
-#include "../src/shared/dbus/yubikey_device_proxy.h"
-#include "../src/shared/dbus/yubikey_credential_proxy.h"
+#include "../src/shared/dbus/oath_manager_proxy.h"
+#include "../src/shared/dbus/oath_device_proxy.h"
+#include "../src/shared/dbus/oath_credential_proxy.h"
 #include "../src/shared/types/yubikey_value_types.h"
-#include "../src/daemon/dbus/yubikey_manager_object.h"  // For ManagedObjectMap type
+#include "../src/daemon/dbus/oath_manager_object.h"  // For ManagedObjectMap type
 
 using namespace YubiKeyOath::Shared;
 
@@ -80,7 +80,7 @@ public Q_SLOTS:
         QDBusObjectPath credPath1(QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1/credentials/github_3ajdoe"));
         InterfacePropertiesMap credInterfaces1;
         QVariantMap credProps1;
-        credProps1[QStringLiteral("Name")] = QStringLiteral("GitHub:jdoe");
+        credProps1[QStringLiteral("FullName")] = QStringLiteral("GitHub:jdoe");
         credProps1[QStringLiteral("Issuer")] = QStringLiteral("GitHub");
         credProps1[QStringLiteral("Username")] = QStringLiteral("jdoe");
         credProps1[QStringLiteral("Type")] = QStringLiteral("TOTP");
@@ -96,7 +96,7 @@ public Q_SLOTS:
         QDBusObjectPath credPath2(QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1/credentials/google_3ajdoe"));
         InterfacePropertiesMap credInterfaces2;
         QVariantMap credProps2;
-        credProps2[QStringLiteral("Name")] = QStringLiteral("Google:jdoe");
+        credProps2[QStringLiteral("FullName")] = QStringLiteral("Google:jdoe");
         credProps2[QStringLiteral("Issuer")] = QStringLiteral("Google");
         credProps2[QStringLiteral("Username")] = QStringLiteral("jdoe");
         credProps2[QStringLiteral("Type")] = QStringLiteral("TOTP");
@@ -327,7 +327,7 @@ void TestProxyUnit::testCredentialProxyConstruction()
 
     // Create properties map as expected by proxy constructor
     QVariantMap properties;
-    properties[QStringLiteral("Name")] = QStringLiteral("GitHub:jdoe");
+    properties[QStringLiteral("FullName")] = QStringLiteral("GitHub:jdoe");
     properties[QStringLiteral("Issuer")] = QStringLiteral("GitHub");
     properties[QStringLiteral("Username")] = QStringLiteral("jdoe");
     properties[QStringLiteral("Type")] = QStringLiteral("TOTP");
@@ -337,14 +337,14 @@ void TestProxyUnit::testCredentialProxyConstruction()
     properties[QStringLiteral("RequiresTouch")] = false;
     properties[QStringLiteral("DeviceId")] = QStringLiteral("mock_device_1");
 
-    YubiKeyCredentialProxy proxy(
+    OathCredentialProxy proxy(
         QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1/credentials/github_3ajdoe"),
         properties
     );
 
-    QCOMPARE(proxy.name(), QStringLiteral("GitHub:jdoe"));
+    QCOMPARE(proxy.fullName(), QStringLiteral("GitHub:jdoe"));
     QCOMPARE(proxy.issuer(), QStringLiteral("GitHub"));
-    QCOMPARE(proxy.account(), QStringLiteral("jdoe"));
+    QCOMPARE(proxy.username(), QStringLiteral("jdoe"));
     QCOMPARE(proxy.type(), QStringLiteral("TOTP"));
     QCOMPARE(proxy.algorithm(), QStringLiteral("SHA1"));
     QCOMPARE(proxy.digits(), 6);
@@ -360,7 +360,7 @@ void TestProxyUnit::testCredentialProxyProperties()
     qDebug() << "\n=== Test: CredentialProxy Properties ===";
 
     QVariantMap properties;
-    properties[QStringLiteral("Name")] = QStringLiteral("Google:jdoe");
+    properties[QStringLiteral("FullName")] = QStringLiteral("Google:jdoe");
     properties[QStringLiteral("Issuer")] = QStringLiteral("Google");
     properties[QStringLiteral("Username")] = QStringLiteral("jdoe");
     properties[QStringLiteral("Type")] = QStringLiteral("TOTP");
@@ -370,15 +370,15 @@ void TestProxyUnit::testCredentialProxyProperties()
     properties[QStringLiteral("RequiresTouch")] = true;
     properties[QStringLiteral("DeviceId")] = QStringLiteral("mock_device_1");
 
-    YubiKeyCredentialProxy proxy(
+    OathCredentialProxy proxy(
         QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1/credentials/google_3ajdoe"),
         properties
     );
 
     // All properties should be const/cached
-    QVERIFY(!proxy.name().isEmpty());
+    QVERIFY(!proxy.fullName().isEmpty());
     QVERIFY(!proxy.issuer().isEmpty());
-    QVERIFY(!proxy.account().isEmpty());
+    QVERIFY(!proxy.username().isEmpty());
     QVERIFY(!proxy.type().isEmpty());
     QVERIFY(!proxy.algorithm().isEmpty());
     QVERIFY(proxy.digits() >= 6 && proxy.digits() <= 8);
@@ -393,7 +393,7 @@ void TestProxyUnit::testCredentialProxyGenerateCode()
     qDebug() << "\n=== Test: CredentialProxy GenerateCode ===";
 
     QVariantMap properties;
-    properties[QStringLiteral("Name")] = QStringLiteral("GitHub:jdoe");
+    properties[QStringLiteral("FullName")] = QStringLiteral("GitHub:jdoe");
     properties[QStringLiteral("Issuer")] = QStringLiteral("GitHub");
     properties[QStringLiteral("Username")] = QStringLiteral("jdoe");
     properties[QStringLiteral("Type")] = QStringLiteral("TOTP");
@@ -403,7 +403,7 @@ void TestProxyUnit::testCredentialProxyGenerateCode()
     properties[QStringLiteral("RequiresTouch")] = false;
     properties[QStringLiteral("DeviceId")] = QStringLiteral("mock_device_1");
 
-    YubiKeyCredentialProxy proxy(
+    OathCredentialProxy proxy(
         QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1/credentials/github_3ajdoe"),
         properties
     );
@@ -424,7 +424,7 @@ void TestProxyUnit::testCredentialProxyCopyToClipboard()
     qDebug() << "\n=== Test: CredentialProxy CopyToClipboard ===";
 
     QVariantMap properties;
-    properties[QStringLiteral("Name")] = QStringLiteral("GitHub:jdoe");
+    properties[QStringLiteral("FullName")] = QStringLiteral("GitHub:jdoe");
     properties[QStringLiteral("Issuer")] = QStringLiteral("GitHub");
     properties[QStringLiteral("Username")] = QStringLiteral("jdoe");
     properties[QStringLiteral("Type")] = QStringLiteral("TOTP");
@@ -434,7 +434,7 @@ void TestProxyUnit::testCredentialProxyCopyToClipboard()
     properties[QStringLiteral("RequiresTouch")] = false;
     properties[QStringLiteral("DeviceId")] = QStringLiteral("mock_device_1");
 
-    YubiKeyCredentialProxy proxy(
+    OathCredentialProxy proxy(
         QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1/credentials/github_3ajdoe"),
         properties
     );
@@ -450,7 +450,7 @@ void TestProxyUnit::testCredentialProxyTypeCode()
     qDebug() << "\n=== Test: CredentialProxy TypeCode ===";
 
     QVariantMap properties;
-    properties[QStringLiteral("Name")] = QStringLiteral("GitHub:jdoe");
+    properties[QStringLiteral("FullName")] = QStringLiteral("GitHub:jdoe");
     properties[QStringLiteral("Issuer")] = QStringLiteral("GitHub");
     properties[QStringLiteral("Username")] = QStringLiteral("jdoe");
     properties[QStringLiteral("Type")] = QStringLiteral("TOTP");
@@ -460,7 +460,7 @@ void TestProxyUnit::testCredentialProxyTypeCode()
     properties[QStringLiteral("RequiresTouch")] = false;
     properties[QStringLiteral("DeviceId")] = QStringLiteral("mock_device_1");
 
-    YubiKeyCredentialProxy proxy(
+    OathCredentialProxy proxy(
         QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1/credentials/github_3ajdoe"),
         properties
     );
@@ -476,7 +476,7 @@ void TestProxyUnit::testCredentialProxyToCredentialInfo()
     qDebug() << "\n=== Test: CredentialProxy ToCredentialInfo ===";
 
     QVariantMap properties;
-    properties[QStringLiteral("Name")] = QStringLiteral("GitHub:jdoe");
+    properties[QStringLiteral("FullName")] = QStringLiteral("GitHub:jdoe");
     properties[QStringLiteral("Issuer")] = QStringLiteral("GitHub");
     properties[QStringLiteral("Username")] = QStringLiteral("jdoe");
     properties[QStringLiteral("Type")] = QStringLiteral("TOTP");
@@ -486,16 +486,16 @@ void TestProxyUnit::testCredentialProxyToCredentialInfo()
     properties[QStringLiteral("RequiresTouch")] = false;
     properties[QStringLiteral("DeviceId")] = QStringLiteral("mock_device_1");
 
-    YubiKeyCredentialProxy proxy(
+    OathCredentialProxy proxy(
         QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1/credentials/github_3ajdoe"),
         properties
     );
 
     CredentialInfo info = proxy.toCredentialInfo();
 
-    QCOMPARE(info.name, proxy.name());
+    QCOMPARE(info.name, proxy.fullName());
     QCOMPARE(info.issuer, proxy.issuer());
-    QCOMPARE(info.account, proxy.account());
+    QCOMPARE(info.account, proxy.username());
     QCOMPARE(info.requiresTouch, proxy.requiresTouch());
     QCOMPARE(info.deviceId, proxy.deviceId());
 
@@ -554,8 +554,8 @@ void TestProxyUnit::testManagerProxySingleton()
 {
     qDebug() << "\n=== Test: ManagerProxy Singleton Pattern ===";
 
-    YubiKeyManagerProxy *instance1 = YubiKeyManagerProxy::instance();
-    YubiKeyManagerProxy *instance2 = YubiKeyManagerProxy::instance();
+    OathManagerProxy *instance1 = OathManagerProxy::instance();
+    OathManagerProxy *instance2 = OathManagerProxy::instance();
 
     QVERIFY(instance1 != nullptr);
     QVERIFY(instance2 != nullptr);
@@ -568,7 +568,7 @@ void TestProxyUnit::testManagerProxyDaemonAvailability()
 {
     qDebug() << "\n=== Test: ManagerProxy Daemon Availability ===";
 
-    YubiKeyManagerProxy *manager = YubiKeyManagerProxy::instance();
+    OathManagerProxy *manager = OathManagerProxy::instance();
 
     // Mock service should be available
     QVERIFY2(manager->isDaemonAvailable(), "Mock daemon should be available");
@@ -582,13 +582,13 @@ void TestProxyUnit::testManagerProxyDeviceList()
 {
     qDebug() << "\n=== Test: ManagerProxy Device List ===";
 
-    YubiKeyManagerProxy *manager = YubiKeyManagerProxy::instance();
+    OathManagerProxy *manager = OathManagerProxy::instance();
 
     // Refresh to load mock data
     manager->refresh();
     QTest::qWait(200); // Wait for async refresh
 
-    QList<YubiKeyDeviceProxy*> devices = manager->devices();
+    QList<OathDeviceProxy*> devices = manager->devices();
 
     qDebug() << "  Found" << devices.size() << "devices";
     QVERIFY2(devices.size() > 0, "Should have at least 1 mock device");
@@ -606,22 +606,22 @@ void TestProxyUnit::testManagerProxyGetAllCredentials()
 {
     qDebug() << "\n=== Test: ManagerProxy GetAllCredentials ===";
 
-    YubiKeyManagerProxy *manager = YubiKeyManagerProxy::instance();
+    OathManagerProxy *manager = OathManagerProxy::instance();
 
     // Refresh to load mock data
     manager->refresh();
     QTest::qWait(200);
 
-    QList<YubiKeyCredentialProxy*> credentials = manager->getAllCredentials();
+    QList<OathCredentialProxy*> credentials = manager->getAllCredentials();
 
     qDebug() << "  Found" << credentials.size() << "credentials";
     QVERIFY2(credentials.size() > 0, "Should have mock credentials");
 
     for (auto *cred : credentials) {
         QVERIFY(cred != nullptr);
-        QVERIFY(!cred->name().isEmpty());
+        QVERIFY(!cred->fullName().isEmpty());
         QVERIFY(!cred->deviceId().isEmpty());
-        qDebug() << "    Credential:" << cred->name();
+        qDebug() << "    Credential:" << cred->fullName();
     }
 
     qDebug() << "✅ GetAllCredentials works";
@@ -631,7 +631,7 @@ void TestProxyUnit::testManagerProxyRefresh()
 {
     qDebug() << "\n=== Test: ManagerProxy Refresh ===";
 
-    YubiKeyManagerProxy *manager = YubiKeyManagerProxy::instance();
+    OathManagerProxy *manager = OathManagerProxy::instance();
 
     int devicesBefore = manager->devices().size();
     int credentialsBefore = manager->getAllCredentials().size();
@@ -660,14 +660,14 @@ void TestProxyUnit::testManagerProxySignals()
 {
     qDebug() << "\n=== Test: ManagerProxy Signals ===";
 
-    YubiKeyManagerProxy *manager = YubiKeyManagerProxy::instance();
+    OathManagerProxy *manager = OathManagerProxy::instance();
 
     // Test signal setup
-    QSignalSpy deviceConnectedSpy(manager, &YubiKeyManagerProxy::deviceConnected);
-    QSignalSpy deviceDisconnectedSpy(manager, &YubiKeyManagerProxy::deviceDisconnected);
-    QSignalSpy credentialsChangedSpy(manager, &YubiKeyManagerProxy::credentialsChanged);
-    QSignalSpy daemonAvailableSpy(manager, &YubiKeyManagerProxy::daemonAvailable);
-    QSignalSpy daemonUnavailableSpy(manager, &YubiKeyManagerProxy::daemonUnavailable);
+    QSignalSpy deviceConnectedSpy(manager, &OathManagerProxy::deviceConnected);
+    QSignalSpy deviceDisconnectedSpy(manager, &OathManagerProxy::deviceDisconnected);
+    QSignalSpy credentialsChangedSpy(manager, &OathManagerProxy::credentialsChanged);
+    QSignalSpy daemonAvailableSpy(manager, &OathManagerProxy::daemonAvailable);
+    QSignalSpy daemonUnavailableSpy(manager, &OathManagerProxy::daemonUnavailable);
 
     QVERIFY(deviceConnectedSpy.isValid());
     QVERIFY(deviceDisconnectedSpy.isValid());

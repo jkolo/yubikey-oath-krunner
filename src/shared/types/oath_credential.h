@@ -18,8 +18,14 @@ namespace Shared {
 enum class OathType;
 enum class OathAlgorithm;
 
+// Forward declarations for formatting options
+struct FormatOptions;
+
 /**
- * @brief Represents a YubiKey OATH credential
+ * @brief Represents a YubiKey OATH credential with business logic
+ *
+ * This is a rich domain model (not anemic) that encapsulates both data and behavior.
+ * Moved formatting and validation logic from utility classes to follow "Tell, Don't Ask" principle.
  */
 struct OathCredential {
     QString originalName;      ///< Full name as stored in YubiKey WITH period if non-standard ([period/]issuer:account)
@@ -36,6 +42,83 @@ struct OathCredential {
     int period = 30;           ///< TOTP period in seconds
     int algorithm = 1;         ///< Algorithm: 1=SHA1, 2=SHA256, 3=SHA512
     int type = 2;              ///< Type: 1=HOTP, 2=TOTP
+
+    /**
+     * @brief Formats credential for display with flexible options
+     *
+     * Encapsulates display formatting logic that was previously in CredentialFormatter.
+     * Follows "Tell, Don't Ask" - the credential knows how to display itself.
+     *
+     * @param options Formatting options (username, code, device name visibility)
+     * @return Formatted display string
+     *
+     * @par Example formats:
+     * - Minimal: "Google"
+     * - With username: "Google (user@example.com)"
+     * - With code: "Google (user@example.com) - 123456"
+     * - Touch required: "Google (user@example.com) - 👆"
+     * - With device: "Google @ YubiKey 5"
+     *
+     * @note Thread-safe: Can be called from any thread
+     * @note For touch-required credentials, code is never shown even if showCode is true
+     */
+    QString getDisplayName(const FormatOptions &options) const;
+
+    /**
+     * @brief Formats credential with explicit code and touch status
+     *
+     * Similar to getDisplayName(), but uses explicit code and touch parameters.
+     * Used when we already generated the code or know touch status separately.
+     *
+     * @param explicitCode Generated TOTP/HOTP code (overrides this->code)
+     * @param explicitRequiresTouch Touch requirement (overrides this->requiresTouch)
+     * @param options Formatting options
+     * @return Formatted display string
+     *
+     * @note Thread-safe
+     * @note When showCode=true and explicitRequiresTouch=true, displays 👆 emoji
+     */
+    QString getDisplayNameWithCode(const QString &explicitCode,
+                                     bool explicitRequiresTouch,
+                                     const FormatOptions &options) const;
+
+    /**
+     * @brief Checks if credential matches name and device ID
+     *
+     * Encapsulates matching logic that was in Utils::findCredential().
+     * Exact name comparison (case-sensitive).
+     *
+     * @param name Credential name to match
+     * @param targetDeviceId Device ID to match
+     * @return true if both name and device ID match
+     *
+     * @note Thread-safe
+     */
+    bool matches(const QString &name, const QString &targetDeviceId) const;
+
+    /**
+     * @brief Checks if TOTP code has expired
+     *
+     * Compares validUntil timestamp with current time.
+     *
+     * @return true if code expired (validUntil in past)
+     * @note Always returns false for HOTP credentials (they don't expire)
+     * @note Thread-safe (uses QDateTime::currentSecsSinceEpoch())
+     */
+    bool isExpired() const;
+
+    /**
+     * @brief Checks if TOTP code needs regeneration soon
+     *
+     * Returns true if code will expire within threshold seconds.
+     * Useful for proactive code regeneration before user sees expired code.
+     *
+     * @param thresholdSeconds Seconds before expiration to trigger (default: 5)
+     * @return true if code expires within threshold
+     * @note Always returns false for HOTP credentials
+     * @note Thread-safe
+     */
+    bool needsRegeneration(int thresholdSeconds = 5) const;
 };
 
 // QDebug operator for debug output

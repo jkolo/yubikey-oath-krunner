@@ -5,12 +5,11 @@
 
 #include "device_lifecycle_service.h"
 #include "../oath/yubikey_device_manager.h"
-#include "../oath/yubikey_oath_device.h"
+#include "../oath/oath_device.h"
 #include "../storage/yubikey_database.h"
 #include "../storage/secret_storage.h"
 #include "../logging_categories.h"
 #include "utils/device_name_formatter.h"
-#include "types/yubikey_model.h"
 
 #include <QSet>
 
@@ -65,13 +64,14 @@ QList<DeviceInfo> DeviceLifecycleService::listDevices()
         if (info.isConnected) {
             if (auto *device = m_deviceManager->getDevice(deviceId)) {
                 info.firmwareVersion = device->firmwareVersion();
-                // Convert raw values to human-readable strings
-                const YubiKeyModel rawModel = device->deviceModel();
-                info.deviceModel = modelToString(rawModel);
-                info.deviceModelCode = rawModel;  // Numeric model code for icon resolution
-                info.capabilities = capabilitiesToStringList(getModelCapabilities(rawModel));
+                // Use DeviceModel struct fields directly
+                const DeviceModel& deviceModel = device->deviceModel();
+                info.deviceModel = deviceModel.modelString;
+                info.deviceModelCode = deviceModel.modelCode;  // Numeric model code for icon resolution
+                info.capabilities = deviceModel.capabilities;
                 info.serialNumber = device->serialNumber();
                 info.formFactor = formFactorToString(device->formFactor());
+                info.requiresPassword = device->requiresPassword();
             }
         }
 
@@ -96,10 +96,15 @@ QList<DeviceInfo> DeviceLifecycleService::listDevices()
         } else {
             // New device - generate name with full device ID
             info.deviceName = generateDefaultDeviceName(deviceId);
-            info.requiresPassword = true;
 
-            // Add to database
-            m_database->addDevice(deviceId, info.deviceName, true);
+            // For offline new devices, default to requiring password (safe default)
+            // For connected new devices, requiresPassword was already set from device at line 75
+            if (!info.isConnected) {
+                info.requiresPassword = true;
+            }
+
+            // Add to database with actual requiresPassword value
+            m_database->addDevice(deviceId, info.deviceName, info.requiresPassword);
         }
 
         // Update last seen for connected devices
@@ -122,7 +127,7 @@ QList<DeviceInfo> DeviceLifecycleService::listDevices()
     return devices;
 }
 
-YubiKeyOathDevice* DeviceLifecycleService::getDevice(const QString &deviceId)
+OathDevice* DeviceLifecycleService::getDevice(const QString &deviceId)
 {
     return m_deviceManager->getDevice(deviceId);
 }
@@ -193,9 +198,13 @@ void DeviceLifecycleService::forgetDevice(const QString &deviceId)
         qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: Continuing with memory cleanup despite database failure";
     }
 
-    // 3. Clear device from memory LAST
+    // 3. Record forget timestamp for debounce (prevents immediate re-detection)
+    m_lastForgetTimestamp[deviceId] = QDateTime::currentMSecsSinceEpoch();
+    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Recorded forget timestamp for debounce";
+
+    // 4. Clear device from memory LAST
     // This may trigger immediate re-detection if device is physically connected,
-    // but password and database entry are already gone
+    // but password and database entry are already gone, and debounce will prevent re-add
     qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Clearing device from memory";
     clearDeviceFromMemory(deviceId);
 
@@ -206,50 +215,74 @@ void DeviceLifecycleService::onDeviceConnected(const QString &deviceId)
 {
     qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Device connected:" << deviceId;
 
+    // Debounce: ignore re-detection shortly after forget (prevents dev_XXXXXXXX paths)
+    // 500ms grace period allows PC/SC state to settle properly
+    if (m_lastForgetTimestamp.contains(deviceId)) {
+        const qint64 timeSinceForget = QDateTime::currentMSecsSinceEpoch() - m_lastForgetTimestamp[deviceId];
+        if (timeSinceForget < 500) {
+            qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Ignoring re-detection"
+                                       << timeSinceForget << "ms after forget (debounce)";
+            return;
+        }
+        // Grace period expired, clear timestamp
+        m_lastForgetTimestamp.remove(deviceId);
+        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Debounce expired, processing connection";
+    }
+
+    // Get device pointer to access requiresPassword
+    auto *device = m_deviceManager->getDevice(deviceId);
+    if (!device) {
+        qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: Device not found in manager:" << deviceId;
+        return;
+    }
+
     // Check if this is a new device
     bool const isNewDevice = !m_database->hasDevice(deviceId);
 
     // Add to database if not exists (with temporary device ID as name)
     if (isNewDevice) {
         const QString tempName = generateDefaultDeviceName(deviceId); // Temporary name
-        m_database->addDevice(deviceId, tempName, true);
+        const bool requiresPassword = device->requiresPassword();
+        m_database->addDevice(deviceId, tempName, requiresPassword);
+        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: New device added to database with requiresPassword:" << requiresPassword;
     }
 
     // Update extended device information (firmware, model, serial, form factor)
     // This syncs hardware data from YubiKey to database
-    auto *device = m_deviceManager->getDevice(deviceId);
-    if (device) {
-        const bool updateSuccess = m_database->updateDeviceInfo(
+    const bool updateSuccess = m_database->updateDeviceInfo(
+        deviceId,
+        device->firmwareVersion(),
+        device->deviceModel().modelCode,
+        device->serialNumber(),
+        device->formFactor()
+    );
+
+    if (updateSuccess) {
+        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Updated device info in database:"
+                                   << "firmware=" << device->firmwareVersion().toString()
+                                   << "model=" << device->deviceModel().modelString
+                                   << "serial=" << device->serialNumber()
+                                   << "formFactor=" << device->formFactor();
+
+        // Always regenerate device name to support brand-aware migration (v1.1.0)
+        // This ensures devices added before multi-brand support get correct names
+        // (e.g., Nitrokey previously stored as "YubiKey 4" → "Nitrokey 3C NFC - 562721119")
+        const QString properName = generateDefaultDeviceName(
             deviceId,
-            device->firmwareVersion(),
             device->deviceModel(),
             device->serialNumber(),
-            device->formFactor()
+            m_database
         );
 
-        if (updateSuccess) {
-            qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Updated device info in database:"
-                                       << "firmware=" << device->firmwareVersion().toString()
-                                       << "model=" << QString::number(device->deviceModel(), 16)
-                                       << "serial=" << device->serialNumber()
-                                       << "formFactor=" << device->formFactor();
-
-            // For new devices, generate proper name based on model and serial
-            if (isNewDevice) {
-                const QString properName = generateDefaultDeviceName(
-                    deviceId,
-                    device->deviceModel(),
-                    device->serialNumber(),
-                    m_database
-                );
-                m_database->updateDeviceName(deviceId, properName);
-                qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Set device name to:" << properName;
-            }
-        } else {
-            qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: Failed to update device info in database for:" << deviceId;
+        // Update name only if it changed (avoid unnecessary DB writes)
+        // This also preserves custom user names if they manually edited them to match the generated format
+        auto dbRecord = m_database->getDevice(deviceId);
+        if (!dbRecord.has_value() || dbRecord->deviceName != properName) {
+            m_database->updateDeviceName(deviceId, properName);
+            qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Updated device name to:" << properName;
         }
     } else {
-        qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: Device not found in manager, cannot sync extended info:" << deviceId;
+        qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: Failed to update device info in database for:" << deviceId;
     }
 
     // Check if device requires password and load it from KWallet
@@ -309,6 +342,9 @@ void DeviceLifecycleService::onDeviceDisconnected(const QString &deviceId)
 void DeviceLifecycleService::clearDeviceFromMemory(const QString &deviceId)
 {
     qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Clearing device from memory:" << deviceId;
+
+    // removeDeviceFromMemory() will delete the device object
+    // Destructor handles PC/SC cleanup automatically
     m_deviceManager->removeDeviceFromMemory(deviceId);
     qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Device cleared from memory";
 }
@@ -319,11 +355,11 @@ QString DeviceLifecycleService::generateDefaultDeviceName(const QString &deviceI
 }
 
 QString DeviceLifecycleService::generateDefaultDeviceName(const QString &deviceId,
-                                                          YubiKeyModel model,
+                                                          const Shared::DeviceModel& deviceModel,
                                                           quint32 serialNumber,
                                                           YubiKeyDatabase *database) const
 {
-    return DeviceNameFormatter::generateDefaultName(deviceId, model, serialNumber, database);
+    return DeviceNameFormatter::generateDefaultName(deviceId, deviceModel, serialNumber, database);
 }
 
 QString DeviceLifecycleService::getDeviceName(const QString &deviceId) const

@@ -14,8 +14,9 @@ std::optional<OathCredential> findCredential(
     const QString &credentialName,
     const QString &deviceId)
 {
+    // Use rich domain model method instead of accessing data directly (Tell, Don't Ask)
     for (const auto &cred : credentials) {
-        if (cred.originalName == credentialName && cred.deviceId == deviceId) {
+        if (cred.matches(credentialName, deviceId)) {
             return cred;
         }
     }

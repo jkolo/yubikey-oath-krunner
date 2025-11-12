@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "device_model.h"
 #include <QString>
 #include <QFlags>
 #include <cstdint>
@@ -179,7 +180,24 @@ QString formFactorToString(quint8 formFactor);
  *    - Use nfcSupported to add NFC port if device has NFC capability
  * 3. Combine series + variant + ports + capabilities into single uint32
  */
-YubiKeyModel detectModel(const Version& firmware, const QString& ykmanOutput = QString(), quint8 formFactor = 0, quint16 nfcSupported = 0);
+YubiKeyModel detectYubiKeyModel(const Version& firmware, const QString& ykmanOutput = QString(), quint8 formFactor = 0, quint16 nfcSupported = 0);
+
+/**
+ * @brief Converts YubiKeyModel to brand-agnostic DeviceModel
+ * @param ykModel Encoded YubiKey model (0xSSVVPPFF)
+ * @return DeviceModel struct with brand=YubiKey, modelCode, modelString, capabilities
+ *
+ * This function converts the YubiKey-specific encoded model to the generic DeviceModel
+ * structure used throughout the application for brand-agnostic device handling.
+ *
+ * Example:
+ * ```cpp
+ * YubiKeyModel ykModel = detectYubiKeyModel(firmware, ...);
+ * DeviceModel model = toDeviceModel(ykModel);
+ * qDebug() << "Model:" << model.modelString; // "YubiKey 5C NFC"
+ * ```
+ */
+DeviceModel toDeviceModel(YubiKeyModel ykModel);
 
 /**
  * @brief Creates YubiKeyModel from components

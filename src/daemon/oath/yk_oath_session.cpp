@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "oath_session.h"
+#include "yk_oath_session.h"
+#include "oath_error_codes.h"
 #include "../logging_categories.h"
 
 #include <QCryptographicHash>
@@ -12,6 +13,8 @@
 #include <QDebug>
 #include <QEventLoop>
 #include <QTimer>
+#include <QDateTime>
+#include <QThread>
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -22,7 +25,7 @@ using namespace YubiKeyOath::Shared;
 #define SCARD_W_RESET_CARD ((LONG)0x80100068)
 #endif
 
-OathSession::OathSession(SCARDHANDLE cardHandle,
+YkOathSession::YkOathSession(SCARDHANDLE cardHandle,
                          DWORD protocol,
                          const QString &deviceId, // NOLINT(modernize-pass-by-value) - const ref for consistency
                          QObject *parent)
@@ -30,13 +33,14 @@ OathSession::OathSession(SCARDHANDLE cardHandle,
     , m_cardHandle(cardHandle)
     , m_protocol(protocol)
     , m_deviceId(deviceId)
+    , m_oathProtocol(std::make_unique<YKOathProtocol>())
 {
-    qCDebug(YubiKeyOathDeviceLog) << "OathSession created for device" << m_deviceId;
+    qCDebug(YubiKeyOathDeviceLog) << "YkOathSession created for device" << m_deviceId;
 }
 
-OathSession::~OathSession()
+YkOathSession::~YkOathSession()
 {
-    qCDebug(YubiKeyOathDeviceLog) << "OathSession destroyed for device" << m_deviceId;
+    qCDebug(YubiKeyOathDeviceLog) << "YkOathSession destroyed for device" << m_deviceId;
     // Note: We do NOT disconnect card handle - caller owns it
 }
 
@@ -44,7 +48,7 @@ OathSession::~OathSession()
 // PC/SC Communication
 // =============================================================================
 
-QByteArray OathSession::sendApdu(const QByteArray &command, int retryCount)
+QByteArray YkOathSession::sendApdu(const QByteArray &command, int retryCount)
 {
     qCDebug(YubiKeyOathDeviceLog) << "sendApdu() for device:" << m_deviceId
              << "command length:" << command.length() << "command:" << command.toHex()
@@ -53,6 +57,23 @@ QByteArray OathSession::sendApdu(const QByteArray &command, int retryCount)
     if (m_cardHandle == 0) {
         qCDebug(YubiKeyOathDeviceLog) << "Device" << m_deviceId << "not connected (invalid handle)";
         return {};
+    }
+
+    // PC/SC rate limiting: enforce minimum 50ms interval between operations
+    // This prevents overwhelming the card/reader with rapid commands which can
+    // cause communication errors, especially with slower readers or during
+    // high-frequency operations (e.g., TOTP auto-refresh)
+    static constexpr qint64 MIN_PCSC_INTERVAL_MS = 50;
+    const qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+
+    if (m_lastPcscOperationTime > 0) {
+        const qint64 elapsed = currentTime - m_lastPcscOperationTime;
+        if (elapsed < MIN_PCSC_INTERVAL_MS) {
+            const qint64 sleepTime = MIN_PCSC_INTERVAL_MS - elapsed;
+            qCDebug(YubiKeyOathDeviceLog) << "PC/SC rate limiting: sleeping for" << sleepTime << "ms"
+                     << "(elapsed since last operation:" << elapsed << "ms)";
+            QThread::msleep(sleepTime);
+        }
     }
 
     SCARD_IO_REQUEST pioSendPci;
@@ -68,6 +89,10 @@ QByteArray OathSession::sendApdu(const QByteArray &command, int retryCount)
     LONG result = SCardTransmit(m_cardHandle, &pioSendPci,
                                reinterpret_cast<const BYTE*>(command.constData()), command.length(),
                                nullptr, static_cast<BYTE*>(response), &responseLen); // NOLINT(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+
+    // Update timestamp immediately after PC/SC operation (success or failure)
+    // This ensures consistent rate limiting regardless of operation outcome
+    m_lastPcscOperationTime = QDateTime::currentMSecsSinceEpoch();
 
     qCDebug(YubiKeyOathDeviceLog) << "SCardTransmit result:" << result
              << "response length:" << responseLen;
@@ -88,13 +113,13 @@ QByteArray OathSession::sendApdu(const QByteArray &command, int retryCount)
             bool reconnectSuccess = false;
 
             // Connect to signals from upper layer (YubiKeyOathDevice)
-            const QMetaObject::Connection connReady = connect(this, &OathSession::reconnectReady, &loop, [&]() {
+            const QMetaObject::Connection connReady = connect(this, &YkOathSession::reconnectReady, &loop, [&]() {
                 qCInfo(YubiKeyOathDeviceLog) << "Received reconnectReady signal";
                 reconnectSuccess = true;
                 loop.quit();
             });
 
-            const QMetaObject::Connection connFailed = connect(this, &OathSession::reconnectFailed, &loop, [&]() {
+            const QMetaObject::Connection connFailed = connect(this, &YkOathSession::reconnectFailed, &loop, [&]() {
                 qCWarning(YubiKeyOathDeviceLog) << "Received reconnectFailed signal";
                 reconnectSuccess = false;
                 loop.quit();
@@ -195,7 +220,7 @@ QByteArray OathSession::sendApdu(const QByteArray &command, int retryCount)
 // High-level OATH Operations
 // =============================================================================
 
-Result<void> OathSession::selectOathApplication(QByteArray &outChallenge, Version &outFirmwareVersion)
+Result<void> YkOathSession::selectOathApplication(QByteArray &outChallenge, Version &outFirmwareVersion)
 {
     qCDebug(YubiKeyOathDeviceLog) << "selectOathApplication() for device" << m_deviceId;
 
@@ -208,10 +233,13 @@ Result<void> OathSession::selectOathApplication(QByteArray &outChallenge, Versio
         return Result<void>::error(tr("Failed to select OATH application"));
     }
 
-    // Parse response to get device ID, challenge, and firmware version
+    // Parse response to get device ID, challenge, firmware version, password requirement, and serial
+    qCDebug(YubiKeyOathDeviceLog) << "SELECT response HEX:" << response.toHex() << "length:" << response.length();
     QString deviceId;
-    if (!OathProtocol::parseSelectResponse(response, deviceId, outChallenge, outFirmwareVersion)) {
-        qCDebug(YubiKeyOathDeviceLog) << "Failed to parse SELECT response";
+    bool requiresPassword = false;
+    quint32 serialNumber = 0;
+    if (!m_oathProtocol->parseSelectResponse(response, deviceId, outChallenge, outFirmwareVersion, requiresPassword, serialNumber)) {
+        qCDebug(YubiKeyOathDeviceLog) << "Failed to parse SELECT response - response was:" << response.toHex();
         m_sessionActive = false;  // Mark session as inactive on error
         return Result<void>::error(tr("Failed to parse SELECT response"));
     }
@@ -221,9 +249,20 @@ Result<void> OathSession::selectOathApplication(QByteArray &outChallenge, Versio
         m_deviceId = deviceId;
     }
 
+    // Store firmware version from SELECT
+    m_firmwareVersion = outFirmwareVersion;
+
+    // Store serial number from SELECT (strategy #0 for serial detection)
+    m_selectSerialNumber = serialNumber;
+
+    // Store password requirement from SELECT
+    m_requiresPassword = requiresPassword;
+
     qCDebug(YubiKeyOathDeviceLog) << "SELECT successful, device ID:" << m_deviceId
              << "firmware:" << outFirmwareVersion.toString()
-             << "challenge:" << outChallenge.toHex();
+             << "challenge:" << outChallenge.toHex()
+             << "requiresPassword:" << requiresPassword
+             << "serial:" << serialNumber;
 
     // Mark session as active after successful SELECT
     m_sessionActive = true;
@@ -231,7 +270,7 @@ Result<void> OathSession::selectOathApplication(QByteArray &outChallenge, Versio
     return Result<void>::success();
 }
 
-Result<QString> OathSession::calculateCode(const QString &name, int period)
+Result<QString> YkOathSession::calculateCode(const QString &name, int period)
 {
     qCDebug(YubiKeyOathDeviceLog) << "calculateCode() for" << name << "on device" << m_deviceId
                                    << "with period" << period;
@@ -286,11 +325,11 @@ Result<QString> OathSession::calculateCode(const QString &name, int period)
         // Check for authentication required
         if (sw == OathProtocol::SW_SECURITY_STATUS_NOT_SATISFIED) {
             qCDebug(YubiKeyOathDeviceLog) << "Password required for CALCULATE (SW=6982)";
-            return Result<QString>::error(tr("Password required"));
+            return Result<QString>::error(OathErrorCodes::PASSWORD_REQUIRED);
         }
 
         // Parse code
-        const QString code = OathProtocol::parseCode(response);
+        const QString code = m_oathProtocol->parseCode(response);
         if (code.isEmpty()) {
             return Result<QString>::error(tr("Failed to parse TOTP code from response"));
         }
@@ -303,7 +342,7 @@ Result<QString> OathSession::calculateCode(const QString &name, int period)
     return Result<QString>::error(tr("Unexpected error in calculateCode"));
 }
 
-Result<QList<OathCredential>> OathSession::calculateAll()
+Result<QList<OathCredential>> YkOathSession::calculateAll()
 {
     qCDebug(YubiKeyOathDeviceLog) << "calculateAll() for device" << m_deviceId;
 
@@ -350,11 +389,11 @@ Result<QList<OathCredential>> OathSession::calculateAll()
         // Check for authentication requirement
         if (sw == OathProtocol::SW_SECURITY_STATUS_NOT_SATISFIED) {
             qCDebug(YubiKeyOathDeviceLog) << "Password required for CALCULATE ALL";
-            return Result<QList<OathCredential>>::error(tr("Password required"));
+            return Result<QList<OathCredential>>::error(OathErrorCodes::PASSWORD_REQUIRED);
         }
 
         // Parse response
-        QList<OathCredential> credentials = OathProtocol::parseCalculateAllResponse(response);
+        QList<OathCredential> credentials = m_oathProtocol->parseCalculateAllResponse(response);
 
         // Set device ID for all credentials
         for (auto &cred : credentials) {
@@ -369,7 +408,71 @@ Result<QList<OathCredential>> OathSession::calculateAll()
     return Result<QList<OathCredential>>::error(tr("Unexpected error in calculateAll"));
 }
 
-Result<void> OathSession::authenticate(const QString &password, const QString &deviceId)
+Result<QList<OathCredential>> YkOathSession::listCredentials()
+{
+    qCDebug(YubiKeyOathDeviceLog) << "listCredentials() for device" << m_deviceId;
+
+    // Ensure OATH session is active
+    auto sessionResult = ensureSessionActive();
+    if (sessionResult.isError()) {
+        return Result<QList<OathCredential>>::error(sessionResult.error());
+    }
+
+    // Retry loop for session loss recovery
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        // Create LIST command
+        const QByteArray command = OathProtocol::createListCommand();
+        const QByteArray response = sendApdu(command);
+
+        if (response.isEmpty()) {
+            qCDebug(YubiKeyOathDeviceLog) << "Empty response from LIST";
+            return Result<QList<OathCredential>>::error(tr("Failed to list credentials"));
+        }
+
+        // Check status word
+        const quint16 sw = OathProtocol::getStatusWord(response);
+
+        // Check for session loss - retry once
+        if (sw == OathProtocol::SW_INS_NOT_SUPPORTED || sw == OathProtocol::SW_CLA_NOT_SUPPORTED) {
+            qCWarning(YubiKeyOathDeviceLog) << "Session lost (SW=" << QString::number(sw, 16)
+                                            << "), attempt" << (attempt + 1) << "of 2";
+            m_sessionActive = false;
+
+            if (attempt == 0) {
+                // Retry after reactivating session
+                auto reactivateResult = ensureSessionActive();
+                if (reactivateResult.isError()) {
+                    return Result<QList<OathCredential>>::error(tr("Failed to reactivate session: %1").arg(reactivateResult.error()));
+                }
+                continue; // Retry operation
+            } else {
+                return Result<QList<OathCredential>>::error(tr("Session lost and retry failed"));
+            }
+        }
+
+        // Check for authentication requirement
+        if (sw == OathProtocol::SW_SECURITY_STATUS_NOT_SATISFIED) {
+            qCDebug(YubiKeyOathDeviceLog) << "Password required for LIST";
+            return Result<QList<OathCredential>>::error(OathErrorCodes::PASSWORD_REQUIRED);
+        }
+
+        // Parse credential list
+        QList<OathCredential> credentials = OathProtocol::parseCredentialList(response);
+
+        // Set device ID for all credentials
+        for (auto &cred : credentials) {
+            cred.deviceId = m_deviceId;
+        }
+
+        qCDebug(YubiKeyOathDeviceLog) << "Listed" << credentials.size() << "credentials";
+        return Result<QList<OathCredential>>::success(credentials);
+    }
+
+    // Should never reach here
+    return Result<QList<OathCredential>>::error(tr("Unexpected error in listCredentials"));
+}
+
+Result<void> YkOathSession::authenticate(const QString &password, const QString &deviceId)
 {
     qCDebug(YubiKeyOathDeviceLog) << "authenticate() for device" << m_deviceId;
 
@@ -470,7 +573,7 @@ Result<void> OathSession::authenticate(const QString &password, const QString &d
     return Result<void>::error(tr("Authentication failed"));
 }
 
-Result<void> OathSession::putCredential(const OathCredentialData &data)
+Result<void> YkOathSession::putCredential(const OathCredentialData &data)
 {
     qCDebug(YubiKeyOathDeviceLog) << "putCredential() for device" << m_deviceId
                                    << "credential:" << data.name;
@@ -530,7 +633,7 @@ Result<void> OathSession::putCredential(const OathCredentialData &data)
                                 .arg(sw, 4, 16, QLatin1Char('0')));
 }
 
-Result<void> OathSession::deleteCredential(const QString &name)
+Result<void> YkOathSession::deleteCredential(const QString &name)
 {
     qCDebug(YubiKeyOathDeviceLog) << "deleteCredential() for device" << m_deviceId
                                    << "credential:" << name;
@@ -588,7 +691,7 @@ Result<void> OathSession::deleteCredential(const QString &name)
                                 .arg(sw, 4, 16, QLatin1Char('0')));
 }
 
-Result<void> OathSession::setPassword(const QString &newPassword, const QString &deviceId)
+Result<void> YkOathSession::setPassword(const QString &newPassword, const QString &deviceId)
 {
     qCDebug(YubiKeyOathDeviceLog) << "setPassword() for device" << m_deviceId;
 
@@ -691,7 +794,7 @@ Result<void> OathSession::setPassword(const QString &newPassword, const QString 
     return Result<void>::success();
 }
 
-Result<void> OathSession::removePassword()
+Result<void> YkOathSession::removePassword()
 {
     qCDebug(YubiKeyOathDeviceLog) << "removePassword() for device" << m_deviceId;
 
@@ -730,7 +833,7 @@ Result<void> OathSession::removePassword()
                                 .arg(sw, 4, 16, QLatin1Char('0')));
 }
 
-Result<void> OathSession::changePassword(const QString &oldPassword,
+Result<void> YkOathSession::changePassword(const QString &oldPassword,
                                          const QString &newPassword,
                                          const QString &deviceId)
 {
@@ -758,11 +861,21 @@ Result<void> OathSession::changePassword(const QString &oldPassword,
     return setPassword(newPassword, deviceId);
 }
 
-Result<ExtendedDeviceInfo> OathSession::getExtendedDeviceInfo(const QString &readerName)
+Result<ExtendedDeviceInfo> YkOathSession::getExtendedDeviceInfo(const QString &readerName)
 {
     qCDebug(YubiKeyOathDeviceLog) << "getExtendedDeviceInfo() for device" << m_deviceId;
 
     ExtendedDeviceInfo info;
+
+    // Strategy 0: OATH SELECT TAG_SERIAL_NUMBER (0x8F) - Nitrokey 3, fastest (no extra APDU)
+    // If serial is already available from SELECT, use it (Nitrokey 3 supports this)
+    // YubiKeys don't send this tag, so they'll use fallback strategies below
+    if (m_selectSerialNumber != 0) {
+        info.serialNumber = m_selectSerialNumber;
+        qCInfo(YubiKeyOathDeviceLog) << "Serial from OATH SELECT TAG_SERIAL_NUMBER (0x8F):" << m_selectSerialNumber;
+        // Continue with other strategies to get form factor and model detection
+        // (Nitrokey doesn't support Management API, so it will fail and use OTP/PIV fallbacks)
+    }
 
     // Strategy 1: Try Management GET DEVICE INFO (YubiKey 4.1+)
     // This is the most comprehensive method - gets serial, firmware, form factor in one call
@@ -784,12 +897,16 @@ Result<ExtendedDeviceInfo> OathSession::getExtendedDeviceInfo(const QString &rea
                 ManagementDeviceInfo mgmtInfo;
                 if (ManagementProtocol::parseDeviceInfoResponse(getInfoResp, mgmtInfo)) {
                     // Success! Got comprehensive device info
-                    info.serialNumber = mgmtInfo.serialNumber;
+                    // Only override serial if Management API returned non-zero value
+                    // (preserves serial from Strategy 0: TAG_SERIAL_NUMBER for Nitrokey)
+                    if (mgmtInfo.serialNumber != 0) {
+                        info.serialNumber = mgmtInfo.serialNumber;
+                    }
                     info.firmwareVersion = mgmtInfo.firmwareVersion;
                     info.formFactor = mgmtInfo.formFactor;
 
                     // Derive device model from firmware, form factor, and NFC support
-                    info.deviceModel = detectModel(info.firmwareVersion, QString(), info.formFactor, mgmtInfo.nfcSupported);
+                    info.deviceModel = detectYubiKeyModel(info.firmwareVersion, QString(), info.formFactor, mgmtInfo.nfcSupported);
 
                     qCInfo(YubiKeyOathDeviceLog) << "Management GET DEVICE INFO succeeded:"
                                                  << "serial=" << info.serialNumber
@@ -818,6 +935,35 @@ Result<ExtendedDeviceInfo> OathSession::getExtendedDeviceInfo(const QString &rea
         } else {
             qCDebug(YubiKeyOathDeviceLog) << "Management application not available, trying OTP fallback";
         }
+
+        // Early return for Nitrokey: If we have serial from Strategy #0, no need for OTP/PIV
+        // (those strategies ONLY provide serial number, which we already have)
+        if (m_selectSerialNumber != 0) {
+            // CRITICAL: Re-select OATH application after failed Management SELECT
+            // Management SELECT (even if it fails) changes active application, breaking OATH session
+            qCDebug(YubiKeyOathDeviceLog) << "Re-selecting OATH after Management failure (required for Nitrokey)";
+            const QByteArray selectOathCmd = OathProtocol::createSelectCommand();
+            const QByteArray selectOathResp = sendApdu(selectOathCmd);
+
+            if (selectOathResp.isEmpty() ||
+                !OathProtocol::isSuccess(OathProtocol::getStatusWord(selectOathResp))) {
+                qCWarning(YubiKeyOathDeviceLog) << "Failed to re-select OATH after Management failure";
+                m_sessionActive = false;
+                return Result<ExtendedDeviceInfo>::error(QStringLiteral("Failed to re-select OATH application"));
+            }
+
+            info.firmwareVersion = m_firmwareVersion;  // From SELECT
+            info.deviceModel = detectYubiKeyModel(info.firmwareVersion, QString());
+            info.formFactor = 0;  // Unavailable (Nitrokey doesn't support Management API)
+
+            qCInfo(YubiKeyOathDeviceLog) << "Using serial from TAG_SERIAL_NUMBER (Strategy #0):"
+                                         << "serial=" << info.serialNumber
+                                         << "firmware=" << info.firmwareVersion.toString()
+                                         << "(skipping OTP/PIV fallbacks - not needed)";
+
+            m_sessionActive = true;
+            return Result<ExtendedDeviceInfo>::success(info);
+        }
     }
 
     // Strategy 2: Fallback to OTP GET_SERIAL (YubiKey NEO 3.x.x)
@@ -840,7 +986,11 @@ Result<ExtendedDeviceInfo> OathSession::getExtendedDeviceInfo(const QString &rea
                 quint32 serial = 0;
                 if (OathProtocol::parseOtpSerialResponse(getSerialResp, serial)) {
                     // Success! Got serial number
-                    info.serialNumber = serial;
+                    // Only override if OTP returned non-zero value
+                    // (preserves serial from Strategy 0: TAG_SERIAL_NUMBER for Nitrokey)
+                    if (serial != 0) {
+                        info.serialNumber = serial;
+                    }
 
                     // Parse reader name for NEO detection (Yubico method)
                     auto readerInfo = OathProtocol::parseReaderNameInfo(readerName);
@@ -853,7 +1003,7 @@ Result<ExtendedDeviceInfo> OathSession::getExtendedDeviceInfo(const QString &rea
                         info.firmwareVersion = Version(3, 4, 0);
 
                         // Detect model with NEO series (firmware 3.x.x → YubiKeyNEO)
-                        info.deviceModel = detectModel(info.firmwareVersion, QString(), info.formFactor);
+                        info.deviceModel = detectYubiKeyModel(info.firmwareVersion, QString(), info.formFactor);
 
                         qCInfo(YubiKeyOathDeviceLog) << "OTP GET_SERIAL + reader name parsing succeeded:"
                                                      << "serial=" << info.serialNumber
@@ -880,13 +1030,15 @@ Result<ExtendedDeviceInfo> OathSession::getExtendedDeviceInfo(const QString &rea
                     QString deviceId;
                     QByteArray challenge;
                     Version firmware;
+                    bool requiresPassword = false;
+                    quint32 serialFromSelect = 0;
                     // Don't strip status word - parseSelectResponse() handles it internally
-                    if (OathProtocol::parseSelectResponse(selectOathResp, deviceId, challenge, firmware)) {
+                    if (m_oathProtocol->parseSelectResponse(selectOathResp, deviceId, challenge, firmware, requiresPassword, serialFromSelect)) {
                         info.firmwareVersion = firmware;
 
                         // Derive device model from firmware only (no form factor available)
                         info.formFactor = 0;  // Unavailable via OTP
-                        info.deviceModel = detectModel(info.firmwareVersion, QString(), info.formFactor);
+                        info.deviceModel = detectYubiKeyModel(info.firmwareVersion, QString(), info.formFactor);
 
                         qCInfo(YubiKeyOathDeviceLog) << "OTP GET_SERIAL succeeded:"
                                                      << "serial=" << info.serialNumber
@@ -937,7 +1089,11 @@ Result<ExtendedDeviceInfo> OathSession::getExtendedDeviceInfo(const QString &rea
                 quint32 serial = 0;
                 if (OathProtocol::parseSerialResponse(getSerialResp, serial)) {
                     // Success! Got serial number
-                    info.serialNumber = serial;
+                    // Only override if PIV returned non-zero value
+                    // (preserves serial from Strategy 0: TAG_SERIAL_NUMBER for Nitrokey)
+                    if (serial != 0) {
+                        info.serialNumber = serial;
+                    }
 
                     // Get firmware from OATH SELECT (we need fresh SELECT anyway)
                     const QByteArray selectOathCmd = OathProtocol::createSelectCommand();
@@ -954,12 +1110,14 @@ Result<ExtendedDeviceInfo> OathSession::getExtendedDeviceInfo(const QString &rea
                     QString deviceId;
                     QByteArray challenge;
                     Version firmware;
+                    bool requiresPassword = false;
+                    quint32 serialFromSelect = 0;
                     // Don't strip status word - parseSelectResponse() handles it internally
-                    if (OathProtocol::parseSelectResponse(selectOathResp, deviceId, challenge, firmware)) {
+                    if (m_oathProtocol->parseSelectResponse(selectOathResp, deviceId, challenge, firmware, requiresPassword, serialFromSelect)) {
                         info.firmwareVersion = firmware;
 
                         // Derive device model from firmware only (no form factor available)
-                        info.deviceModel = detectModel(info.firmwareVersion, QString());
+                        info.deviceModel = detectYubiKeyModel(info.firmwareVersion, QString());
                         info.formFactor = 0;  // Unavailable via PIV
 
                         qCInfo(YubiKeyOathDeviceLog) << "PIV GET SERIAL succeeded:"
@@ -1015,14 +1173,17 @@ Result<ExtendedDeviceInfo> OathSession::getExtendedDeviceInfo(const QString &rea
         QString deviceId;
         QByteArray challenge;
         Version firmware;
+        bool requiresPassword = false;
+        quint32 serialNumber = 0;
         const QByteArray selectData = selectOathResp.left(selectOathResp.length() - 2);
-        if (OathProtocol::parseSelectResponse(selectData, deviceId, challenge, firmware)) {
-            info.serialNumber = 0;  // Unavailable
+        if (m_oathProtocol->parseSelectResponse(selectData, deviceId, challenge, firmware,
+                                              requiresPassword, serialNumber)) {
+            info.serialNumber = 0;  // Unavailable (final fallback - no serial available)
             info.firmwareVersion = firmware;
-            info.deviceModel = detectModel(firmware, QString());
+            info.deviceModel = detectYubiKeyModel(firmware, QString());
             info.formFactor = 0;  // Unavailable
 
-            qCInfo(YubiKeyOathDeviceLog) << "Final fallback succeeded (no serial):"
+            qCInfo(YubiKeyOathDeviceLog) << "Final fallback succeeded (no serial available):"
                                          << "firmware=" << info.firmwareVersion.toString();
 
             m_sessionActive = true;
@@ -1033,7 +1194,7 @@ Result<ExtendedDeviceInfo> OathSession::getExtendedDeviceInfo(const QString &rea
     }
 }
 
-void OathSession::cancelOperation()
+void YkOathSession::cancelOperation()
 {
     qCDebug(YubiKeyOathDeviceLog) << "cancelOperation() for device" << m_deviceId;
 
@@ -1047,7 +1208,7 @@ void OathSession::cancelOperation()
     qCDebug(YubiKeyOathDeviceLog) << "Operation cancelled, session remains active";
 }
 
-void OathSession::updateCardHandle(SCARDHANDLE newHandle, DWORD newProtocol)
+void YkOathSession::updateCardHandle(SCARDHANDLE newHandle, DWORD newProtocol)
 {
     qCDebug(YubiKeyOathDeviceLog) << "updateCardHandle() for device" << m_deviceId
              << "newHandle:" << newHandle << "newProtocol:" << newProtocol;
@@ -1063,7 +1224,7 @@ void OathSession::updateCardHandle(SCARDHANDLE newHandle, DWORD newProtocol)
 // Helper Functions
 // =============================================================================
 
-bool OathSession::reconnectCard()
+bool YkOathSession::reconnectCard()
 {
     qCDebug(YubiKeyOathDeviceLog) << "Attempting to reconnect card for device" << m_deviceId;
 
@@ -1101,7 +1262,7 @@ bool OathSession::reconnectCard()
     return false;
 }
 
-Result<void> OathSession::ensureSessionActive()
+Result<void> YkOathSession::ensureSessionActive()
 {
     // If session is already active, nothing to do
     if (m_sessionActive) {
@@ -1124,7 +1285,7 @@ Result<void> OathSession::ensureSessionActive()
     return Result<void>::success();
 }
 
-QByteArray OathSession::deriveKeyPbkdf2(const QByteArray &password,
+QByteArray YkOathSession::deriveKeyPbkdf2(const QByteArray &password,
                                        const QByteArray &salt,
                                        int iterations,
                                        int keyLength)

@@ -4,9 +4,9 @@
  */
 
 #include "yubikeyrunner.h"
-#include "dbus/yubikey_manager_proxy.h"
-#include "dbus/yubikey_credential_proxy.h"
-#include "dbus/yubikey_device_proxy.h"
+#include "dbus/oath_manager_proxy.h"
+#include "dbus/oath_credential_proxy.h"
+#include "dbus/oath_device_proxy.h"
 #include "ui/password_dialog_helper.h"
 #include "logging_categories.h"
 
@@ -25,7 +25,7 @@ using namespace YubiKeyOath::Shared;
 
 YubiKeyRunner::YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData)
     : KRunner::AbstractRunner(parent, metaData)
-    , m_manager(YubiKeyManagerProxy::instance(this))
+    , m_manager(OathManagerProxy::instance(this))
 {
     qCDebug(YubiKeyRunnerLog) << "Constructor called - using proxy architecture";
 
@@ -50,13 +50,13 @@ YubiKeyRunner::YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData)
     );
 
     // Connect Manager proxy signals
-    connect(m_manager, &YubiKeyManagerProxy::deviceConnected,
+    connect(m_manager, &OathManagerProxy::deviceConnected,
             this, &YubiKeyRunner::onDeviceConnected);
-    connect(m_manager, &YubiKeyManagerProxy::deviceDisconnected,
+    connect(m_manager, &OathManagerProxy::deviceDisconnected,
             this, &YubiKeyRunner::onDeviceDisconnected);
-    connect(m_manager, &YubiKeyManagerProxy::credentialsChanged,
+    connect(m_manager, &OathManagerProxy::credentialsChanged,
             this, &YubiKeyRunner::onCredentialsUpdated);
-    connect(m_manager, &YubiKeyManagerProxy::daemonUnavailable,
+    connect(m_manager, &OathManagerProxy::daemonUnavailable,
             this, &YubiKeyRunner::onDaemonUnavailable);
 
     // Connect configuration change signal - setupActions only, no reload
@@ -151,7 +151,7 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
     }
 
     // Get all devices to check their password status
-    const QList<YubiKeyDeviceProxy*> devices = m_manager->devices();
+    const QList<OathDeviceProxy*> devices = m_manager->devices();
     qCDebug(YubiKeyRunnerLog) << "Found" << devices.size() << "known devices";
 
     // For each CONNECTED device that needs password, show password error match
@@ -169,7 +169,7 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
     }
 
     // Get credentials from ALL devices (manager aggregates them)
-    const QList<YubiKeyCredentialProxy*> credentials = m_manager->getAllCredentials();
+    const QList<OathCredentialProxy*> credentials = m_manager->getAllCredentials();
     qCDebug(YubiKeyRunnerLog) << "Found" << credentials.size() << "total credentials";
 
     if (credentials.isEmpty()) {
@@ -180,12 +180,12 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
     // Build matches for matching credentials from all working devices
     int matchCount = 0;
     for (auto *credential : credentials) {
-        const QString name = credential->name().toLower();
+        const QString name = credential->fullName().toLower();
         const QString issuer = credential->issuer().toLower();
-        const QString account = credential->account().toLower();
+        const QString account = credential->username().toLower();
 
         if (name.contains(query) || issuer.contains(query) || account.contains(query)) {
-            qCDebug(YubiKeyRunnerLog) << "Creating match for credential:" << credential->name();
+            qCDebug(YubiKeyRunnerLog) << "Creating match for credential:" << credential->fullName();
             const KRunner::QueryMatch match = m_matchBuilder->buildCredentialMatch(
                 credential, query, m_manager);
             context.addMatch(match);
@@ -206,8 +206,8 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         qCDebug(YubiKeyRunnerLog) << "Starting Add OATH Credential workflow via device proxy";
 
         // Get first available device (or show error if none)
-        const QList<YubiKeyDeviceProxy*> devices = m_manager->devices();
-        YubiKeyDeviceProxy *targetDevice = nullptr;
+        const QList<OathDeviceProxy*> devices = m_manager->devices();
+        OathDeviceProxy *targetDevice = nullptr;
 
         // Find first connected device
         for (auto *device : devices) {
@@ -274,7 +274,7 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         qCDebug(YubiKeyRunnerLog) << "Requesting password for device:" << deviceId;
 
         // Get device from manager
-        const YubiKeyDeviceProxy *const device = m_manager->getDevice(deviceId);
+        const OathDeviceProxy *const device = m_manager->getDevice(deviceId);
         if (!device) {
             qCWarning(YubiKeyRunnerLog) << "Device not found:" << deviceId;
             return;
@@ -294,11 +294,11 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
     }
 
     // Find the credential proxy
-    YubiKeyCredentialProxy *credential = nullptr;
+    OathCredentialProxy *credential = nullptr;
 
     // If we have deviceId, get it from that device
     if (!deviceId.isEmpty()) {
-        const YubiKeyDeviceProxy *const device = m_manager->getDevice(deviceId);
+        const OathDeviceProxy *const device = m_manager->getDevice(deviceId);
         if (device) {
             credential = device->getCredential(credentialName);
         }
@@ -306,9 +306,9 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
 
     // Fallback: search all credentials
     if (!credential) {
-        const QList<YubiKeyCredentialProxy*> allCredentials = m_manager->getAllCredentials();
+        const QList<OathCredentialProxy*> allCredentials = m_manager->getAllCredentials();
         for (auto *cred : allCredentials) {
-            if (cred->name() == credentialName) {
+            if (cred->fullName() == credentialName) {
                 credential = cred;
                 break;
             }
@@ -375,9 +375,9 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
             qCDebug(YubiKeyRunnerLog) << "Executing type action after KRunner close:" << capturedCredName;
 
             // Re-find credential (proxy might have changed during delay)
-            YubiKeyCredentialProxy *cred = nullptr;
+            OathCredentialProxy *cred = nullptr;
             for (auto *c : m_manager->getAllCredentials()) {
-                if (c->name() == capturedCredName && c->deviceId() == capturedDeviceId) {
+                if (c->fullName() == capturedCredName && c->deviceId() == capturedDeviceId) {
                     cred = c;
                     break;
                 }
@@ -448,7 +448,7 @@ void YubiKeyRunner::reloadConfiguration()
     setupActions();
 }
 
-void YubiKeyRunner::onDeviceConnected(YubiKeyDeviceProxy *device)
+void YubiKeyRunner::onDeviceConnected(OathDeviceProxy *device)
 {
     if (device) {
         qCDebug(YubiKeyRunnerLog) << "Device connected:" << device->name()

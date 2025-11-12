@@ -56,6 +56,11 @@ add_yubikey_test(test_result
 add_yubikey_test(test_credential_finder
     SOURCES test_credential_finder.cpp
             ../src/shared/utils/credential_finder.cpp
+            ../src/shared/types/oath_credential.cpp
+            ../src/shared/formatting/credential_formatter.cpp
+            ../src/shared/types/yubikey_value_types.cpp
+            ../src/shared/utils/version.cpp
+    LIBRARIES Qt6::DBus KF6::I18n
 )
 
 # Test: YubiKeyIconResolver (icon path resolution with fallback)
@@ -87,7 +92,36 @@ add_yubikey_test(test_management_protocol
 add_yubikey_test(test_oath_protocol
     SOURCES test_oath_protocol.cpp
             ../src/daemon/oath/oath_protocol.cpp
+            ../src/daemon/oath/yk_oath_protocol.cpp
+            ../src/daemon/oath/nitrokey_secrets_oath_protocol.cpp
             ../src/daemon/logging_categories.cpp
+            ../src/shared/utils/version.cpp
+    LIBRARIES KF6::I18n Qt6::DBus
+)
+
+# Test: DeviceBrand (brand detection and utility functions)
+add_yubikey_test(test_brand_detection
+    SOURCES test_brand_detection.cpp
+            ../src/shared/types/device_brand.cpp
+            ../src/shared/utils/version.cpp
+    LIBRARIES KF6::I18n Qt6::DBus
+)
+
+# Test: NitrokeyModelDetector (Nitrokey model detection and firmware heuristics)
+add_yubikey_test(test_nitrokey_model_detector
+    SOURCES test_nitrokey_model_detector.cpp
+            ../src/daemon/oath/nitrokey_model_detector.cpp
+            ../src/shared/types/device_brand.cpp
+            ../src/shared/utils/version.cpp
+            ../src/daemon/logging_categories.cpp
+    LIBRARIES KF6::I18n Qt6::DBus
+)
+
+# Test: DeviceCapabilities (brand-specific protocol capabilities)
+add_yubikey_test(test_device_capabilities
+    SOURCES test_device_capabilities.cpp
+            ../src/shared/types/device_capabilities.cpp
+            ../src/shared/types/device_brand.cpp
             ../src/shared/utils/version.cpp
     LIBRARIES KF6::I18n Qt6::DBus
 )
@@ -129,6 +163,7 @@ if(KF6_I18n_FOUND)
     add_yubikey_test(test_flexible_display_strategy
         SOURCES test_flexible_display_strategy.cpp
                 ../src/shared/formatting/credential_formatter.cpp
+                ../src/shared/types/oath_credential.cpp
                 ../src/shared/types/yubikey_value_types.cpp
                 ../src/shared/utils/version.cpp
         LIBRARIES KF6::I18n Qt6::DBus
@@ -144,6 +179,7 @@ if(KF6_I18n_FOUND)
     add_yubikey_test(test_credential_formatter
         SOURCES test_credential_formatter.cpp
                 ../src/shared/formatting/credential_formatter.cpp
+                ../src/shared/types/oath_credential.cpp
                 ../src/shared/types/yubikey_value_types.cpp
                 ../src/shared/utils/version.cpp
         LIBRARIES Qt6::DBus KF6::I18n

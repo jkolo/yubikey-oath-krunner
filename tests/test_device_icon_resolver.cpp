@@ -14,10 +14,14 @@
 class MockIconResolver : public IDeviceIconResolver
 {
 public:
-    QString getModelIcon(quint32 deviceModel) const override
+    QString getModelIcon(const QString& modelString,
+                        quint32 modelCode,
+                        const QStringList& /*capabilities*/) const override
     {
-        // Return predictable icon based on model number
-        return QStringLiteral(":/icons/models/mock-model-%1.png").arg(deviceModel);
+        // Return predictable icon based on model string and code
+        return QStringLiteral(":/icons/models/mock-%1-%2.png")
+            .arg(modelString.toLower().replace(QLatin1Char(' '), QLatin1Char('-')))
+            .arg(modelCode);
     }
 };
 
@@ -32,7 +36,9 @@ public:
     {
     }
 
-    QString getModelIcon(quint32 /*deviceModel*/) const override
+    QString getModelIcon(const QString& /*modelString*/,
+                        quint32 /*modelCode*/,
+                        const QStringList& /*capabilities*/) const override
     {
         return m_iconPath;
     }
@@ -101,7 +107,7 @@ void TestDeviceIconResolver::testInterface_PureVirtualMethod()
     // Test: Interface declares pure virtual getModelIcon()
     // This test verifies that implementations must override the method
     MockIconResolver resolver;
-    QString icon = resolver.getModelIcon(0);
+    QString icon = resolver.getModelIcon(QStringLiteral("Test Model"), 0, QStringList());
 
     // If method wasn't pure virtual, this wouldn't require implementation
     QVERIFY(!icon.isEmpty());
@@ -114,13 +120,13 @@ void TestDeviceIconResolver::testMockIconResolver_DifferentModels()
     // Test: Mock returns different icons for different models
     MockIconResolver resolver;
 
-    QString icon1 = resolver.getModelIcon(1);
-    QString icon2 = resolver.getModelIcon(2);
-    QString icon5 = resolver.getModelIcon(5);
+    QString icon1 = resolver.getModelIcon(QStringLiteral("Test Model"), 1, QStringList());
+    QString icon2 = resolver.getModelIcon(QStringLiteral("Test Model"), 2, QStringList());
+    QString icon5 = resolver.getModelIcon(QStringLiteral("Test Model"), 5, QStringList());
 
-    QCOMPARE(icon1, QStringLiteral(":/icons/models/mock-model-1.png"));
-    QCOMPARE(icon2, QStringLiteral(":/icons/models/mock-model-2.png"));
-    QCOMPARE(icon5, QStringLiteral(":/icons/models/mock-model-5.png"));
+    QCOMPARE(icon1, QStringLiteral(":/icons/models/mock-test-model-1.png"));
+    QCOMPARE(icon2, QStringLiteral(":/icons/models/mock-test-model-2.png"));
+    QCOMPARE(icon5, QStringLiteral(":/icons/models/mock-test-model-5.png"));
 
     // Verify they're different
     QVERIFY(icon1 != icon2);
@@ -133,13 +139,13 @@ void TestDeviceIconResolver::testMockIconResolver_SameModelMultipleCalls()
     // Test: Calling getModelIcon() multiple times with same model returns same result
     MockIconResolver resolver;
 
-    QString icon1a = resolver.getModelIcon(42);
-    QString icon1b = resolver.getModelIcon(42);
-    QString icon1c = resolver.getModelIcon(42);
+    QString icon1a = resolver.getModelIcon(QStringLiteral("Test Model"), 42, QStringList());
+    QString icon1b = resolver.getModelIcon(QStringLiteral("Test Model"), 42, QStringList());
+    QString icon1c = resolver.getModelIcon(QStringLiteral("Test Model"), 42, QStringList());
 
     QCOMPARE(icon1a, icon1b);
     QCOMPARE(icon1b, icon1c);
-    QCOMPARE(icon1a, QStringLiteral(":/icons/models/mock-model-42.png"));
+    QCOMPARE(icon1a, QStringLiteral(":/icons/models/mock-test-model-42.png"));
 }
 
 void TestDeviceIconResolver::testMockIconResolver_ZeroModel()
@@ -147,8 +153,8 @@ void TestDeviceIconResolver::testMockIconResolver_ZeroModel()
     // Test: Mock handles model number 0
     MockIconResolver resolver;
 
-    QString icon = resolver.getModelIcon(0);
-    QCOMPARE(icon, QStringLiteral(":/icons/models/mock-model-0.png"));
+    QString icon = resolver.getModelIcon(QStringLiteral("Test Model"), 0, QStringList());
+    QCOMPARE(icon, QStringLiteral(":/icons/models/mock-test-model-0.png"));
 }
 
 void TestDeviceIconResolver::testMockIconResolver_LargeModelNumber()
@@ -156,8 +162,8 @@ void TestDeviceIconResolver::testMockIconResolver_LargeModelNumber()
     // Test: Mock handles large model numbers
     MockIconResolver resolver;
 
-    QString icon = resolver.getModelIcon(999999);
-    QCOMPARE(icon, QStringLiteral(":/icons/models/mock-model-999999.png"));
+    QString icon = resolver.getModelIcon(QStringLiteral("Test Model"), 999999, QStringList());
+    QCOMPARE(icon, QStringLiteral(":/icons/models/mock-test-model-999999.png"));
 }
 
 // --- Fixed Icon Resolver Tests ---
@@ -167,7 +173,7 @@ void TestDeviceIconResolver::testFixedIconResolver_ReturnsFixedPath()
     // Test: FixedIconResolver returns configured path
     FixedIconResolver resolver(QStringLiteral(":/icons/yubikey.svg"));
 
-    QString icon = resolver.getModelIcon(1);
+    QString icon = resolver.getModelIcon(QStringLiteral("Test Model"), 1, QStringList());
     QCOMPARE(icon, QStringLiteral(":/icons/yubikey.svg"));
 }
 
@@ -176,9 +182,9 @@ void TestDeviceIconResolver::testFixedIconResolver_IgnoresModelNumber()
     // Test: FixedIconResolver ignores model number, always returns same icon
     FixedIconResolver resolver(QStringLiteral(":/icons/generic.png"));
 
-    QString icon1 = resolver.getModelIcon(1);
-    QString icon2 = resolver.getModelIcon(2);
-    QString icon999 = resolver.getModelIcon(999);
+    QString icon1 = resolver.getModelIcon(QStringLiteral("Test Model"), 1, QStringList());
+    QString icon2 = resolver.getModelIcon(QStringLiteral("Test Model"), 2, QStringList());
+    QString icon999 = resolver.getModelIcon(QStringLiteral("Test Model"), 999, QStringList());
 
     QCOMPARE(icon1, QStringLiteral(":/icons/generic.png"));
     QCOMPARE(icon2, QStringLiteral(":/icons/generic.png"));
@@ -202,7 +208,7 @@ void TestDeviceIconResolver::testISP_MinimalInterface()
     MockIconResolver resolver;
 
     // Only one method should be callable through interface
-    QString icon = resolver.getModelIcon(1);
+    QString icon = resolver.getModelIcon(QStringLiteral("Test Model"), 1, QStringList());
     QVERIFY(!icon.isEmpty());
 
     // SUCCESS: Interface is minimal (only getModelIcon)
@@ -217,8 +223,8 @@ void TestDeviceIconResolver::testISP_PolymorphicUsage()
     IDeviceIconResolver *resolver2 = new FixedIconResolver(QStringLiteral(":/test.png"));
 
     // Both can be used through interface pointer
-    QString icon1 = resolver1->getModelIcon(1);
-    QString icon2 = resolver2->getModelIcon(1);
+    QString icon1 = resolver1->getModelIcon(QStringLiteral("Test Model"), 1, QStringList());
+    QString icon2 = resolver2->getModelIcon(QStringLiteral("Test Model"), 1, QStringList());
 
     QVERIFY(!icon1.isEmpty());
     QVERIFY(!icon2.isEmpty());
@@ -236,13 +242,13 @@ void TestDeviceIconResolver::testISP_NoExtraMethodsRequired()
     // Simulate DeviceDelegate usage pattern
     auto useResolver = [](const IDeviceIconResolver *resolver, quint32 model) -> QString {
         // DeviceDelegate only needs getModelIcon() - nothing else
-        return resolver->getModelIcon(model);
+        return resolver->getModelIcon(QStringLiteral("Test Model"), model, QStringList());
     };
 
     MockIconResolver resolver;
     QString icon = useResolver(&resolver, 5);
 
-    QCOMPARE(icon, QStringLiteral(":/icons/models/mock-model-5.png"));
+    QCOMPARE(icon, QStringLiteral(":/icons/models/mock-test-model-5.png"));
 
     // SUCCESS: No additional methods needed - ISP satisfied
 }

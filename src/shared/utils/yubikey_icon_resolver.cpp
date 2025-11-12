@@ -4,19 +4,60 @@
  */
 
 #include "yubikey_icon_resolver.h"
+#include "../types/device_brand.h"
 #include <QFile>
-#include <QDebug>
 
 namespace YubiKeyOath {
 namespace Shared {
 
+QString YubiKeyIconResolver::getIconPath(const DeviceModel& deviceModel)
+{
+    switch (deviceModel.brand) {
+    case DeviceBrand::YubiKey:
+        return getYubiKeyIconPath(deviceModel.modelCode);
+    case DeviceBrand::Nitrokey:
+        return getNitrokeyIconPath(deviceModel);
+    case DeviceBrand::Unknown:
+    default:
+        return getGenericIconPath();
+    }
+}
+
 QString YubiKeyIconResolver::getIconPath(YubiKeyModel model)
 {
-    qDebug() << "[IconResolver] getIconPath called with model:" << model << "(hex: 0x" << Qt::hex << model << Qt::dec << ")";
+    // Legacy overload - delegate to brand-specific implementation
+    return getYubiKeyIconPath(model);
+}
 
+QString YubiKeyIconResolver::getNitrokeyIconPath(const DeviceModel& deviceModel)
+{
+    // Convert model string to icon filename: "Nitrokey 3C NFC" → "nitrokey-3c-nfc"
+    QString filename = deviceModel.modelString.toLower();
+    filename.replace(QLatin1Char(' '), QLatin1Char('-'));
+
+    // Strategy 1: Try exact match with NFC
+    QString iconPath = buildResourcePath(filename);
+    if (iconExists(iconPath)) {
+        return iconPath;
+    }
+
+    // Strategy 2: Try without NFC suffix
+    if (filename.endsWith(QStringLiteral("-nfc"))) {
+        const QString filenameWithoutNFC = filename.left(filename.length() - 4);
+        iconPath = buildResourcePath(filenameWithoutNFC);
+        if (iconExists(iconPath)) {
+            return iconPath;
+        }
+    }
+
+    // Strategy 3: Generic fallback
+    return getGenericIconPath();
+}
+
+QString YubiKeyIconResolver::getYubiKeyIconPath(YubiKeyModel model)
+{
     // Unknown model - return generic icon immediately
     if (model == 0) {
-        qDebug() << "[IconResolver] Model is 0, returning generic icon";
         return getGenericIconPath();
     }
 
@@ -25,38 +66,25 @@ QString YubiKeyIconResolver::getIconPath(YubiKeyModel model)
     const YubiKeyVariant variant = getModelVariant(model);
     const YubiKeyPorts ports = getModelPorts(model);
 
-    qDebug() << "[IconResolver] Extracted - series:" << static_cast<int>(series)
-             << "variant:" << static_cast<int>(variant)
-             << "ports:" << ports.toInt();
-
     // Strategy 1: Try exact match (series + variant + ports)
     if (variant != YubiKeyVariant::Standard) {
         const QString filename = buildIconFilename(series, variant, ports, true);
         QString iconPath = buildResourcePath(filename);
-        qDebug() << "[IconResolver] Strategy 1 - trying:" << iconPath;
         if (iconExists(iconPath)) {
-            qDebug() << "[IconResolver] Strategy 1 - SUCCESS, found:" << iconPath;
             return iconPath;
         }
-        qDebug() << "[IconResolver] Strategy 1 - FAILED, file not found";
-    } else {
-        qDebug() << "[IconResolver] Strategy 1 - SKIPPED (variant is Standard)";
     }
 
     // Strategy 2: Try series + ports (ignore variant)
     const QString filename = buildIconFilename(series, variant, ports, false);
     QString iconPath = buildResourcePath(filename);
-    qDebug() << "[IconResolver] Strategy 2 - trying:" << iconPath;
     if (iconExists(iconPath)) {
-        qDebug() << "[IconResolver] Strategy 2 - SUCCESS, found:" << iconPath;
         return iconPath;
     }
-    qDebug() << "[IconResolver] Strategy 2 - FAILED, file not found";
 
     // Strategy 3: Generic fallback
     // Note: There's no "YubiKey 5" or "YubiKey 5 FIPS" without specific variant/ports
     // All real models have concrete specifications (5 NFC, 5C, 5C NFC, etc.)
-    qDebug() << "[IconResolver] Strategy 3 - returning generic icon:" << getGenericIconPath();
     return getGenericIconPath();
 }
 

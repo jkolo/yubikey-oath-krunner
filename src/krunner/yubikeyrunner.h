@@ -19,8 +19,8 @@
 // Forward declarations for D-Bus proxy classes
 namespace YubiKeyOath {
 namespace Shared {
-class YubiKeyManagerProxy;
-class YubiKeyDeviceProxy;
+class OathManagerProxy;
+class OathDeviceProxy;
 }
 }
 
@@ -60,7 +60,7 @@ protected Q_SLOTS:
     void init() override;
 
 private Q_SLOTS:
-    void onDeviceConnected(Shared::YubiKeyDeviceProxy *device);
+    void onDeviceConnected(Shared::OathDeviceProxy *device);
     void onDeviceDisconnected(const QString &deviceId);
     void onCredentialsUpdated();
     void onDaemonUnavailable();
@@ -82,7 +82,7 @@ private:
 
 private:
     // Core components
-    Shared::YubiKeyManagerProxy *m_manager; // Singleton - not owned
+    Shared::OathManagerProxy *m_manager; // Singleton - not owned
 
     // Runner components - thin client for match building
     std::unique_ptr<KRunnerConfiguration> m_config;
