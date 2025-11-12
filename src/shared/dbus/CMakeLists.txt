@@ -10,6 +10,7 @@ add_library(yubikey_dbus_client STATIC
     ../types/oath_credential.cpp
     ../types/yubikey_value_types.cpp
     ../types/yubikey_model.cpp
+    ../types/device_model.cpp
     ../types/device_brand.cpp
     ../types/device_capabilities.cpp
     ../utils/version.cpp

@@ -326,10 +326,10 @@ private:
     bool shouldSaveCredentialsToCache(const QString &deviceId);
 
     /**
-     * @brief Gets list of connected devices only
-     * @return List of connected device info
+     * @brief Gets list of all known devices (connected and disconnected)
+     * @return List of device info with isConnected flag
      */
-    QList<DeviceInfo> getAvailableConnectedDevices();
+    QList<DeviceInfo> getAvailableDevices();
 
     /**
      * @brief Validates credential data before saving to device

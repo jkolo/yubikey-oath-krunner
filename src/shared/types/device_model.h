@@ -172,5 +172,20 @@ struct DeviceModel {
     }
 };
 
+/**
+ * @brief Converts model code to human-readable string (brand-aware)
+ *
+ * This function detects the device brand from the model code and converts
+ * it to the appropriate human-readable string.
+ *
+ * @param modelCode Encoded model code from any supported brand
+ * @return String like "YubiKey 5C NFC", "Nitrokey 3C NFC", or "Unknown Device"
+ *
+ * Examples:
+ * - 0x01000AFF → "YubiKey 5C NFC"
+ * - 0x02000A0F → "Nitrokey 3C NFC"
+ */
+QString deviceModelToString(quint32 modelCode);
+
 } // namespace Shared
 } // namespace YubiKeyOath

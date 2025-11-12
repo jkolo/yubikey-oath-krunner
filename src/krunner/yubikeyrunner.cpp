@@ -9,6 +9,9 @@
 #include "dbus/oath_device_proxy.h"
 #include "ui/password_dialog_helper.h"
 #include "logging_categories.h"
+#include "shared/utils/yubikey_icon_resolver.h"
+#include "shared/types/device_model.h"
+#include "shared/types/device_brand.h"
 
 #include <KConfigGroup>
 #include <KLocalizedString>
@@ -18,6 +21,9 @@
 #include <QEventLoop>
 #include <QCoreApplication>
 #include <QMessageBox>
+#include <QDBusInterface>
+#include <QDBusConnection>
+#include <QIcon>
 
 namespace YubiKeyOath {
 namespace Runner {
@@ -117,8 +123,9 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
 {
     qCDebug(YubiKeyRunnerLog) << "match() called with query:" << context.query();
 
-    if (!context.isValid() || context.query().length() < 3) {
-        qCDebug(YubiKeyRunnerLog) << "Query too short or invalid (minimum 3 characters)";
+    // Allow minimum 2 characters to enable searching from "ad" and "add"
+    if (!context.isValid() || context.query().length() < 2) {
+        qCDebug(YubiKeyRunnerLog) << "Query too short or invalid (minimum 2 characters)";
         return;
     }
 
@@ -140,14 +147,42 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
     }
 
     if (matchesKeyword) {
-        KRunner::QueryMatch match(this);
-        match.setId(QStringLiteral("add-oath-credential"));
-        match.setText(i18n("Add OATH Credential to YubiKey"));
-        match.setSubtext(i18n("Capture QR code and add credential"));
-        match.setIconName(QStringLiteral("list-add"));
-        match.setRelevance(1.0);
+        // Get all devices and create a match for each one
+        const QList<OathDeviceProxy*> allDevices = m_manager->devices();
+        qCDebug(YubiKeyRunnerLog) << "Creating Add OATH matches for" << allDevices.size() << "devices";
 
-        context.addMatch(match);
+        for (const auto *device : allDevices) {
+            // Reconstruct DeviceModel for icon resolution
+            DeviceModel deviceModel;
+            deviceModel.brand = detectBrandFromModelString(device->deviceModel());
+            deviceModel.modelCode = device->deviceModelCode();
+            deviceModel.modelString = device->deviceModel();
+            deviceModel.capabilities = device->capabilities();
+
+            // Get device-specific icon
+            const QString iconPath = YubiKeyIconResolver::getIconPath(deviceModel);
+
+            KRunner::QueryMatch match(this);
+            match.setId(QStringLiteral("add-oath-to-") + device->deviceId());
+            match.setText(i18n("Add OATH to %1", device->name()));
+            match.setIcon(QIcon(iconPath));  // Use device-specific icon
+
+            if (device->isConnected()) {
+                match.setSubtext(i18n("Device is connected - ready to add"));
+                match.setRelevance(1.0);
+            } else {
+                match.setSubtext(i18n("Device offline - will wait for connection"));
+                match.setRelevance(0.8);
+            }
+
+            // Store device ID in match data for run handler
+            match.setData(QVariantList{device->deviceId()});
+
+            context.addMatch(match);
+            qCDebug(YubiKeyRunnerLog) << "Created Add OATH match for device:" << device->name()
+                                       << "ID:" << device->deviceId()
+                                       << "connected:" << device->isConnected();
+        }
     }
 
     // Get all devices to check their password status
@@ -201,29 +236,45 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
     Q_UNUSED(context)
     qCDebug(YubiKeyRunnerLog) << "run() called with match ID:" << match.id();
 
-    // Handle "Add OATH Credential" command
-    if (match.id() == QStringLiteral("add-oath-credential")) {
-        qCDebug(YubiKeyRunnerLog) << "Starting Add OATH Credential workflow via device proxy";
+    // Handle "Add OATH to {Device}" command
+    if (match.id().startsWith(QStringLiteral("add-oath-to-"))) {
+        qCDebug(YubiKeyRunnerLog) << "Starting Add OATH Credential workflow for device";
 
-        // Get first available device (or show error if none)
+        // Extract device ID from match data
+        const QString deviceId = match.data().toList().at(0).toString();
+        qCDebug(YubiKeyRunnerLog) << "Target device ID:" << deviceId;
+
+        // Find the device proxy
         const QList<OathDeviceProxy*> devices = m_manager->devices();
-        OathDeviceProxy *targetDevice = nullptr;
+        const OathDeviceProxy *targetDevice = nullptr;
 
-        // Find first connected device
         for (auto *device : devices) {
-            if (device->isConnected()) {
+            if (device->deviceId() == deviceId) {
                 targetDevice = device;
                 break;
             }
         }
 
         if (!targetDevice) {
-            qCWarning(YubiKeyRunnerLog) << "No connected YubiKey found for add credential";
+            qCWarning(YubiKeyRunnerLog) << "Device not found:" << deviceId;
             return;
         }
 
         // Delegate to device with empty parameters to trigger interactive mode (dialog)
-        const AddCredentialResult result = targetDevice->addCredential(
+        // Dialog will handle waiting for device connection if needed
+        // Use async call to prevent blocking KRunner UI
+        qCDebug(YubiKeyRunnerLog) << "Calling AddCredential asynchronously on device:" << targetDevice->name();
+
+        QDBusInterface interface(
+            QStringLiteral("pl.jkolo.yubikey.oath.daemon"),
+            targetDevice->objectPath(),
+            QStringLiteral("pl.jkolo.yubikey.oath.Device"),
+            QDBusConnection::sessionBus()
+        );
+
+        // Fire-and-forget async call - don't wait for response
+        interface.asyncCall(
+            QStringLiteral("AddCredential"),
             QString(),  // name - empty triggers dialog
             QString(),  // secret - empty triggers dialog
             QString(),  // type - will default to TOTP
@@ -234,10 +285,7 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
             false       // requireTouch
         );
 
-        if (result.status != QStringLiteral("Success")) {
-            qCWarning(YubiKeyRunnerLog) << "Add credential workflow failed:" << result.status << result.message;
-        }
-
+        qCDebug(YubiKeyRunnerLog) << "Async call initiated, KRunner can close immediately";
         return;
     }
 
@@ -437,7 +485,12 @@ void YubiKeyRunner::reloadConfiguration()
 
     // Initialize translated keywords for "Add OATH" matching
     m_addOathKeywords.clear();
-    m_addOathKeywords << i18nc("search keyword", "add").toLower();
+    const QString translatedAdd = i18nc("search keyword", "add").toLower();
+    m_addOathKeywords << translatedAdd;
+    // Add English "add" if translation is different (multi-language support)
+    if (translatedAdd != QStringLiteral("add")) {
+        m_addOathKeywords << QStringLiteral("add");
+    }
     m_addOathKeywords << QStringLiteral("oath");
     m_addOathKeywords << QStringLiteral("totp");
     m_addOathKeywords << QStringLiteral("hotp");

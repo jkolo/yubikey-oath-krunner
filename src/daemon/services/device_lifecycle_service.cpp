@@ -10,6 +10,7 @@
 #include "../storage/secret_storage.h"
 #include "../logging_categories.h"
 #include "utils/device_name_formatter.h"
+#include "shared/types/device_model.h"
 
 #include <QSet>
 
@@ -86,7 +87,7 @@ QList<DeviceInfo> DeviceLifecycleService::listDevices()
             if (!info.isConnected) {
                 info.serialNumber = dbRecord->serialNumber;
                 info.firmwareVersion = dbRecord->firmwareVersion;
-                info.deviceModel = modelToString(dbRecord->deviceModel);
+                info.deviceModel = deviceModelToString(dbRecord->deviceModel);  // Brand-aware conversion
                 info.deviceModelCode = dbRecord->deviceModel;
                 info.formFactor = formFactorToString(dbRecord->formFactor);
                 info.capabilities = capabilitiesToStringList(

@@ -183,17 +183,9 @@ AddCredentialResult CredentialService::addCredential(const QString &deviceId,
         initialData.counter = counter > 0 ? static_cast<quint32>(counter) : 0;
         initialData.requireTouch = requireTouch;
 
-        // Get available devices
-        const QStringList availableDevices = m_deviceManager->getConnectedDeviceIds();
-        if (availableDevices.isEmpty()) {
-            qCWarning(YubiKeyDaemonLog) << "CredentialService: No devices available";
-            return {QStringLiteral("Error"), i18n("No YubiKey devices connected")};
-        }
-
-        // Show dialog asynchronously (non-blocking) - return immediately
-        QTimer::singleShot(0, this, [this, deviceId, initialData]() {
-            showAddCredentialDialogAsync(deviceId, initialData);
-        });
+        // Show dialog directly (avoids race condition with D-Bus call return)
+        // Dialog will handle device availability and wait for connection if needed
+        showAddCredentialDialogAsync(deviceId, initialData);
 
         return {QStringLiteral("Interactive"), i18n("Showing credential dialog")};
     }
@@ -308,11 +300,20 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
 {
     qCDebug(YubiKeyDaemonLog) << "CredentialService: Showing add credential dialog asynchronously";
 
-    // Get available connected devices (delegates to helper)
-    const QList<DeviceInfo> availableDevices = getAvailableConnectedDevices();
+    // Get all available devices (connected and disconnected)
+    const QList<DeviceInfo> availableDevices = getAvailableDevices();
 
     // Create dialog on heap (will be deleted by showSaveResult on success, or manually on cancel)
     auto *dialog = new AddCredentialDialog(initialData, availableDevices, deviceId);
+
+    // Keep dialog alive in active dialogs list (important for disconnected device waiting)
+    m_activeDialogs.append(dialog);
+
+    // Remove from list when dialog is destroyed
+    connect(dialog, &QObject::destroyed, this, [this, dialog]() {
+        m_activeDialogs.removeAll(dialog);
+        qCDebug(YubiKeyDaemonLog) << "CredentialService: Dialog destroyed, removed from active list";
+    });
 
     // Connect credentialReadyToSave signal to handle async save
     connect(dialog, &AddCredentialDialog::credentialReadyToSave,
@@ -329,9 +330,106 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
                                   << "secret length:" << data.secret.length()
                                   << "device:" << selectedDeviceId;
 
-        // === SYNCHRONOUS VALIDATION (UI thread - fast) - delegates to helper ===
+        // === SINGLE CODE PATH: Check device connection ===
+        auto *device = m_deviceManager->getDevice(selectedDeviceId);
+
+        if (!device) {
+            // Device NOT connected - wait for connection
+            qCDebug(YubiKeyDaemonLog) << "CredentialService: Device not connected, waiting for connection:" << selectedDeviceId;
+
+            // Update dialog overlay
+            dialog->updateOverlayStatus(i18n("Waiting for device connection..."));
+
+            // Connect to deviceConnected signal and wait
+            auto *connection = new QMetaObject::Connection();
+            *connection = connect(m_deviceManager, &YubiKeyDeviceManager::deviceConnected,
+                    this, [this, dialog, data, selectedDeviceId, connection](const QString &deviceId) {
+                if (deviceId == selectedDeviceId) {
+                    qCDebug(YubiKeyDaemonLog) << "CredentialService: Device connected:" << deviceId;
+
+                    // Update overlay
+                    dialog->updateOverlayStatus(i18n("Device connected - saving credential..."));
+
+                    // Disconnect signal to avoid multiple triggers
+                    disconnect(*connection);
+                    delete connection;
+
+                    // Now validate and save
+                    QString errorMessage;
+                    auto *device = validateCredentialBeforeSave(data, selectedDeviceId, errorMessage);
+                    if (!device) {
+                        dialog->showSaveResult(false, errorMessage);
+                        return;
+                    }
+
+                    // === ASYNCHRONOUS PC/SC OPERATION (background thread) ===
+                    QFuture<Result<void>> const future = QtConcurrent::run([device, data]() -> Result<void> {
+                        qCDebug(YubiKeyDaemonLog) << "CredentialService: Background thread - starting addCredential";
+
+                        // Make copy for modification
+                        OathCredentialData dialogData = data;
+
+                        // Encode period in credential name for TOTP (ykman-compatible format: [period/]issuer:account)
+                        if (dialogData.type == OathType::TOTP && dialogData.period != 30) {
+                            dialogData.name = QString::number(dialogData.period) + QStringLiteral("/") + dialogData.name;
+                            qCDebug(YubiKeyDaemonLog) << "CredentialService: Encoded period in name:" << dialogData.name;
+                        }
+
+                        // PC/SC operation in background thread
+                        return device->addCredential(dialogData);
+                    });
+
+                    // Watch future and handle result in UI thread
+                    auto *watcher = new QFutureWatcher<Result<void>>(this);
+                    connect(watcher, &QFutureWatcher<Result<void>>::finished,
+                            this, [this, watcher, dialog, device, data]() {
+                        qCDebug(YubiKeyDaemonLog) << "CredentialService: Background thread finished";
+
+                        auto result = watcher->result();
+
+                        if (result.isSuccess()) {
+                            qCDebug(YubiKeyDaemonLog) << "CredentialService: Credential added successfully";
+
+                            // Trigger credential refresh
+                            device->updateCredentialCacheAsync();
+
+                            // Show success notification if enabled
+                            if (m_config->showNotifications()) {
+                                m_notificationManager->showNotification(
+                                    i18n("YubiKey OATH"),
+                                    0,
+                                    QStringLiteral("yubikey"),
+                                    i18n("Credential Added"),
+                                    i18n("Credential '%1' has been added successfully").arg(data.name),
+                                    QStringList(),
+                                    QVariantMap(),
+                                    5000
+                                );
+                            }
+
+                            // Show success in dialog
+                            dialog->showSaveResult(true, i18n("Credential added successfully"));
+
+                            // Emit signal
+                            Q_EMIT credentialsUpdated(device->deviceId());
+                        } else {
+                            qCWarning(YubiKeyDaemonLog) << "CredentialService: Failed to add credential:" << result.error();
+                            dialog->showSaveResult(false, result.error());
+                        }
+
+                        watcher->deleteLater();
+                    });
+
+                    watcher->setFuture(future);
+                }
+            });
+
+            return;  // Exit early - wait for device
+        }
+
+        // === Device connected - validate and save ===
         QString errorMessage;
-        auto *device = validateCredentialBeforeSave(data, selectedDeviceId, errorMessage);
+        device = validateCredentialBeforeSave(data, selectedDeviceId, errorMessage);
         if (!device) {
             dialog->showSaveResult(false, errorMessage);
             return;
@@ -406,11 +504,14 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
         watcher->setFuture(future);
     });
 
-    // Show dialog (non-blocking)
+    // Ensure dialog is visible and on top (important for daemon processes without main window)
+    dialog->setWindowFlags(Qt::Dialog | Qt::WindowStaysOnTopHint);
     dialog->show();
+    dialog->activateWindow();
+    dialog->raise();
 }
 
-QList<DeviceInfo> CredentialService::getAvailableConnectedDevices()
+QList<DeviceInfo> CredentialService::getAvailableDevices()
 {
     // Get all devices from database (includes firmware/model info)
     const QList<YubiKeyDatabase::DeviceRecord> allDeviceRecords = m_database->getAllDevices();
@@ -420,29 +521,23 @@ QList<DeviceInfo> CredentialService::getAvailableConnectedDevices()
 
     QList<DeviceInfo> availableDevices;
 
-    // Build DeviceInfo for each connected device
-    for (const QString &deviceId : connectedIds) {
+    // Build DeviceInfo for each device (connected or not)
+    for (const auto &record : allDeviceRecords) {
         DeviceInfo deviceInfo;
-        deviceInfo._internalDeviceId = deviceId;
-        deviceInfo.isConnected = true;
-
-        // Find matching database record for name and hardware info
-        for (const auto &record : allDeviceRecords) {
-            if (record.deviceId == deviceId) {
-                deviceInfo.deviceName = DeviceNameFormatter::getDeviceDisplayName(deviceId, m_database);
-                deviceInfo.firmwareVersion = record.firmwareVersion;
-                deviceInfo.deviceModel = modelToString(record.deviceModel);
-                deviceInfo.serialNumber = record.serialNumber;
-                deviceInfo.formFactor = formFactorToString(record.formFactor);
-                break;
-            }
-        }
+        deviceInfo._internalDeviceId = record.deviceId;
+        deviceInfo.isConnected = connectedIds.contains(record.deviceId);
+        deviceInfo.deviceName = DeviceNameFormatter::getDeviceDisplayName(record.deviceId, m_database);
+        deviceInfo.firmwareVersion = record.firmwareVersion;
+        deviceInfo.deviceModel = modelToString(record.deviceModel);
+        deviceInfo.serialNumber = record.serialNumber;
+        deviceInfo.formFactor = formFactorToString(record.formFactor);
 
         availableDevices.append(deviceInfo);
 
         qCDebug(YubiKeyDaemonLog) << "CredentialService: Available device -"
                                   << "id:" << deviceInfo._internalDeviceId
                                   << "name:" << deviceInfo.deviceName
+                                  << "connected:" << deviceInfo.isConnected
                                   << "firmware:" << deviceInfo.firmwareVersion.toString()
                                   << "model:" << deviceInfo.deviceModel;
     }

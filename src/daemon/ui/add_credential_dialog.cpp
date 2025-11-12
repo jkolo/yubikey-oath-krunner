@@ -292,11 +292,8 @@ void AddCredentialDialog::onRevealSecretClicked()
 void AddCredentialDialog::onOkClicked()
 {
     if (validateAndBuildData()) {
-        // Show overlay with saving message
-        showProcessingOverlay(i18n("Saving credential to YubiKey..."));
-
-        // Emit signal for async save in background thread
-        // Service will use QtConcurrent::run() to avoid blocking UI
+        // Always emit signal - service layer handles connection waiting
+        showProcessingOverlay(i18n("Saving credential..."));
         qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Emitting credentialReadyToSave signal";
         Q_EMIT credentialReadyToSave(getCredentialData(), getSelectedDeviceId());
     }
@@ -530,6 +527,7 @@ void AddCredentialDialog::updateOverlayStatus(const QString &message)
     qCDebug(YubiKeyDaemonLog) << "AddCredentialDialog: Updating overlay status:" << message;
     m_processingOverlay->updateStatus(message);
 }
+
 
 void AddCredentialDialog::showMessage(const QString &text, int messageType)
 {

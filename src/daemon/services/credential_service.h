@@ -145,10 +145,10 @@ private:
                                       const Shared::OathCredentialData &initialData);
 
     /**
-     * @brief Gets list of connected devices only
-     * @return List of connected device info
+     * @brief Gets list of all known devices (connected and disconnected)
+     * @return List of device info with isConnected flag
      */
-    QList<Shared::DeviceInfo> getAvailableConnectedDevices();
+    QList<Shared::DeviceInfo> getAvailableDevices();
 
     /**
      * @brief Validates credential data before saving to device
@@ -165,6 +165,9 @@ private:
     YubiKeyDatabase *m_database;            // Not owned
     DaemonConfiguration *m_config;          // Not owned
     std::unique_ptr<DBusNotificationManager> m_notificationManager;  // Owned
+
+    // Active add credential dialogs (kept alive until user closes or save completes)
+    QList<class AddCredentialDialog*> m_activeDialogs;
 };
 
 } // namespace Daemon

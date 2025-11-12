@@ -78,6 +78,12 @@ public:
      */
     void showSaveResult(bool success, const QString &errorMessage);
 
+    /**
+     * @brief Updates the processing overlay status message
+     * @param message New status message to display
+     */
+    void updateOverlayStatus(const QString &message);
+
 Q_SIGNALS:
     /**
      * @brief Emitted when user accepts dialog with valid data
@@ -110,7 +116,6 @@ private:
     void showMessage(const QString &text, int messageType);
     void showProcessingOverlay(const QString &message);
     void hideProcessingOverlay();
-    void updateOverlayStatus(const QString &message);
     int algorithmToComboIndex(Shared::OathAlgorithm algorithm) const;
 
     // UI elements
