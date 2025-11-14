@@ -59,14 +59,14 @@ QVariant YubiKeyDeviceModel::data(const QModelIndex &index, int role) const
     case DeviceNameRole:
         return device.deviceName;
     case IsConnectedRole:
-        return device.isConnected;
+        return device.isConnected();
     case RequiresPasswordRole:
         return device.requiresPassword;
     case HasValidPasswordRole:
         return device.hasValidPassword;
     case ShowAuthorizeButtonRole:
         // Show "Authorize" button if device is connected, requires password, and we don't have valid password
-        return device.isConnected && device.requiresPassword && !device.hasValidPassword;
+        return device.isConnected() && device.requiresPassword && !device.hasValidPassword;
     case DeviceModelRole:
         qCDebug(YubiKeyConfigLog) << "DeviceModel role requested for device:" << device.deviceName
                                   << "returning deviceModelCode:" << device.deviceModelCode
@@ -133,7 +133,7 @@ void YubiKeyDeviceModel::refreshDevices()
 
     for (const auto &device : m_devices) {
         qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device" << device.deviceName
-                 << "connected:" << device.isConnected
+                 << "connected:" << device.isConnected()
                  << "requiresPassword:" << device.requiresPassword
                  << "hasValidPassword:" << device.hasValidPassword;
     }
@@ -149,7 +149,7 @@ void YubiKeyDeviceModel::authorizeDevice(const QString &deviceId)
         return;
     }
 
-    if (!device->isConnected) {
+    if (!device->isConnected()) {
         qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not connected:" << deviceId;
         return;
     }
@@ -220,7 +220,7 @@ void YubiKeyDeviceModel::showPasswordDialog(const QString &deviceId,
         return;
     }
 
-    if (!device->isConnected) {
+    if (!device->isConnected()) {
         qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not connected:" << deviceId;
         return;
     }
@@ -254,7 +254,7 @@ void YubiKeyDeviceModel::showChangePasswordDialog(const QString &deviceId,
         return;
     }
 
-    if (!device->isConnected) {
+    if (!device->isConnected()) {
         qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not connected:" << deviceId;
         return;
     }

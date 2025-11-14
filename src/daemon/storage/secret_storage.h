@@ -47,15 +47,17 @@ public:
      * @param password Password to save
      * @param deviceId Unique device identifier (YubiKey device ID)
      * @return true if successful
+     * Virtual to allow mocking in tests.
      */
-    bool savePassword(const QString &password, const QString &deviceId);
+    virtual bool savePassword(const QString &password, const QString &deviceId);
 
     /**
      * @brief Removes password for device from KWallet
      * @param deviceId Device ID to remove password for
      * @return true if successful
+     * Virtual to allow mocking in tests.
      */
-    bool removePassword(const QString &deviceId);
+    virtual bool removePassword(const QString &deviceId);
 
     /**
      * @brief Loads portal restore token from KWallet

@@ -7,7 +7,7 @@
 #include "../oath/yubikey_device_manager.h"
 #include "../oath/oath_device.h"
 #include "../storage/yubikey_database.h"
-#include "../config/daemon_configuration.h"
+#include "../../shared/config/configuration_provider.h"
 #include "../logging_categories.h"
 #include "../ui/add_credential_dialog.h"
 #include "../notification/dbus_notification_manager.h"
@@ -15,6 +15,7 @@
 
 #include <QTimer>
 #include <QFutureWatcher>
+#include <QMetaObject>
 #include <QtConcurrent/QtConcurrent>
 #include <KLocalizedString>
 
@@ -24,7 +25,7 @@ using namespace YubiKeyOath::Shared;
 
 CredentialService::CredentialService(YubiKeyDeviceManager *deviceManager,
                                    YubiKeyDatabase *database,
-                                   DaemonConfiguration *config,
+                                   Shared::ConfigurationProvider *config,
                                    QObject *parent)
     : QObject(parent)
     , m_deviceManager(deviceManager)
@@ -49,12 +50,13 @@ void CredentialService::appendCachedCredentialsForOfflineDevice(
         return;
     }
 
-    // Skip if device is currently connected (already in list)
-    if (m_deviceManager->getDevice(deviceId)) {
+    // Skip if device is currently connected AND credentials already in list
+    // (but allow if credentials list is empty - device connected but not initialized yet)
+    if (m_deviceManager->getDevice(deviceId) && !credentialsList.isEmpty()) {
         return;
     }
 
-    // Get cached credentials for this offline device
+    // Get cached credentials for this offline device (or connected but not initialized)
     auto cached = m_database->getCredentials(deviceId);
     if (!cached.isEmpty()) {
         qCDebug(YubiKeyDaemonLog) << "CredentialService: Adding" << cached.size()
@@ -83,6 +85,11 @@ QList<OathCredential> CredentialService::getCredentials(const QString &deviceId)
         auto *device = m_deviceManager->getDevice(deviceId);
         if (device) {
             credentials = device->credentials();
+            // If device is connected but credentials not yet loaded in memory, fall back to cache
+            if (credentials.isEmpty()) {
+                qCDebug(YubiKeyDaemonLog) << "CredentialService: Device connected but credentials not in memory, using database cache";
+                appendCachedCredentialsForOfflineDevice(deviceId, credentials);
+            }
         } else {
             // Device offline - try cached credentials
             appendCachedCredentialsForOfflineDevice(deviceId, credentials);
@@ -293,6 +300,119 @@ bool CredentialService::deleteCredential(const QString &deviceId, const QString 
         qCWarning(YubiKeyDaemonLog) << "CredentialService: Failed to delete credential:" << result.error();
         return false;
     }
+}
+
+// === ASYNC API IMPLEMENTATIONS ===
+
+void CredentialService::generateCodeAsync(const QString &deviceId, const QString &credentialName)
+{
+    qCDebug(YubiKeyDaemonLog) << "CredentialService: generateCodeAsync for credential:"
+                              << credentialName << "on device:" << deviceId;
+
+    // Validate input
+    if (deviceId.isEmpty() || credentialName.isEmpty()) {
+        qCWarning(YubiKeyDaemonLog) << "CredentialService: Invalid parameters (empty deviceId or credentialName)";
+        Q_EMIT codeGenerated(deviceId, credentialName, QString(), 0,
+                           i18n("Invalid parameters: deviceId and credentialName cannot be empty"));
+        return;
+    }
+
+    // Get device instance
+    auto *device = m_deviceManager->getDevice(deviceId);
+    if (!device) {
+        qCWarning(YubiKeyDaemonLog) << "CredentialService: Device" << deviceId << "not found";
+        Q_EMIT codeGenerated(deviceId, credentialName, QString(), 0, i18n("Device not found"));
+        return;
+    }
+
+    // Run PC/SC operation in background thread to avoid blocking
+    [[maybe_unused]] auto future = QtConcurrent::run([this, device, deviceId, credentialName]() {
+        qCDebug(YubiKeyDaemonLog) << "CredentialService: [Worker] Generating code for:" << credentialName;
+
+        // PC/SC operation (100-500ms, or longer if touch required)
+        auto result = device->generateCode(credentialName);
+
+        // Get credential to find its period
+        int period = 30; // Default period
+        auto credentials = device->credentials();
+        for (const auto &cred : credentials) {
+            if (cred.originalName == credentialName) {
+                period = cred.period;
+                break;
+            }
+        }
+
+        // Calculate validUntil
+        qint64 validUntil = 0;
+        QString code;
+        QString error;
+
+        if (result.isSuccess()) {
+            code = result.value();
+            qint64 const currentTime = QDateTime::currentSecsSinceEpoch();
+            qint64 const timeInPeriod = currentTime % period;
+            qint64 const validityRemaining = period - timeInPeriod;
+            validUntil = currentTime + validityRemaining;
+            qCDebug(YubiKeyDaemonLog) << "CredentialService: [Worker] Code generated, valid until:" << validUntil;
+        } else {
+            error = result.error();
+            qCWarning(YubiKeyDaemonLog) << "CredentialService: [Worker] Failed to generate code:" << error;
+        }
+
+        // Emit result on main thread
+        QMetaObject::invokeMethod(this, [this, deviceId, credentialName, code, validUntil, error]() {
+            Q_EMIT codeGenerated(deviceId, credentialName, code, validUntil, error);
+        }, Qt::QueuedConnection);
+    });
+}
+
+void CredentialService::deleteCredentialAsync(const QString &deviceId, const QString &credentialName)
+{
+    qCDebug(YubiKeyDaemonLog) << "CredentialService: deleteCredentialAsync" << credentialName << "device:" << deviceId;
+
+    // Validate input
+    if (credentialName.isEmpty()) {
+        qCWarning(YubiKeyDaemonLog) << "CredentialService: Empty credential name";
+        Q_EMIT credentialDeleted(deviceId, credentialName, false, i18n("Credential name cannot be empty"));
+        return;
+    }
+
+    // Get device instance
+    auto *device = m_deviceManager->getDevice(deviceId);
+    if (!device) {
+        qCWarning(YubiKeyDaemonLog) << "CredentialService: Device" << deviceId << "not found";
+        Q_EMIT credentialDeleted(deviceId, credentialName, false, i18n("Device not found"));
+        return;
+    }
+
+    // Run PC/SC operation in background thread to avoid blocking
+    [[maybe_unused]] auto future = QtConcurrent::run([this, device, deviceId, credentialName]() {
+        qCDebug(YubiKeyDaemonLog) << "CredentialService: [Worker] Deleting credential:" << credentialName;
+
+        // PC/SC operation (100-500ms)
+        const Result<void> result = device->deleteCredential(credentialName);
+
+        bool success = false;
+        QString error;
+
+        if (result.isSuccess()) {
+            success = true;
+            qCDebug(YubiKeyDaemonLog) << "CredentialService: [Worker] Credential deleted successfully";
+        } else {
+            error = result.error();
+            qCWarning(YubiKeyDaemonLog) << "CredentialService: [Worker] Failed to delete credential:" << error;
+        }
+
+        // Emit result on main thread
+        QMetaObject::invokeMethod(this, [this, deviceId, credentialName, success, error]() {
+            Q_EMIT credentialDeleted(deviceId, credentialName, success, error);
+
+            // Also emit credentialsUpdated if successful
+            if (success) {
+                Q_EMIT credentialsUpdated(deviceId);
+            }
+        }, Qt::QueuedConnection);
+    });
 }
 
 void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
@@ -525,7 +645,8 @@ QList<DeviceInfo> CredentialService::getAvailableDevices()
     for (const auto &record : allDeviceRecords) {
         DeviceInfo deviceInfo;
         deviceInfo._internalDeviceId = record.deviceId;
-        deviceInfo.isConnected = connectedIds.contains(record.deviceId);
+        // Set state based on connection status (simplified - actual state comes from device manager)
+        deviceInfo.state = connectedIds.contains(record.deviceId) ? Shared::DeviceState::Ready : Shared::DeviceState::Disconnected;
         deviceInfo.deviceName = DeviceNameFormatter::getDeviceDisplayName(record.deviceId, m_database);
         deviceInfo.firmwareVersion = record.firmwareVersion;
         deviceInfo.deviceModel = modelToString(record.deviceModel);
@@ -537,7 +658,7 @@ QList<DeviceInfo> CredentialService::getAvailableDevices()
         qCDebug(YubiKeyDaemonLog) << "CredentialService: Available device -"
                                   << "id:" << deviceInfo._internalDeviceId
                                   << "name:" << deviceInfo.deviceName
-                                  << "connected:" << deviceInfo.isConnected
+                                  << "connected:" << deviceInfo.isConnected()
                                   << "firmware:" << deviceInfo.firmwareVersion.toString()
                                   << "model:" << deviceInfo.deviceModel;
     }

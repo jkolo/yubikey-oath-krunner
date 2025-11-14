@@ -450,7 +450,7 @@ void OathManagerProxy::addDeviceProxy(const QString &devicePath,
     // Forward device property changes
     connect(device, &OathDeviceProxy::nameChanged,
             this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
-    connect(device, &OathDeviceProxy::connectionChanged,
+    connect(device, &OathDeviceProxy::stateChanged,
             this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
     connect(device, &OathDeviceProxy::requiresPasswordChanged,
             this, [this, device]() { Q_EMIT devicePropertyChanged(device); });

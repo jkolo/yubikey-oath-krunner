@@ -6,6 +6,7 @@
 #pragma once
 
 #include "mock_yubikey_oath_device.h"
+#include "daemon/oath/yubikey_device_manager.h"
 #include "types/oath_credential.h"
 #include <QObject>
 #include <QString>
@@ -18,15 +19,17 @@ namespace Daemon {
 /**
  * @brief Mock implementation of YubiKeyDeviceManager for testing
  *
- * Manages mock YubiKey devices for workflow tests
+ * Manages mock YubiKey devices for workflow tests.
+ * Inherits from YubiKeyDeviceManager to be compatible with services
+ * that expect YubiKeyDeviceManager*, but uses mock devices internally.
  */
-class MockYubiKeyDeviceManager : public QObject
+class MockYubiKeyDeviceManager : public YubiKeyDeviceManager
 {
     Q_OBJECT
 
 public:
     explicit MockYubiKeyDeviceManager(QObject *parent = nullptr)
-        : QObject(parent)
+        : YubiKeyDeviceManager(parent)
     {}
 
     ~MockYubiKeyDeviceManager() override = default;
@@ -34,9 +37,35 @@ public:
     // ========== Device Management ==========
 
     /**
-     * @brief Gets device by ID or first available
+     * @brief Gets device by ID (overrides base class)
+     * @param deviceId Device identifier
+     * @return Device pointer or nullptr if not found
      */
-    MockYubiKeyOathDevice* getDeviceOrFirst(const QString &deviceId = QString())
+    OathDevice* getDevice(const QString &deviceId) override
+    {
+        if (m_devices.contains(deviceId)) {
+            return m_devices[deviceId];
+        }
+        return nullptr;
+    }
+
+    /**
+     * @brief Gets device by ID with concrete type
+     * @param deviceId Device identifier
+     * @return Mock device pointer or nullptr if not found
+     */
+    MockYubiKeyOathDevice* getMockDevice(const QString &deviceId)
+    {
+        if (m_devices.contains(deviceId)) {
+            return m_devices[deviceId];
+        }
+        return nullptr;
+    }
+
+    /**
+     * @brief Gets mock device by ID or first available
+     */
+    MockYubiKeyOathDevice* getMockDeviceOrFirst(const QString &deviceId = QString())
     {
         if (!deviceId.isEmpty() && m_devices.contains(deviceId)) {
             return m_devices[deviceId];
@@ -52,7 +81,7 @@ public:
     /**
      * @brief Gets all credentials from all devices
      */
-    QList<Shared::OathCredential> getCredentials()
+    QList<Shared::OathCredential> getCredentials() override
     {
         QList<Shared::OathCredential> allCredentials;
         for (auto *device : m_devices) {
@@ -64,7 +93,7 @@ public:
     /**
      * @brief Gets list of connected device IDs
      */
-    QStringList getConnectedDeviceIds() const
+    QStringList getConnectedDeviceIds() const override
     {
         return m_devices.keys();
     }
@@ -91,6 +120,15 @@ public:
             Q_EMIT deviceDisconnected(deviceId);
             device->deleteLater();
         }
+    }
+
+    /**
+     * @brief Removes device from memory (for forgetDevice workflow)
+     * Alias for removeDevice() - same behavior in mock
+     */
+    void removeDeviceFromMemory(const QString &deviceId) override
+    {
+        removeDevice(deviceId);
     }
 
     /**

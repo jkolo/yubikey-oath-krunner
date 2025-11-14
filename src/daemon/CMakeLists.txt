@@ -1,5 +1,12 @@
 # YubiKey OATH D-Bus Daemon
 
+# Configure version header from template
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/version.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/version.h
+    @ONLY
+)
+
 # Generate D-Bus adaptors from XML interfaces
 # New hierarchical D-Bus interfaces
 qt6_add_dbus_adaptor(DBUS_ADAPTOR_SRCS
@@ -76,6 +83,9 @@ add_executable(yubikey-oath-daemon
     # Cache
     cache/credential_cache_searcher.cpp
 
+    # Infrastructure
+    infrastructure/pcsc_worker_pool.cpp
+
     # Clipboard
     clipboard/clipboard_manager.cpp
 
@@ -117,6 +127,7 @@ add_executable(yubikey-oath-daemon
 # Include directories
 target_include_directories(yubikey-oath-daemon PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/..
+    ${CMAKE_CURRENT_BINARY_DIR}  # For generated version.h
     ${PCSCLITE_INCLUDE_DIRS}
 )
 

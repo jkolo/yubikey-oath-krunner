@@ -11,6 +11,7 @@
 #include <QHash>
 #include <QDateTime>
 #include "types/yubikey_value_types.h"
+#include "types/device_state.h"
 #include "oath_credential_proxy.h"
 
 // Forward declarations
@@ -78,10 +79,14 @@ public:
     [[nodiscard]] YubiKeyModel deviceModelCode() const { return m_deviceModelCode; } // const property - numeric code
     [[nodiscard]] QString formFactor() const { return m_formFactor; } // const property - human-readable
     [[nodiscard]] QStringList capabilities() const { return m_capabilities; } // const property
-    [[nodiscard]] bool isConnected() const { return m_isConnected; }
     [[nodiscard]] bool requiresPassword() const { return m_requiresPassword; }
+
+    // Helper method: isConnected based on state
+    [[nodiscard]] bool isConnected() const { return m_state != DeviceState::Disconnected; }
     [[nodiscard]] bool hasValidPassword() const { return m_hasValidPassword; }
     [[nodiscard]] QDateTime lastSeen() const { return m_lastSeen; } // const property - last time seen
+    [[nodiscard]] DeviceState state() const { return m_state; } // device lifecycle state
+    [[nodiscard]] QString stateMessage() const { return m_stateMessage; } // state error/detail message
     // Note: credentialCount() removed - use credentials().size() instead
 
     // ========== Credential Management ==========
@@ -181,12 +186,6 @@ Q_SIGNALS:
     void nameChanged(const QString &newName);
 
     /**
-     * @brief Emitted when connection status changes
-     * @param connected New connection status
-     */
-    void connectionChanged(bool connected);
-
-    /**
      * @brief Emitted when credential is added
      * @param credential New credential proxy
      */
@@ -209,6 +208,18 @@ Q_SIGNALS:
      * @param hasValid New hasValidPassword state
      */
     void hasValidPasswordChanged(bool hasValid);
+
+    /**
+     * @brief Emitted when device state changes
+     * @param newState New device state
+     */
+    void stateChanged(DeviceState newState);
+
+    /**
+     * @brief Emitted when device state message changes
+     * @param message State error/detail message
+     */
+    void stateMessageChanged(const QString &message);
 
 private Q_SLOTS:
     void onCredentialAddedSignal(const QDBusObjectPath &credentialPath);
@@ -234,10 +245,11 @@ private:  // NOLINT(readability-redundant-access-specifiers) - Required to close
     YubiKeyModel m_deviceModelCode{0}; // const - numeric model code (0xSSVVPPFF)
     QString m_formFactor; // const - human-readable form factor string
     QStringList m_capabilities; // const - list of capability strings
-    bool m_isConnected;
     bool m_requiresPassword;
     bool m_hasValidPassword;
     QDateTime m_lastSeen; // const - last time device was seen (for offline devices)
+    DeviceState m_state{DeviceState::Disconnected}; // device lifecycle state
+    QString m_stateMessage; // state error/detail message
 
     // Credential proxies (owned by this object via Qt parent-child)
     QHash<QString, OathCredentialProxy*> m_credentials; // key: credential name

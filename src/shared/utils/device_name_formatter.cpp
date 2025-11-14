@@ -4,7 +4,7 @@
  */
 
 #include "device_name_formatter.h"
-#include "storage/yubikey_database.h"
+#include "daemon/storage/yubikey_database.h"
 #include "shared/types/device_model.h"
 #include "shared/types/device_brand.h"
 

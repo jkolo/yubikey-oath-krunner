@@ -50,8 +50,14 @@
       <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
     </property>
 
-    <property name="IsConnected" type="b" access="read">
+    <property name="State" type="y" access="read">
       <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+      <!-- Values: 0x00=Disconnected, 0x01=Connecting, 0x02=Authenticating, 0x03=FetchingCredentials, 0x04=Ready, 0xFF=Error -->
+    </property>
+
+    <property name="StateMessage" type="s" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+      <!-- Human-readable state description (e.g. error message when State=Error) -->
     </property>
 
     <property name="RequiresPassword" type="b" access="read">

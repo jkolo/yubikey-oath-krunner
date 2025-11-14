@@ -45,9 +45,9 @@ public:
     QString primaryAction() const override;
 
     // Caching settings
-    bool enableCredentialsCache() const;
+    bool enableCredentialsCache() const override;
     int deviceReconnectTimeout() const override;
-    int credentialSaveRateLimit() const;
+    int credentialSaveRateLimit() const override;
 
 Q_SIGNALS:
     /**

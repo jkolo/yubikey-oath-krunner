@@ -97,6 +97,16 @@ int KRunnerConfiguration::deviceReconnectTimeout() const
     return readConfigEntry(ConfigKeys::DEVICE_RECONNECT_TIMEOUT, 30);
 }
 
+bool KRunnerConfiguration::enableCredentialsCache() const
+{
+    return readConfigEntry(ConfigKeys::ENABLE_CREDENTIALS_CACHE, true);
+}
+
+int KRunnerConfiguration::credentialSaveRateLimit() const
+{
+    return readConfigEntry(ConfigKeys::CREDENTIAL_SAVE_RATE_LIMIT_MS, 1000);
+}
+
 void KRunnerConfiguration::onConfigFileChanged(const QString &path)
 {
     qDebug() << "KRunnerConfiguration: Config file changed:" << path;

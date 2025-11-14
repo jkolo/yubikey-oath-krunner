@@ -63,6 +63,9 @@ OathCredentialProxy::OathCredentialProxy(const QString &objectPath,
 
     qCDebug(OathCredentialProxyLog) << "Created credential proxy for" << m_fullName
                                        << "at" << objectPath;
+
+    // Connect to D-Bus signals
+    connectToSignals();
 }
 
 OathCredentialProxy::~OathCredentialProxy()
@@ -79,108 +82,69 @@ QString OathCredentialProxy::parentDeviceId() const
     return m_objectPath.section(QLatin1Char('/'), 6, 6);
 }
 
-GenerateCodeResult OathCredentialProxy::generateCode()
+// ========== Async Methods (fire-and-forget, results via signals) ==========
+
+void OathCredentialProxy::generateCode()
 {
     if (!m_interface || !m_interface->isValid()) {
         qCWarning(OathCredentialProxyLog) << "Cannot generate code: D-Bus interface invalid";
-        return GenerateCodeResult{.code = QString(), .validUntil = 0};
+        Q_EMIT codeGenerated(QString(), 0, QStringLiteral("D-Bus interface invalid"));
+        return;
     }
 
-    // PERFORMANCE: Check cache before calling D-Bus
-    // This eliminates N separate D-Bus calls when building KRunner matches
-    qint64 const currentTime = QDateTime::currentSecsSinceEpoch();
-
-    if (!m_cachedCode.isEmpty() && m_cachedValidUntil > currentTime) {
-        qCDebug(OathCredentialProxyLog) << "Returning cached code for" << m_fullName
-                                           << "Valid for" << (m_cachedValidUntil - currentTime) << "more seconds";
-        return GenerateCodeResult{.code = m_cachedCode, .validUntil = m_cachedValidUntil};
-    }
-
-    // Cache miss or expired - call D-Bus
-    qCDebug(OathCredentialProxyLog) << "Cache miss/expired for" << m_fullName << "- calling D-Bus";
-    QDBusReply<GenerateCodeResult> reply = m_interface->call(QStringLiteral("GenerateCode"));
-
-    if (!reply.isValid()) {
-        qCWarning(OathCredentialProxyLog) << "GenerateCode failed for" << m_fullName
-                                              << "Error:" << reply.error().message();
-        // Don't clear cache on error - return old cached code if available
-        if (!m_cachedCode.isEmpty()) {
-            qCWarning(OathCredentialProxyLog) << "Returning stale cached code due to D-Bus error";
-            return GenerateCodeResult{.code = m_cachedCode, .validUntil = m_cachedValidUntil};
-        }
-        return GenerateCodeResult{.code = QString(), .validUntil = 0};
-    }
-
-    auto result = reply.value();
-    qCDebug(OathCredentialProxyLog) << "Generated code for" << m_fullName
-                                       << "Valid until:" << result.validUntil;
-
-    // Update cache
-    m_cachedCode = result.code;
-    m_cachedValidUntil = result.validUntil;
-
-    return result;
+    // Call async method (NoReply annotation)
+    m_interface->asyncCall(QStringLiteral("GenerateCode"));
+    qCDebug(OathCredentialProxyLog) << "Requested async code generation for" << m_fullName;
 }
 
-bool OathCredentialProxy::copyToClipboard()
+void OathCredentialProxy::copyToClipboard()
 {
     if (!m_interface || !m_interface->isValid()) {
-        qCWarning(OathCredentialProxyLog) << "Cannot copy to clipboard: D-Bus interface invalid";
-        return false;
+        qCWarning(OathCredentialProxyLog) << "Cannot copy: D-Bus interface invalid";
+        Q_EMIT clipboardCopied(false, QStringLiteral("D-Bus interface invalid"));
+        return;
     }
 
-    QDBusReply<bool> reply = m_interface->call(QStringLiteral("CopyToClipboard"));
-
-    if (!reply.isValid()) {
-        qCWarning(OathCredentialProxyLog) << "CopyToClipboard failed for" << m_fullName
-                                              << "Error:" << reply.error().message();
-        return false;
-    }
-
-    bool const success = reply.value();
-    qCDebug(OathCredentialProxyLog) << "CopyToClipboard for" << m_fullName
-                                       << "Result:" << success;
-    return success;
+    m_interface->asyncCall(QStringLiteral("CopyToClipboard"));
+    qCDebug(OathCredentialProxyLog) << "Requested async clipboard copy for" << m_fullName;
 }
 
-bool OathCredentialProxy::typeCode(bool fallbackToCopy)
+void OathCredentialProxy::typeCode(bool fallbackToCopy)
 {
     if (!m_interface || !m_interface->isValid()) {
-        qCWarning(OathCredentialProxyLog) << "Cannot type code: D-Bus interface invalid";
-        return false;
+        qCWarning(OathCredentialProxyLog) << "Cannot type: D-Bus interface invalid";
+        Q_EMIT codeTyped(false, QStringLiteral("D-Bus interface invalid"));
+        return;
     }
 
-    QDBusReply<bool> reply = m_interface->call(QStringLiteral("TypeCode"), fallbackToCopy);
-
-    if (!reply.isValid()) {
-        qCWarning(OathCredentialProxyLog) << "TypeCode failed for" << m_fullName
-                                              << "Error:" << reply.error().message();
-        return false;
-    }
-
-    bool const success = reply.value();
-    qCDebug(OathCredentialProxyLog) << "TypeCode for" << m_fullName
-                                       << "Result:" << success
+    m_interface->asyncCall(QStringLiteral("TypeCode"), fallbackToCopy);
+    qCDebug(OathCredentialProxyLog) << "Requested async code typing for" << m_fullName
                                        << "Fallback to copy:" << fallbackToCopy;
-    return success;
 }
 
 void OathCredentialProxy::deleteCredential()
 {
     if (!m_interface || !m_interface->isValid()) {
-        qCWarning(OathCredentialProxyLog) << "Cannot delete credential: D-Bus interface invalid";
+        qCWarning(OathCredentialProxyLog) << "Cannot delete: D-Bus interface invalid";
+        Q_EMIT deleted(false, QStringLiteral("D-Bus interface invalid"));
         return;
     }
 
-    QDBusReply<void> reply = m_interface->call(QStringLiteral("Delete"));
+    m_interface->asyncCall(QStringLiteral("Delete"));
+    qCDebug(OathCredentialProxyLog) << "Requested async deletion for" << m_fullName;
+}
 
-    if (!reply.isValid()) {
-        qCWarning(OathCredentialProxyLog) << "Delete failed for" << m_fullName
-                                              << "Error:" << reply.error().message();
-        return;
-    }
+// ========== Cache Getters ==========
 
-    qCDebug(OathCredentialProxyLog) << "Deleted credential" << m_fullName;
+GenerateCodeResult OathCredentialProxy::getCachedCode() const
+{
+    return GenerateCodeResult{.code = m_cachedCode, .validUntil = m_cachedValidUntil};
+}
+
+bool OathCredentialProxy::isCacheValid() const
+{
+    qint64 const currentTime = QDateTime::currentSecsSinceEpoch();
+    return !m_cachedCode.isEmpty() && m_cachedValidUntil > currentTime;
 }
 
 CredentialInfo OathCredentialProxy::toCredentialInfo() const
@@ -193,6 +157,157 @@ CredentialInfo OathCredentialProxy::toCredentialInfo() const
     info.validUntil = 0; // Not available in proxy (only in GenerateCodeResult)
     info.deviceId = m_deviceId;
     return info;
+}
+
+void OathCredentialProxy::connectToSignals()
+{
+    if (!m_interface || !m_interface->isValid()) {
+        return;
+    }
+
+    // Connect to result signals
+    QDBusConnection::sessionBus().connect(
+        QLatin1String(SERVICE_NAME),
+        m_objectPath,
+        QLatin1String(INTERFACE_NAME),
+        QStringLiteral("CodeGenerated"),
+        this,
+        SLOT(onCodeGenerated(QString,qint64,QString))
+    );
+
+    QDBusConnection::sessionBus().connect(
+        QLatin1String(SERVICE_NAME),
+        m_objectPath,
+        QLatin1String(INTERFACE_NAME),
+        QStringLiteral("ClipboardCopied"),
+        this,
+        SLOT(onClipboardCopied(bool,QString))
+    );
+
+    QDBusConnection::sessionBus().connect(
+        QLatin1String(SERVICE_NAME),
+        m_objectPath,
+        QLatin1String(INTERFACE_NAME),
+        QStringLiteral("CodeTyped"),
+        this,
+        SLOT(onCodeTyped(bool,QString))
+    );
+
+    QDBusConnection::sessionBus().connect(
+        QLatin1String(SERVICE_NAME),
+        m_objectPath,
+        QLatin1String(INTERFACE_NAME),
+        QStringLiteral("Deleted"),
+        this,
+        SLOT(onDeleted(bool,QString))
+    );
+
+    // Connect to workflow signals
+    QDBusConnection::sessionBus().connect(
+        QLatin1String(SERVICE_NAME),
+        m_objectPath,
+        QLatin1String(INTERFACE_NAME),
+        QStringLiteral("TouchRequired"),
+        this,
+        SLOT(onTouchRequired(int,QString))
+    );
+
+    QDBusConnection::sessionBus().connect(
+        QLatin1String(SERVICE_NAME),
+        m_objectPath,
+        QLatin1String(INTERFACE_NAME),
+        QStringLiteral("TouchCompleted"),
+        this,
+        SLOT(onTouchCompleted(bool))
+    );
+
+    QDBusConnection::sessionBus().connect(
+        QLatin1String(SERVICE_NAME),
+        m_objectPath,
+        QLatin1String(INTERFACE_NAME),
+        QStringLiteral("ReconnectRequired"),
+        this,
+        SLOT(onReconnectRequired(QString))
+    );
+
+    QDBusConnection::sessionBus().connect(
+        QLatin1String(SERVICE_NAME),
+        m_objectPath,
+        QLatin1String(INTERFACE_NAME),
+        QStringLiteral("ReconnectCompleted"),
+        this,
+        SLOT(onReconnectCompleted(bool))
+    );
+}
+
+// ========== Signal Slots ==========
+
+void OathCredentialProxy::onCodeGenerated(const QString &code, qint64 validUntil, const QString &error)
+{
+    qCDebug(OathCredentialProxyLog) << "CodeGenerated signal received for" << m_fullName
+                                     << "Code length:" << code.length()
+                                     << "ValidUntil:" << validUntil
+                                     << "Error:" << error;
+
+    // Update cache if successful
+    if (error.isEmpty() && !code.isEmpty()) {
+        m_cachedCode = code;
+        m_cachedValidUntil = validUntil;
+    }
+
+    Q_EMIT codeGenerated(code, validUntil, error);
+}
+
+void OathCredentialProxy::onDeleted(bool success, const QString &error)
+{
+    qCDebug(OathCredentialProxyLog) << "Deleted signal received for" << m_fullName
+                                     << "Success:" << success
+                                     << "Error:" << error;
+
+    Q_EMIT deleted(success, error);
+}
+
+void OathCredentialProxy::onClipboardCopied(bool success, const QString &error)
+{
+    qCDebug(OathCredentialProxyLog) << "Clipboard copied signal received for" << m_fullName
+                                      << "success:" << success;
+    Q_EMIT clipboardCopied(success, error);
+}
+
+void OathCredentialProxy::onCodeTyped(bool success, const QString &error)
+{
+    qCDebug(OathCredentialProxyLog) << "Code typed signal received for" << m_fullName
+                                      << "success:" << success;
+    Q_EMIT codeTyped(success, error);
+}
+
+void OathCredentialProxy::onTouchRequired(int timeoutSeconds, const QString &deviceModel)
+{
+    qCDebug(OathCredentialProxyLog) << "Touch required signal received for" << m_fullName
+                                      << "timeout:" << timeoutSeconds << "s"
+                                      << "device:" << deviceModel;
+    Q_EMIT touchRequired(timeoutSeconds, deviceModel);
+}
+
+void OathCredentialProxy::onTouchCompleted(bool success)
+{
+    qCDebug(OathCredentialProxyLog) << "Touch completed signal received for" << m_fullName
+                                      << "success:" << success;
+    Q_EMIT touchCompleted(success);
+}
+
+void OathCredentialProxy::onReconnectRequired(const QString &deviceModel)
+{
+    qCDebug(OathCredentialProxyLog) << "Reconnect required signal received for" << m_fullName
+                                      << "device:" << deviceModel;
+    Q_EMIT reconnectRequired(deviceModel);
+}
+
+void OathCredentialProxy::onReconnectCompleted(bool success)
+{
+    qCDebug(OathCredentialProxyLog) << "Reconnect completed signal received for" << m_fullName
+                                      << "success:" << success;
+    Q_EMIT reconnectCompleted(success);
 }
 
 } // namespace Shared

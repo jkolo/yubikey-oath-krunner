@@ -82,14 +82,12 @@ YubiKeyService::YubiKeyService(QObject *parent)
     connect(m_config.get(), &DaemonConfiguration::configurationChanged,
             this, &YubiKeyService::onConfigurationChanged);
 
-    // Load passwords for already-connected devices
-    const QStringList connectedDevices = m_deviceManager->getConnectedDeviceIds();
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Found" << connectedDevices.size() << "already-connected devices";
-    for (const QString &deviceId : connectedDevices) {
-        m_deviceLifecycleService->onDeviceConnected(deviceId);
-    }
+    // ASYNC: Device initialization happens via deviceConnected signal from YubiKeyDeviceManager
+    // The manager's initialize() now triggers async device enumeration which will emit
+    // deviceConnected signals, and those are already connected to onDeviceConnected above (line 60-61).
+    // This removes the blocking loop that was causing 5-30s startup delay.
 
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Initialization complete";
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyService: Initialization complete (async device enumeration in progress)";
 }
 
 YubiKeyService::~YubiKeyService()
@@ -124,6 +122,11 @@ QList<OathCredential> YubiKeyService::getCredentials()
 OathDevice* YubiKeyService::getDevice(const QString &deviceId)
 {
     return m_deviceLifecycleService->getDevice(deviceId);
+}
+
+CredentialService* YubiKeyService::getCredentialService() const
+{
+    return m_credentialService.get();
 }
 
 QList<QString> YubiKeyService::getConnectedDeviceIds() const

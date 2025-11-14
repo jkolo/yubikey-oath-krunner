@@ -6,6 +6,8 @@
 #include "oath_device_object.h"
 #include "oath_credential_object.h"
 #include "services/yubikey_service.h"
+#include "oath/oath_device.h"
+#include "types/device_state.h"
 #include "logging_categories.h"
 #include "deviceadaptor.h"  // Auto-generated D-Bus adaptor
 
@@ -25,7 +27,6 @@ OathDeviceObject::OathDeviceObject(QString deviceId,
                                          QString objectPath,
                                          YubiKeyService *service,
                                          QDBusConnection connection,
-                                         bool isConnected,
                                          QObject *parent)
     : QObject(parent)
     , m_deviceId(std::move(deviceId))
@@ -34,13 +35,11 @@ OathDeviceObject::OathDeviceObject(QString deviceId,
     , m_objectPath(std::move(objectPath))
     , m_id(m_objectPath.section(QLatin1Char('/'), -1))  // Extract last segment of path
     , m_registered(false)
-    , m_isConnected(isConnected)
     , m_requiresPassword(false)
     , m_hasValidPassword(false)
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Constructing for device:" << m_deviceId
-                              << "at path:" << m_objectPath
-                              << "isConnected:" << m_isConnected;
+                              << "at path:" << m_objectPath;
 
     // Create D-Bus adaptor for Device interface
     // This automatically registers pl.jkolo.yubikey.oath.Device interface
@@ -75,6 +74,20 @@ OathDeviceObject::OathDeviceObject(QString deviceId,
                     updateCredentials();
                 }
             });
+
+    // Connect to device state signals if device is available
+    auto *device = m_service->getDevice(m_deviceId);
+    if (device) {
+        connect(device, &OathDevice::stateChanged,
+                this, [this](Shared::DeviceState newState) {
+                    auto *dev = m_service->getDevice(m_deviceId);
+                    const QString errorMsg = dev ? dev->lastError() : QString();
+                    setState(static_cast<quint8>(newState), errorMsg);
+                });
+
+        // Set initial state from device
+        setState(static_cast<quint8>(device->state()), device->lastError());
+    }
 }
 
 OathDeviceObject::~OathDeviceObject()
@@ -136,14 +149,19 @@ QString OathDeviceObject::name() const
     return m_name;
 }
 
+quint8 OathDeviceObject::state() const
+{
+    return m_state;
+}
+
+QString OathDeviceObject::stateMessage() const
+{
+    return m_stateMessage;
+}
+
 QString OathDeviceObject::deviceId() const
 {
     return m_deviceId;
-}
-
-bool OathDeviceObject::isConnected() const
-{
-    return m_isConnected;
 }
 
 bool OathDeviceObject::requiresPassword() const
@@ -237,18 +255,37 @@ void OathDeviceObject::setName(const QString &name)
     }
 }
 
-void OathDeviceObject::setConnected(bool connected)
+void OathDeviceObject::setState(quint8 state, const QString &message)
 {
-    if (m_isConnected == connected) {
-        return;
+    bool stateChanged = false;
+    bool messageChanged = false;
+
+    if (m_state != state) {
+        m_state = state;
+        stateChanged = true;
     }
 
-    m_isConnected = connected;
-    Q_EMIT isConnectedChanged(connected);
-    // Emit D-Bus PropertiesChanged signal
-    emitPropertyChanged(QStringLiteral("IsConnected"), connected);
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Connection status changed for device:" << m_deviceId
-                              << "to:" << connected;
+    if (m_stateMessage != message) {
+        m_stateMessage = message;
+        messageChanged = true;
+    }
+
+    // Emit signals if values changed
+    if (stateChanged) {
+        Q_EMIT this->stateChanged(state);  // Qt property signal
+        emitPropertyChanged(QStringLiteral("State"), state);
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: State changed for device:" << m_deviceId
+                                  << "to:" << static_cast<int>(state);
+    }
+
+    if (messageChanged) {
+        Q_EMIT stateMessageChanged(message);
+        emitPropertyChanged(QStringLiteral("StateMessage"), message);
+        if (!message.isEmpty()) {
+            qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: State message for device:" << m_deviceId
+                                      << "is:" << message;
+        }
+    }
 }
 
 bool OathDeviceObject::SavePassword(const QString &password)
@@ -461,6 +498,37 @@ void OathDeviceObject::updateCredentials()
                               << m_deviceId << "- total:" << m_credentials.size();
 }
 
+void OathDeviceObject::connectToDevice()
+{
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Connecting to device:" << m_deviceId;
+
+    auto *device = m_service->getDevice(m_deviceId);
+    if (!device) {
+        qCWarning(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Device not available:" << m_deviceId;
+        // Set disconnected state
+        setState(static_cast<quint8>(Shared::DeviceState::Disconnected), QString());
+        return;
+    }
+
+    // Disconnect any previous connections to avoid duplicates
+    // (Qt's connect with lambda creates new connection each time)
+    disconnect(device, nullptr, this, nullptr);
+
+    // Connect to device state signals
+    connect(device, &OathDevice::stateChanged,
+            this, [this](Shared::DeviceState newState) {
+                auto *dev = m_service->getDevice(m_deviceId);
+                const QString errorMsg = dev ? dev->lastError() : QString();
+                setState(static_cast<quint8>(newState), errorMsg);
+            });
+
+    // Update current state from device
+    setState(static_cast<quint8>(device->state()), device->lastError());
+
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyDeviceObject: Connected to device:" << m_deviceId
+                              << "state:" << static_cast<int>(device->state());
+}
+
 QVariantMap OathDeviceObject::getManagedObjectData() const
 {
     QVariantMap result;
@@ -468,7 +536,8 @@ QVariantMap OathDeviceObject::getManagedObjectData() const
     // pl.jkolo.yubikey.oath.Device interface properties
     QVariantMap deviceProps;
     deviceProps.insert(QLatin1String("Name"), m_name);
-    deviceProps.insert(QLatin1String("IsConnected"), m_isConnected);
+    deviceProps.insert(QLatin1String("State"), m_state);
+    deviceProps.insert(QLatin1String("StateMessage"), m_stateMessage);
     deviceProps.insert(QLatin1String("RequiresPassword"), m_requiresPassword);
     deviceProps.insert(QLatin1String("HasValidPassword"), m_hasValidPassword);
     deviceProps.insert(QLatin1String("FirmwareVersion"), m_firmwareVersion.toString());

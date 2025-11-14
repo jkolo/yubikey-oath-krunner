@@ -5,9 +5,11 @@
 #include "nitrokey_oath_session.h"
 #include "oath_protocol.h"
 #include "../logging_categories.h"
+#include "../infrastructure/pcsc_worker_pool.h"
 #include "../../shared/types/device_brand.h"
 
 #include <QDebug>
+#include <QMetaObject>
 #include <QDateTime>
 #include <QSet>
 #include <QMutexLocker>
@@ -83,48 +85,12 @@ Result<void> YubiKeyDeviceManager::initialize() {
     qCDebug(YubiKeyDeviceManagerLog) << "PC/SC context established successfully";
     m_initialized = true;
 
-    // Start card reader monitor
-    qCDebug(YubiKeyDeviceManagerLog) << "Starting card reader monitor";
-    m_readerMonitor->startMonitoring(m_context);
+    qCInfo(YubiKeyDeviceManagerLog) << "initialize() completed - PC/SC context ready";
+    qCInfo(YubiKeyDeviceManagerLog) << "NOTE: Reader monitoring NOT started - call startMonitoring() after D-Bus is ready";
 
-    // NEW: Check for existing readers at startup (CardReaderMonitor only detects changes)
-    qCDebug(YubiKeyDeviceManagerLog) << "Checking for existing YubiKey readers";
-    DWORD readersLen = 0;
-    LONG startupResult = SCardListReaders(m_context, nullptr, nullptr, &readersLen);
+    // NOTE: Monitoring and device enumeration are deferred to startMonitoring()
+    // which should be called after D-Bus interface is fully initialized
 
-    if (startupResult == SCARD_S_SUCCESS && readersLen > 0) {
-        QByteArray readersBuffer(static_cast<qsizetype>(readersLen), '\0');
-        startupResult = SCardListReaders(m_context, nullptr, readersBuffer.data(), &readersLen);
-
-        if (startupResult == SCARD_S_SUCCESS) {
-            // Parse reader names (null-terminated strings)
-            const char* readerName = readersBuffer.constData();
-            while (*readerName) {
-                const QString reader = QString::fromUtf8(readerName);
-                qCDebug(YubiKeyDeviceManagerLog) << "Found reader:" << reader;
-
-                // Try to connect to this reader (will succeed if it contains a YubiKey with OATH support)
-                qCDebug(YubiKeyDeviceManagerLog) << "Attempting to connect to reader:" << reader;
-
-                const QString deviceId = connectToDevice(reader);
-                if (!deviceId.isEmpty()) {
-                    qCDebug(YubiKeyDeviceManagerLog) << "Successfully connected to YubiKey device" << deviceId;
-                    // Credential fetching will be triggered by onDeviceConnectedInternal in YubiKeyDBusService
-                }
-
-                // Move to next reader name
-                readerName += strlen(readerName) + 1;
-            }
-        } else {
-            qCDebug(YubiKeyDeviceManagerLog) << "SCardListReaders failed:" << QString::number(startupResult, 16);
-        }
-    } else if (startupResult == SCARD_E_NO_READERS_AVAILABLE) {
-        qCDebug(YubiKeyDeviceManagerLog) << "No readers available at startup";
-    } else {
-        qCDebug(YubiKeyDeviceManagerLog) << "SCardListReaders failed:" << QString::number(startupResult, 16);
-    }
-
-    // Future device connections are handled by CardReaderMonitor via onCardInserted signal
     return Result<void>::success();
 }
 
@@ -152,6 +118,28 @@ void YubiKeyDeviceManager::cleanup() {
     }
 }
 
+void YubiKeyDeviceManager::startMonitoring()
+{
+    if (!m_initialized || !m_context) {
+        qCCritical(YubiKeyDeviceManagerLog) << "startMonitoring() failed - PC/SC context not initialized. Call initialize() first.";
+        return;
+    }
+
+    qCInfo(YubiKeyDeviceManagerLog) << "startMonitoring() - Starting PC/SC reader monitoring and device enumeration";
+
+    // Start reader monitoring event loop (polls every 500ms for card insertion/removal)
+    qCDebug(YubiKeyDeviceManagerLog) << "Starting card reader monitor";
+    m_readerMonitor->startMonitoring(m_context);
+
+    // ASYNC: Enumerate existing readers in background to avoid blocking
+    // This will connect to all currently inserted cards
+    qCDebug(YubiKeyDeviceManagerLog) << "Scheduling async device enumeration (non-blocking)";
+    QTimer::singleShot(0, this, &YubiKeyDeviceManager::enumerateAndConnectDevicesAsync);
+
+    qCInfo(YubiKeyDeviceManagerLog) << "startMonitoring() completed - monitoring active, async enumeration in progress";
+    // Future device connections are handled by CardReaderMonitor via onCardInserted signal
+}
+
 bool YubiKeyDeviceManager::hasConnectedDevices() const {
     QMutexLocker locker(&m_devicesMutex);  // NOLINT(misc-const-correctness)
     // Return true if ANY device is connected
@@ -177,7 +165,7 @@ QString YubiKeyDeviceManager::connectToDevice(const QString &readerName) {
 
     const QByteArray readerBytes = readerName.toUtf8();
     const LONG result = SCardConnect(m_context, readerBytes.constData(),
-                              SCARD_SHARE_SHARED, SCARD_PROTOCOL_T1,
+                              SCARD_SHARE_EXCLUSIVE, SCARD_PROTOCOL_T1,
                               &cardHandle, &protocol);
 
     qCDebug(YubiKeyDeviceManagerLog) << "SCardConnect result:" << result << "protocol:" << protocol;
@@ -300,6 +288,10 @@ QString YubiKeyDeviceManager::connectToDevice(const QString &readerName) {
     Q_EMIT deviceConnected(deviceId);
     qCDebug(YubiKeyDeviceManagerLog) << "Emitted deviceConnected signal for" << deviceId;
 
+    // Register reader as in use to prevent duplicate connections
+    m_readerToDeviceMap.insert(readerName, deviceId);
+    qCDebug(YubiKeyDeviceManagerLog) << "Registered reader" << readerName << "for device" << deviceId;
+
     qCDebug(YubiKeyDeviceManagerLog) << "=== connectToDevice() SUCCESS ===" << deviceId << "on reader:" << readerName;
 
     return deviceId;
@@ -317,11 +309,18 @@ void YubiKeyDeviceManager::disconnectDevice(const QString &deviceId) {
             return;
         }
 
+        // Get reader name before deleting device
+        const QString readerName = m_devices[deviceId]->readerName();
+
         // Device destructor will handle PC/SC disconnection
         qCDebug(YubiKeyDeviceManagerLog) << "Deleting YubiKeyOathDevice instance for" << deviceId;
 
         // Remove from map - unique_ptr destructor automatically deletes device
         m_devices.erase(deviceId);
+
+        // Remove reader from mapping
+        m_readerToDeviceMap.remove(readerName);
+        qCDebug(YubiKeyDeviceManagerLog) << "Unregistered reader" << readerName << "for device" << deviceId;
 
         qCDebug(YubiKeyDeviceManagerLog) << "Removed device" << deviceId << "from map, remaining devices:" << m_devices.size();
     }
@@ -459,15 +458,17 @@ void YubiKeyDeviceManager::onCardInserted(const QString &readerName)
 {
     qCDebug(YubiKeyDeviceManagerLog) << "onCardInserted() - reader:" << readerName;
 
-    // NEW: Multi-device support - connect to specific device
-    const QString deviceId = connectToDevice(readerName);
-
-    if (!deviceId.isEmpty()) {
-        qCDebug(YubiKeyDeviceManagerLog) << "Successfully connected to device" << deviceId << "on reader" << readerName;
-        // Credential fetching will be triggered by onDeviceConnectedInternal in YubiKeyDBusService
-    } else {
-        qCDebug(YubiKeyDeviceManagerLog) << "Failed to connect to device on reader" << readerName;
+    // Check if reader is already in use to prevent duplicate connections
+    if (m_readerToDeviceMap.contains(readerName)) {
+        const QString existingDeviceId = m_readerToDeviceMap.value(readerName);
+        qCDebug(YubiKeyDeviceManagerLog) << "Reader" << readerName << "already in use by device"
+                                         << existingDeviceId << "- ignoring duplicate cardInserted signal";
+        return;
     }
+
+    // ASYNC: Connect to device asynchronously to avoid blocking main thread
+    connectToDeviceAsync(readerName);
+    // Result will be signaled via deviceConnected() and deviceStateChanged()
 
 }
 
@@ -570,13 +571,19 @@ void YubiKeyDeviceManager::removeDeviceFromMemory(const QString &deviceId)
         qCDebug(YubiKeyDeviceManagerLog) << "Device" << deviceId << "successfully removed from memory";
     }
 
+    // CRITICAL: Make a local copy of deviceId before emitting signals
+    // The deviceForgotten signal triggers D-Bus object deletion (OathManagerObject::removeDevice())
+    // which may invalidate the deviceId reference if it points to the D-Bus object's member variable
+    // Using the reference after object deletion would cause use-after-delete (segfault)
+    const QString deviceIdCopy = deviceId;  // NOLINT(performance-unnecessary-copy-initialization) - Intentional copy to prevent use-after-delete
+
     // CRITICAL: ALWAYS emit deviceForgotten signal, even if device wasn't in cache
     // This is necessary because:
     // - D-Bus objects exist for BOTH connected AND disconnected devices
     // - deviceForgotten signal triggers D-Bus object removal via OathManagerObject::removeDevice()
     // - Disconnected devices need D-Bus cleanup too (they're not in cache but still in D-Bus tree)
-    Q_EMIT deviceForgotten(deviceId);
-    qCDebug(YubiKeyDeviceManagerLog) << "Emitted deviceForgotten signal for" << deviceId
+    Q_EMIT deviceForgotten(deviceIdCopy);
+    qCDebug(YubiKeyDeviceManagerLog) << "Emitted deviceForgotten signal for" << deviceIdCopy
                                       << (wasInCache ? "(was in cache)" : "(was NOT in cache - disconnected)");
 
     // Emit credentials changed since this device's credentials are now gone
@@ -598,9 +605,9 @@ void YubiKeyDeviceManager::reconnectDeviceAsync(const QString &deviceId, const Q
 
     // CRITICAL FIX: Copy parameters to local variables BEFORE device operations
     // because references may point to fields of the device object
-    const QString &deviceIdCopy = deviceId;
-    const QString &readerNameCopy = readerName;
-    const QByteArray &commandCopy = command;
+    const QString deviceIdCopy = deviceId;  // NOLINT(performance-unnecessary-copy-initialization) - Intentional copy for safety
+    const QString readerNameCopy = readerName;  // NOLINT(performance-unnecessary-copy-initialization) - Intentional copy for safety
+    const QByteArray commandCopy = command;  // NOLINT(performance-unnecessary-copy-initialization) - Intentional copy for safety
 
     // Store reconnect parameters (using copies)
     m_reconnectDeviceId = deviceIdCopy;
@@ -727,6 +734,97 @@ std::unique_ptr<OathDevice> YubiKeyDeviceManager::createDevice(
             deviceId, readerName, cardHandle, protocol,
             challenge, requiresPassword, m_context, this);
     }
+}
+
+void YubiKeyDeviceManager::enumerateAndConnectDevicesAsync()
+{
+    qCDebug(YubiKeyDeviceManagerLog) << "=== enumerateAndConnectDevicesAsync() START ===";
+
+    if (!m_initialized) {
+        qCWarning(YubiKeyDeviceManagerLog) << "Cannot enumerate devices - manager not initialized";
+        return;
+    }
+
+    qCDebug(YubiKeyDeviceManagerLog) << "Checking for existing PC/SC readers";
+    DWORD readersLen = 0;
+    LONG startupResult = SCardListReaders(m_context, nullptr, nullptr, &readersLen);
+
+    if (startupResult == SCARD_S_SUCCESS && readersLen > 0) {
+        QByteArray readersBuffer(static_cast<qsizetype>(readersLen), '\0');
+        startupResult = SCardListReaders(m_context, nullptr, readersBuffer.data(), &readersLen);
+
+        if (startupResult == SCARD_S_SUCCESS) {
+            // Parse reader names (null-terminated strings)
+            const char* readerName = readersBuffer.constData();
+            QStringList readers;
+            while (*readerName) {
+                readers.append(QString::fromUtf8(readerName));
+                readerName += strlen(readerName) + 1;
+            }
+
+            qCDebug(YubiKeyDeviceManagerLog) << "Found" << readers.size() << "readers:" << readers;
+
+            // Connect to each reader asynchronously
+            for (const QString &reader : readers) {
+                qCDebug(YubiKeyDeviceManagerLog) << "Scheduling async connection to reader:" << reader;
+                connectToDeviceAsync(reader);
+            }
+        } else {
+            qCWarning(YubiKeyDeviceManagerLog) << "SCardListReaders failed:" << QString::number(startupResult, 16);
+        }
+    } else if (startupResult == SCARD_E_NO_READERS_AVAILABLE) {
+        qCDebug(YubiKeyDeviceManagerLog) << "No PC/SC readers available";
+    } else {
+        qCWarning(YubiKeyDeviceManagerLog) << "SCardListReaders failed:" << QString::number(startupResult, 16);
+    }
+
+    qCDebug(YubiKeyDeviceManagerLog) << "=== enumerateAndConnectDevicesAsync() END ===";
+}
+
+void YubiKeyDeviceManager::connectToDeviceAsync(const QString &readerName)
+{
+    qCDebug(YubiKeyDeviceManagerLog) << "connectToDeviceAsync() - scheduling async connection to" << readerName;
+
+    // Use PcscWorkerPool to execute connection asynchronously
+    // Note: We need to capture 'this' and 'readerName' for the operation
+    // The operation will run on a worker thread and emit signals back to main thread
+
+    using namespace YubiKeyOath::Shared;
+
+    // Submit to worker pool with Normal priority (startup initialization)
+    PcscWorkerPool::instance().submit(
+        readerName,  // Use reader name as device ID for rate limiting
+        [this, readerName]() {
+            // This lambda runs on worker thread - PC/SC operations safe here
+            qCDebug(YubiKeyDeviceManagerLog) << "[Worker] Connecting to device on reader:" << readerName;
+
+            // Emit state change: Connecting (on main thread)
+            QMetaObject::invokeMethod(this, [this, readerName]() {
+                // We don't have deviceId yet, so emit with reader name as placeholder
+                Q_EMIT deviceStateChanged(readerName, DeviceState::Connecting);
+            }, Qt::QueuedConnection);
+
+            // Call synchronous connectToDevice() on worker thread
+            const QString deviceId = connectToDevice(readerName);
+
+            // Emit result back to main thread
+            QMetaObject::invokeMethod(this, [this, deviceId, readerName]() {
+                if (!deviceId.isEmpty()) {
+                    qCDebug(YubiKeyDeviceManagerLog) << "Async connection succeeded for device" << deviceId;
+                    // deviceConnected signal already emitted by connectToDevice()
+                    // Emit Ready state
+                    Q_EMIT deviceStateChanged(deviceId, DeviceState::Ready);
+                } else {
+                    qCDebug(YubiKeyDeviceManagerLog) << "Async connection failed for reader" << readerName;
+                    // Emit Error state with reader name (no device ID available)
+                    Q_EMIT deviceStateChanged(readerName, DeviceState::Error);
+                }
+            }, Qt::QueuedConnection);
+        },
+        PcscOperationPriority::Normal
+    );
+
+    qCDebug(YubiKeyDeviceManagerLog) << "connectToDeviceAsync() - task queued for" << readerName;
 }
 
 } // namespace Daemon

@@ -13,6 +13,7 @@ add_library(yubikey_dbus_client STATIC
     ../types/device_model.cpp
     ../types/device_brand.cpp
     ../types/device_capabilities.cpp
+    ../types/device_state.cpp
     ../utils/version.cpp
     ../formatting/credential_formatter.cpp
 )

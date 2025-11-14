@@ -19,6 +19,7 @@
 
 // Local includes
 #include "types/oath_credential.h"
+#include "types/device_state.h"
 #include "oath_device.h"
 #include "../pcsc/card_reader_monitor.h"
 #include "common/result.h"
@@ -81,10 +82,24 @@ public:
 
     // Device lifecycle management
     /**
-     * @brief Initializes connection to YubiKey OATH application
+     * @brief Initializes PC/SC context (without starting monitoring)
      * @return Result indicating success or containing error message
+     *
+     * Creates PC/SC context but does NOT start reader monitoring.
+     * Call startMonitoring() after D-Bus interface is fully initialized.
      */
     Result<void> initialize();
+
+    /**
+     * @brief Starts PC/SC reader monitoring and device enumeration
+     *
+     * Should be called AFTER D-Bus interface is fully initialized with
+     * all database objects. Starts reader monitoring event loop and
+     * enumerates existing devices.
+     *
+     * NOTE: Must call initialize() first to create PC/SC context.
+     */
+    void startMonitoring();
 
     /**
      * @brief Cleans up resources and disconnects
@@ -105,7 +120,7 @@ public:
      * This is an aggregation method that collects credentials from all
      * connected devices. For device-specific operations, use getDevice(deviceId).
      */
-    QList<OathCredential> getCredentials();
+    virtual QList<OathCredential> getCredentials();
 
 
 
@@ -114,7 +129,7 @@ public:
      * @brief Gets list of all connected device IDs
      * @return List of device IDs for all currently connected YubiKeys
      */
-    QStringList getConnectedDeviceIds() const;
+    virtual QStringList getConnectedDeviceIds() const;
 
     /**
      * @brief Gets YubiKeyOathDevice instance for specific device
@@ -122,8 +137,9 @@ public:
      * @return Pointer to device instance or nullptr if not found/connected
      *
      * Use this method to access device-specific operations.
+     * Virtual to allow mocking in tests.
      */
-    OathDevice* getDevice(const QString &deviceId);
+    virtual OathDevice* getDevice(const QString &deviceId);
 
     /**
      * @brief Gets device by ID or first available device if ID is empty
@@ -136,8 +152,9 @@ public:
      * - If no devices connected: returns nullptr
      *
      * This eliminates the repetitive pattern found throughout the codebase.
+     * Virtual to allow mocking in tests.
      */
-    OathDevice* getDeviceOrFirst(const QString &deviceId);
+    virtual OathDevice* getDeviceOrFirst(const QString &deviceId);
 
     /**
      * @brief Removes device from memory (called when device is forgotten)
@@ -147,7 +164,7 @@ public:
      * forgetting it from the daemon's runtime state. Used when a device
      * is removed from configuration/database via ForgetDevice().
      */
-    void removeDeviceFromMemory(const QString &deviceId);
+    virtual void removeDeviceFromMemory(const QString &deviceId);
 
     /**
      * @brief Asynchronously reconnects to YubiKey after card reset
@@ -228,6 +245,20 @@ Q_SIGNALS:
      */
     void reconnectCompleted(const QString &deviceId, bool success);
 
+    /**
+     * @brief Emitted when device state changes
+     * @param deviceId Device ID whose state changed
+     * @param state New device state
+     *
+     * Emitted during async device initialization to track progress:
+     * - Disconnected → Connecting (SCardConnect started)
+     * - Connecting → Authenticating (PC/SC connected, loading password)
+     * - Authenticating → FetchingCredentials (starting credential fetch)
+     * - FetchingCredentials → Ready (initialization complete)
+     * - Any state → Error (on failure)
+     */
+    void deviceStateChanged(const QString &deviceId, Shared::DeviceState state);
+
 private Q_SLOTS:
     /**
      * @brief Handles reader list change (device added/removed)
@@ -264,9 +295,33 @@ private Q_SLOTS:
 private:
     // Core PC/SC operations
     /**
-     * @brief Connects to specific YubiKey device by reader name
+     * @brief Enumerates readers and connects to devices asynchronously
+     *
+     * Called from initialize() to avoid blocking daemon startup.
+     * Runs in worker pool to enumerate PC/SC readers and connect to each.
+     */
+    void enumerateAndConnectDevicesAsync();
+
+    /**
+     * @brief Asynchronously connects to specific YubiKey device by reader name
+     * @param readerName PC/SC reader name to connect to
+     *
+     * Submits device connection task to PcscWorkerPool with Normal priority.
+     * Emits deviceStateChanged() signals during progress:
+     * - Connecting (when PC/SC connection starts)
+     * - Ready (when device fully initialized)
+     * - Error (on failure)
+     *
+     * Emits deviceConnected(deviceId) on success.
+     */
+    void connectToDeviceAsync(const QString &readerName);
+
+    /**
+     * @brief Synchronous device connection (internal use only)
      * @param readerName PC/SC reader name to connect to
      * @return Device ID (hex string) on success, empty string on failure
+     *
+     * @deprecated Used internally by async wrapper. Will be refactored.
      *
      * Creates temporary OathSession to execute SELECT and get device ID.
      */
@@ -318,6 +373,7 @@ private:
     // Member variables
     CardReaderMonitor *m_readerMonitor;
     mutable QMutex m_devicesMutex;  ///< Protects m_devices map from concurrent access
+    QMap<QString, QString> m_readerToDeviceMap;  ///< Tracks which readers are in use (reader name → device ID) to prevent duplicate connections
 
     // Use std::unordered_map for unique_ptr support (Qt containers don't support move-only types)
     struct QStringHash {

@@ -11,6 +11,7 @@
 #include "types/oath_credential.h"
 #include "types/oath_credential_data.h"
 #include "types/yubikey_value_types.h"
+#include "../../shared/config/configuration_provider.h"
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -18,7 +19,6 @@ namespace Daemon {
 // Forward declarations
 class YubiKeyDeviceManager;
 class YubiKeyDatabase;
-class DaemonConfiguration;
 class OathDevice;
 class DBusNotificationManager;
 
@@ -47,7 +47,7 @@ public:
      */
     explicit CredentialService(YubiKeyDeviceManager *deviceManager,
                               YubiKeyDatabase *database,
-                              DaemonConfiguration *config,
+                              Shared::ConfigurationProvider *config,
                               QObject *parent = nullptr);
 
     ~CredentialService() override;
@@ -113,12 +113,105 @@ public:
      */
     bool deleteCredential(const QString &deviceId, const QString &credentialName);
 
+    // === ASYNC API (for new D-Bus interface in Phase 4) ===
+
+    /**
+     * @brief Generates TOTP/HOTP code asynchronously
+     * @param deviceId Device ID
+     * @param credentialName Full credential name
+     *
+     * Returns immediately. Result emitted via codeGenerated signal.
+     * Non-blocking - uses worker pool for PC/SC operations.
+     */
+    void generateCodeAsync(const QString &deviceId, const QString &credentialName);
+
+    /**
+     * @brief Deletes credential asynchronously
+     * @param deviceId Device ID
+     * @param credentialName Full credential name
+     *
+     * Returns immediately. Result emitted via credentialDeleted signal.
+     * Non-blocking - uses worker pool for PC/SC operations.
+     */
+    void deleteCredentialAsync(const QString &deviceId, const QString &credentialName);
+
+    /**
+     * @brief Copies code to clipboard asynchronously
+     * @param deviceId Device ID
+     * @param credentialName Full credential name
+     *
+     * Returns immediately. Result emitted via clipboardCopied signal.
+     * Generates code, then copies to clipboard.
+     */
+    void copyCodeToClipboardAsync(const QString &deviceId, const QString &credentialName);
+
+    /**
+     * @brief Types code via input system asynchronously
+     * @param deviceId Device ID
+     * @param credentialName Full credential name
+     * @param fallbackToCopy If true, copies to clipboard if typing fails
+     *
+     * Returns immediately. Result emitted via codeTyped signal.
+     * Generates code, then types it.
+     */
+    void typeCodeAsync(const QString &deviceId, const QString &credentialName, bool fallbackToCopy);
+
 Q_SIGNALS:
     /**
      * @brief Emitted when credentials are updated for a device
      * @param deviceId Device ID
      */
     void credentialsUpdated(const QString &deviceId);
+
+    /**
+     * @brief Emitted when async code generation completes
+     * @param deviceId Device ID
+     * @param credentialName Credential name
+     * @param code Generated code (empty if error)
+     * @param validUntil Unix timestamp when code expires (0 if error)
+     * @param error Error message (empty if success)
+     */
+    void codeGenerated(const QString &deviceId,
+                      const QString &credentialName,
+                      const QString &code,
+                      qint64 validUntil,
+                      const QString &error);
+
+    /**
+     * @brief Emitted when async credential deletion completes
+     * @param deviceId Device ID
+     * @param credentialName Credential name
+     * @param success true if deleted successfully
+     * @param error Error message (empty if success)
+     */
+    void credentialDeleted(const QString &deviceId,
+                          const QString &credentialName,
+                          bool success,
+                          const QString &error);
+
+    /**
+     * @brief Emitted when async clipboard copy completes
+     * @param deviceId Device ID
+     * @param credentialName Credential name
+     * @param success true if copied successfully
+     * @param error Error message (empty if success)
+     */
+    void clipboardCopied(const QString &deviceId,
+                        const QString &credentialName,
+                        bool success,
+                        const QString &error);
+
+    /**
+     * @brief Emitted when async code typing completes
+     * @param deviceId Device ID
+     * @param credentialName Credential name
+     * @param success true if typed successfully
+     * @param error Error message (empty if success)
+     */
+    void codeTyped(const QString &deviceId,
+                  const QString &credentialName,
+                  bool success,
+                  const QString &error);
 
 private:
     /**
@@ -163,7 +256,7 @@ private:
 
     YubiKeyDeviceManager *m_deviceManager;  // Not owned
     YubiKeyDatabase *m_database;            // Not owned
-    DaemonConfiguration *m_config;          // Not owned
+    Shared::ConfigurationProvider *m_config;          // Not owned
     std::unique_ptr<DBusNotificationManager> m_notificationManager;  // Owned
 
     // Active add credential dialogs (kept alive until user closes or save completes)

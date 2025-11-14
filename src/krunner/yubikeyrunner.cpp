@@ -185,12 +185,30 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
         }
     }
 
-    // Get all devices to check their password status
+    // Get all devices to check their password status and state
     const QList<OathDeviceProxy*> devices = m_manager->devices();
     qCDebug(YubiKeyRunnerLog) << "Found" << devices.size() << "known devices";
 
+    int readyDevices = 0;
+    int initializingDevices = 0;
+
     // For each CONNECTED device that needs password, show password error match
+    // Skip devices that are still initializing
     for (const auto *device : devices) {
+        const DeviceState state = device->state();
+
+        // Count devices by state
+        if (isDeviceStateTransitional(state)) {
+            initializingDevices++;
+            qCDebug(YubiKeyRunnerLog) << "Device" << device->name()
+                                      << "is initializing (state:" << deviceStateToString(state) << ")";
+            continue; // Skip non-ready devices
+        }
+
+        if (state == DeviceState::Ready) {
+            readyDevices++;
+        }
+
         if (device->isConnected() &&
             device->requiresPassword() &&
             !device->hasValidPassword()) {
@@ -201,6 +219,12 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
             context.addMatch(match);
             // DON'T return - continue to show credentials from other devices!
         }
+    }
+
+    // If all devices are still initializing, wait for them to become ready
+    if (readyDevices == 0 && initializingDevices > 0) {
+        qCDebug(YubiKeyRunnerLog) << initializingDevices << "device(s) still initializing - no credentials available yet";
+        return;
     }
 
     // Get credentials from ALL devices (manager aggregates them)
@@ -400,61 +424,43 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         return;
     } else if (actionId == QStringLiteral("type")) {
         // Type action must execute AFTER KRunner closes completely
-        // Use async execution with QEventLoop to avoid blocking run() return
-        qCDebug(YubiKeyRunnerLog) << "Scheduling asynchronous type action for KRunner to close";
+        // Use QTimer to delay execution until window closes
+        qCDebug(YubiKeyRunnerLog) << "Scheduling type action (async) for KRunner to close";
 
-        // Capture data needed for async execution (avoid dangling pointers)
-        // Note: Lambda capture by const reference is safe here since strings will be copied by lambda
-        const QString &capturedCredName = credentialName;
-        const QString &capturedDeviceId = deviceId;
-
-        // Schedule async execution: processEvents() allows KRunner to close, then 500ms delay for safety
-        QTimer::singleShot(0, this, [this, capturedCredName, capturedDeviceId]() {
-            qCDebug(YubiKeyRunnerLog) << "Starting async type action execution for:" << capturedCredName;
-
-            // First, let KRunner close (processEvents ensures UI updates)
-            QCoreApplication::processEvents();
-
-            // Then wait 500ms for window to fully hide using QEventLoop
-            QEventLoop loop;
-            QTimer::singleShot(500, &loop, &QEventLoop::quit);
-            loop.exec();
-
-            qCDebug(YubiKeyRunnerLog) << "Executing type action after KRunner close:" << capturedCredName;
+        // Schedule execution: wait for KRunner to close (500ms delay)
+        // Capture by value (QString is copy-on-write, safe for async execution)
+        QTimer::singleShot(500, this, [this, credentialName, deviceId]() {
+            qCDebug(YubiKeyRunnerLog) << "Executing type action (async) after KRunner close:" << credentialName;
 
             // Re-find credential (proxy might have changed during delay)
             OathCredentialProxy *cred = nullptr;
             for (auto *c : m_manager->getAllCredentials()) {
-                if (c->fullName() == capturedCredName && c->deviceId() == capturedDeviceId) {
+                if (c->fullName() == credentialName && c->deviceId() == deviceId) {
                     cred = c;
                     break;
                 }
             }
 
             if (!cred) {
-                qCWarning(YubiKeyRunnerLog) << "Credential not found after delay:" << capturedCredName;
+                qCWarning(YubiKeyRunnerLog) << "Credential not found after delay:" << credentialName;
                 return;
             }
 
-            const bool success = cred->typeCode(true);  // fallback to clipboard if typing fails
-            if (!success) {
-                qCWarning(YubiKeyRunnerLog) << "Type action failed:" << capturedCredName;
-            } else {
-                qCDebug(YubiKeyRunnerLog) << "Type action completed successfully:" << capturedCredName;
-            }
+            // Fire-and-forget async call with fallback to clipboard
+            cred->typeCode(true);
+            // Result will be delivered via CodeTyped signal
+            // TouchWorkflowCoordinator will show notifications if needed
+            qCDebug(YubiKeyRunnerLog) << "Type action requested (async)";
         });
 
         // Return immediately - action will execute asynchronously
         return;
-    } else {  // copy - no delay needed (clipboard doesn't require closed window)
-        qCDebug(YubiKeyRunnerLog) << "Executing copy action immediately via credential proxy";
-        const bool success = credential->copyToClipboard();
-
-        if (!success) {
-            qCWarning(YubiKeyRunnerLog) << "Copy action failed:" << actionId;
-        } else {
-            qCDebug(YubiKeyRunnerLog) << "Copy action completed successfully:" << actionId;
-        }
+    } else {  // copy - fire-and-forget async call
+        qCDebug(YubiKeyRunnerLog) << "Executing copy action (async) via credential proxy";
+        credential->copyToClipboard();
+        // Result will be delivered via ClipboardCopied signal
+        // TouchWorkflowCoordinator will show notifications if needed
+        qCDebug(YubiKeyRunnerLog) << "Copy action requested (async)";
     }
 }
 
@@ -505,7 +511,14 @@ void YubiKeyRunner::onDeviceConnected(OathDeviceProxy *device)
 {
     if (device) {
         qCDebug(YubiKeyRunnerLog) << "Device connected:" << device->name()
-                                  << "serial:" << device->serialNumber();
+                                  << "serial:" << device->serialNumber()
+                                  << "state:" << deviceStateToString(device->state());
+
+        // Connect to state change signals for logging/debugging
+        connect(device, &OathDeviceProxy::stateChanged, this, [device](DeviceState newState) {
+            qCDebug(YubiKeyRunnerLog) << "Device" << device->name()
+                                      << "state changed to:" << deviceStateToString(newState);
+        });
     }
 }
 

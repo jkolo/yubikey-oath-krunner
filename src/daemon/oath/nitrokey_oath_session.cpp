@@ -212,30 +212,10 @@ Result<QList<OathCredential>> NitrokeyOathSession::calculateAll()
 
             qCInfo(YubiKeyOathDeviceLog) << "Listed" << stdCredentials.size() << "credentials via standard LIST (no touch flags)";
 
-            // Calculate codes for all credentials
-            QList<OathCredential> credentialsWithCodes;
-            for (const auto& cred : stdCredentials) {
-                const int period = cred.period > 0 ? cred.period : 30;
-
-                auto codeResult = calculateCode(cred.originalName, period);
-                if (codeResult.isSuccess()) {
-                    OathCredential credWithCode = cred;
-                    credWithCode.code = codeResult.value();
-                    credWithCode.validUntil = QDateTime::currentSecsSinceEpoch() + period;
-                    credentialsWithCodes.append(credWithCode);
-                } else if (codeResult.error().contains(QStringLiteral("Touch required"))) {
-                    // Mark as touch-required based on CALCULATE error
-                    OathCredential credWithTouch = cred;
-                    credWithTouch.requiresTouch = true;
-                    credentialsWithCodes.append(credWithTouch);
-                    qCDebug(YubiKeyOathDeviceLog) << "Credential requires touch:" << cred.originalName;
-                } else {
-                    qCWarning(YubiKeyOathDeviceLog) << "Failed to calculate code for" << cred.originalName
-                                                     << ":" << codeResult.error();
-                }
-            }
-
-            return Result<QList<OathCredential>>::success(credentialsWithCodes);
+            // Standard LIST doesn't provide touch flags - return credentials without codes
+            // If a credential requires touch, error will be detected on-demand via generateCode()
+            // This prevents blocking on touch-required credentials during initialization
+            return Result<QList<OathCredential>>::success(stdCredentials);
         }
 
         // Check for success
@@ -262,36 +242,12 @@ Result<QList<OathCredential>> NitrokeyOathSession::calculateAll()
                                            << "period=" << cred.period;
         }
 
-        // Calculate code for each credential individually
-        QList<OathCredential> credentialsWithCodes;
-        for (const auto& cred : credentials) {
-            // Skip credentials that don't have a period (HOTP or invalid)
-            const int period = cred.period > 0 ? cred.period : 30;
-
-            auto codeResult = calculateCode(cred.originalName, period);
-            if (codeResult.isSuccess()) {
-                OathCredential credWithCode = cred;
-                credWithCode.code = codeResult.value();
-                credWithCode.validUntil = QDateTime::currentSecsSinceEpoch() + period;
-                credentialsWithCodes.append(credWithCode);
-            } else if (codeResult.error().contains(QStringLiteral("Touch required"))) {
-                // Add credential without code (touch required)
-                OathCredential credWithTouch = cred;
-                credWithTouch.requiresTouch = true;
-                credWithTouch.code.clear();
-                credWithTouch.validUntil = 0;
-                credentialsWithCodes.append(credWithTouch);
-                qCDebug(YubiKeyOathDeviceLog) << "Added touch-required credential:" << cred.originalName;
-            } else {
-                // Skip credentials with other errors (auth required, etc.)
-                qCWarning(YubiKeyOathDeviceLog) << "Skipping credential" << cred.originalName
-                                                 << "- calculate failed:" << codeResult.error();
-            }
-        }
-
-        qCInfo(YubiKeyOathDeviceLog) << "Calculated codes for" << credentialsWithCodes.size()
-                                     << "credentials (out of" << credentials.size() << "total)";
-        return Result<QList<OathCredential>>::success(credentialsWithCodes);
+        // Nitrokey LIST v1 already provides all metadata including requiresTouch flag
+        // No need to calculate codes here - codes will be generated on-demand via generateCode()
+        // This prevents blocking on touch-required credentials during initialization
+        qCInfo(YubiKeyOathDeviceLog) << "LIST v1 returned" << credentials.size()
+                                     << "credentials with metadata (codes generated on-demand)";
+        return Result<QList<OathCredential>>::success(credentials);
     }
 
     // Should never reach here

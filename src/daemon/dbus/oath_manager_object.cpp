@@ -8,6 +8,7 @@
 #include "services/yubikey_service.h"
 #include "logging_categories.h"
 #include "manageradaptor.h"  // Auto-generated D-Bus adaptor
+#include "version.h"          // Generated version header
 
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -18,7 +19,6 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 static constexpr const char *MANAGER_PATH = "/pl/jkolo/yubikey/oath";
-static constexpr const char *DAEMON_VERSION = "1.0"; // Initial release version
 
 OathManagerObject::OathManagerObject(YubiKeyService *service,
                                            QDBusConnection connection,
@@ -173,14 +173,16 @@ OathDeviceObject* OathManagerObject::addDeviceWithStatus(const QString &deviceId
 
     // Check if already exists (might be disconnected)
     if (m_devices.contains(deviceId)) {
-        qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: Device already exists, updating connection status:" << deviceId;
+        qCDebug(YubiKeyDaemonLog) << "YubiKeyManagerObject: Device already exists, reconnecting:" << deviceId;
         OathDeviceObject *deviceObj = m_devices.value(deviceId);
-        const bool wasConnected = deviceObj->isConnected();
-        deviceObj->setConnected(isConnected);
+        const bool wasConnected = (deviceObj->state() != static_cast<quint8>(Shared::DeviceState::Disconnected));
 
         // Update credentials if device is being reconnected
         if (isConnected) {
-            deviceObj->updateCredentials();
+            // Connect to device and update state
+            // NOTE: Do NOT call updateCredentials() here - it will be called automatically
+            // when device initialization completes and credentialsUpdated signal is emitted
+            deviceObj->connectToDevice();
 
             // If device was disconnected and is now reconnecting, emit InterfacesAdded
             // so that clients (YubiKeyManagerProxy) can discover it again
@@ -233,7 +235,7 @@ OathDeviceObject* OathManagerObject::addDeviceWithStatus(const QString &deviceId
     }
 
     const QString path = devicePath(deviceId, serialNumber);
-    auto *deviceObj = new OathDeviceObject(deviceId, path, m_service, m_connection, isConnected, this);
+    auto *deviceObj = new OathDeviceObject(deviceId, path, m_service, m_connection, this);
 
     if (!deviceObj->registerObject()) {
         qCCritical(YubiKeyDaemonLog) << "YubiKeyManagerObject: Failed to register device object"
@@ -243,6 +245,11 @@ OathDeviceObject* OathManagerObject::addDeviceWithStatus(const QString &deviceId
     }
 
     m_devices.insert(deviceId, deviceObj);
+
+    // If device is connected, connect to it and update state
+    if (isConnected) {
+        deviceObj->connectToDevice();
+    }
 
     // Emit ObjectManager signal: InterfacesAdded
     const QDBusObjectPath dbusPath(path);
@@ -255,8 +262,23 @@ OathDeviceObject* OathManagerObject::addDeviceWithStatus(const QString &deviceId
     }
     Q_EMIT InterfacesAdded(dbusPath, interfacesAndProperties);
 
+    // Also emit InterfacesAdded for all credential objects
+    const QVariantMap credentialObjects = deviceObj->getManagedCredentialObjects();
+    for (auto credIt = credentialObjects.constBegin();
+         credIt != credentialObjects.constEnd(); ++credIt) {
+        const QDBusObjectPath credDbusPath(credIt.key());
+        const QVariantMap credData = credIt.value().toMap();
+
+        // Convert QVariantMap to InterfacePropertiesMap for D-Bus signal
+        InterfacePropertiesMap credInterfacesAndProperties;
+        for (auto it = credData.constBegin(); it != credData.constEnd(); ++it) {
+            credInterfacesAndProperties.insert(it.key(), it.value().toMap());
+        }
+        Q_EMIT InterfacesAdded(credDbusPath, credInterfacesAndProperties);
+    }
+
     qCInfo(YubiKeyDaemonLog) << "YubiKeyManagerObject: Device added successfully:" << deviceId
-                             << "at" << path;
+                             << "at" << path << "with" << credentialObjects.size() << "credentials";
 
     return deviceObj;
 }
@@ -271,8 +293,8 @@ void OathManagerObject::onDeviceDisconnected(const QString &deviceId)
         return;
     }
 
-    // Update connection status (keeps object on D-Bus)
-    deviceObj->setConnected(false);
+    // Update state to disconnected
+    deviceObj->setState(static_cast<quint8>(Shared::DeviceState::Disconnected), QString());
 
     // Clear credentials for disconnected device
     // updateCredentials() will fetch credentials from service, which returns empty list for disconnected devices

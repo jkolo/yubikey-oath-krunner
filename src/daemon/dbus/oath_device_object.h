@@ -43,7 +43,8 @@ class OathDeviceObject : public QObject
 
     // Properties exposed via D-Bus Properties interface
     Q_PROPERTY(QString Name READ name WRITE setName NOTIFY nameChanged)
-    Q_PROPERTY(bool IsConnected READ isConnected NOTIFY isConnectedChanged)
+    Q_PROPERTY(quint8 State READ state NOTIFY stateChanged)
+    Q_PROPERTY(QString StateMessage READ stateMessage NOTIFY stateMessageChanged)
     Q_PROPERTY(bool RequiresPassword READ requiresPassword NOTIFY requiresPasswordChanged)
     Q_PROPERTY(bool HasValidPassword READ hasValidPassword NOTIFY hasValidPasswordChanged)
     Q_PROPERTY(QString FirmwareVersion READ firmwareVersionString CONSTANT)
@@ -63,14 +64,12 @@ public:
      * @param objectPath D-Bus object path (e.g., /pl/jkolo/yubikey/oath/devices/20252879)
      * @param service Pointer to YubiKeyService
      * @param connection D-Bus connection
-     * @param isConnected Initial connection status
      * @param parent Parent QObject
      */
     explicit OathDeviceObject(QString deviceId,
                                QString objectPath,
                                YubiKeyService *service,
                                QDBusConnection connection,
-                               bool isConnected,
                                QObject *parent = nullptr);
     ~OathDeviceObject() override;
 
@@ -93,7 +92,8 @@ public:
 
     // Property getters
     QString name() const;
-    bool isConnected() const;
+    quint8 state() const;
+    QString stateMessage() const;
     bool requiresPassword() const;
     bool hasValidPassword() const;
     QString firmwareVersionString() const;
@@ -112,7 +112,7 @@ public:
 
     // Property setters
     void setName(const QString &name);
-    void setConnected(bool connected);
+    void setState(quint8 state, const QString &message = QString());
 
 public Q_SLOTS:
     /**
@@ -163,7 +163,8 @@ public Q_SLOTS:
 Q_SIGNALS:
     // Property change signals
     void nameChanged(const QString &name);
-    void isConnectedChanged(bool connected);
+    void stateChanged(quint8 newState);
+    void stateMessageChanged(const QString &message);
     void requiresPasswordChanged(bool required);
     void hasValidPasswordChanged(bool hasValid);
 
@@ -210,6 +211,14 @@ public:
      * NOTE: Does NOT update cached properties (removed for minimalist architecture).
      */
     void updateCredentials();
+
+    /**
+     * @brief Connects to device and updates state
+     *
+     * Called when device becomes available (after connectToDeviceAsync completes).
+     * Connects to device state signals and updates current state.
+     */
+    void connectToDevice();
 
     /**
      * @brief Gets ObjectManager data for this device
@@ -260,7 +269,8 @@ private:
 
     // Cached properties
     QString m_name;
-    bool m_isConnected;
+    quint8 m_state{0x00};  // DeviceState::Disconnected
+    QString m_stateMessage;
     bool m_requiresPassword;
     bool m_hasValidPassword;
     Shared::Version m_firmwareVersion;

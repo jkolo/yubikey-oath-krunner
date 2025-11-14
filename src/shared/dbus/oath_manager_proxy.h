@@ -9,7 +9,9 @@
 #include <QObject>
 #include <QString>
 #include <QHash>
+#include <QMap>
 #include "oath_device_proxy.h"
+#include "types/device_state.h"
 
 // Forward declarations
 class QDBusInterface;

@@ -84,14 +84,25 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(OathCredentialProxy *cred
 
     // Generate code if requested and credential doesn't require touch
     if (showCode && !credentialProxy->requiresTouch()) {
-        qCDebug(MatchBuilderLog) << "Generating code for non-touch credential:" << credentialProxy->fullName()
+        qCDebug(MatchBuilderLog) << "Checking code cache for credential:" << credentialProxy->fullName()
                  << "on device:" << credentialProxy->deviceId();
-        const GenerateCodeResult codeResult = credentialProxy->generateCode();
-        if (!codeResult.code.isEmpty()) {
-            code = codeResult.code;
-            qCDebug(MatchBuilderLog) << "Generated code:" << code;
+
+        // Check if cached code is valid
+        if (credentialProxy->isCacheValid()) {
+            // Use cached code (eliminates D-Bus call)
+            const GenerateCodeResult cached = credentialProxy->getCachedCode();
+            code = cached.code;
+            qCDebug(MatchBuilderLog) << "Using cached code:" << code
+                     << "Valid until:" << cached.validUntil;
         } else {
-            qCDebug(MatchBuilderLog) << "Failed to generate code";
+            // Cache miss or expired - trigger async generation for next query
+            qCDebug(MatchBuilderLog) << "Cache invalid, requesting async code generation";
+            credentialProxy->generateCode();  // Fire-and-forget async call
+            // Result will arrive via signal, and cache will be updated for next query
+
+            // Show placeholder in this query (KRunner doesn't support dynamic updates)
+            code = QStringLiteral("⏳");  // Generating placeholder
+            qCDebug(MatchBuilderLog) << "Showing placeholder while code generates";
         }
     }
 

@@ -29,6 +29,26 @@ namespace YubiKeyOath {
 namespace Daemon {
 using namespace YubiKeyOath::Shared;
 
+namespace {
+// Helper function to convert string action type to OperationType enum
+TouchWorkflowCoordinator::OperationType stringToOperationType(const QString &actionType)
+{
+    if (actionType == QStringLiteral("generate")) {
+        return TouchWorkflowCoordinator::OperationType::Generate;
+    } else if (actionType == QStringLiteral("copy")) {
+        return TouchWorkflowCoordinator::OperationType::Copy;
+    } else if (actionType == QStringLiteral("type")) {
+        return TouchWorkflowCoordinator::OperationType::Type;
+    } else if (actionType == QStringLiteral("delete")) {
+        return TouchWorkflowCoordinator::OperationType::Delete;
+    } else {
+        // Default to Generate for unknown action types
+        qCWarning(YubiKeyActionCoordinatorLog) << "Unknown action type:" << actionType << "- defaulting to Generate";
+        return TouchWorkflowCoordinator::OperationType::Generate;
+    }
+}
+} // anonymous namespace
+
 YubiKeyActionCoordinator::YubiKeyActionCoordinator(YubiKeyService *service,
                                          YubiKeyDeviceManager *deviceManager,
                                          YubiKeyDatabase *database,
@@ -222,7 +242,8 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
     if (requiresTouch) {
         qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Touch required, starting async touch workflow";
         const Shared::DeviceModel deviceModel = device->deviceModel();
-        m_touchWorkflowCoordinator->startTouchWorkflow(credentialName, actionType, actualDeviceId, deviceModel);
+        const TouchWorkflowCoordinator::OperationType opType = stringToOperationType(actionType);
+        m_touchWorkflowCoordinator->startTouchWorkflow(credentialName, opType, actualDeviceId, deviceModel);
         return true; // Workflow started successfully
     }
 

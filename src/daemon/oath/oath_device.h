@@ -12,6 +12,7 @@
 #include <memory>
 #include "types/oath_credential.h"
 #include "types/oath_credential_data.h"
+#include "types/device_state.h"
 #include "common/result.h"
 #include "shared/types/device_model.h"
 #include "shared/utils/version.h"
@@ -61,6 +62,36 @@ public:
     virtual QList<OathCredential> credentials() const = 0;
     virtual bool isUpdateInProgress() const = 0;
 
+    // State management
+    /**
+     * @brief Gets current device state
+     * @return Current state (Disconnected, Connecting, Authenticating, etc.)
+     */
+    Shared::DeviceState state() const;
+
+    /**
+     * @brief Gets last error message (only valid when state == Error)
+     * @return Error description or empty string if no error
+     */
+    QString lastError() const;
+
+    /**
+     * @brief Sets device state and emits stateChanged signal
+     * @param state New state to set
+     *
+     * Thread-safe setter that emits stateChanged() signal.
+     * Can be called by services to update device state during initialization.
+     */
+    void setState(Shared::DeviceState state);
+
+    /**
+     * @brief Sets device state to Error with error message
+     * @param error Error description
+     *
+     * Convenience method for error states. Emits stateChanged(Error).
+     */
+    void setErrorState(const QString &error);
+
     // OATH operations (implemented in base class using polymorphic m_session)
     virtual Result<QString> generateCode(const QString &name);
     virtual Result<void> authenticateWithPassword(const QString &password);
@@ -81,6 +112,16 @@ Q_SIGNALS:
     void credentialsChanged();
     void credentialCacheFetched(const QList<OathCredential> &credentials);
     void needsReconnect(const QString &deviceId, const QString &readerName, const QByteArray &command);
+
+    /**
+     * @brief Emitted when device state changes
+     * @param newState New device state
+     *
+     * Allows tracking async initialization progress:
+     * - Connecting → Authenticating → FetchingCredentials → Ready
+     * - Any state → Error on failure
+     */
+    void stateChanged(Shared::DeviceState newState);
 
 protected Q_SLOTS:
     /**
@@ -118,6 +159,11 @@ protected:
     // Credential cache
     QList<OathCredential> m_credentials;
     bool m_updateInProgress{false};
+
+    // Device state machine
+    Shared::DeviceState m_state{Shared::DeviceState::Disconnected};
+    QString m_lastError;
+    mutable QMutex m_stateMutex;  // Protects m_state and m_lastError
 
     // Thread safety
     QMutex m_cardMutex;

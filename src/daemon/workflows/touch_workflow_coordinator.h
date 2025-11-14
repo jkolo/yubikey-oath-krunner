@@ -34,12 +34,13 @@ class NotificationOrchestrator;
  * - Handle touch timeout and cancellation
  *
  * @par Workflow Sequence
- * 1. Show touch notification via NotificationOrchestrator
- * 2. Start async code generation via ICredentialProvider
- * 3. Wait for codeGenerated signal (user touched YubiKey)
- * 4. Close touch notification
- * 5. Execute action (copy/type) via ActionExecutor
- * 6. Show code notification (for copy action only)
+ * 1. Emit touchRequired signal (client can show custom notification)
+ * 2. Show touch notification via NotificationOrchestrator
+ * 3. Start async operation (generate/copy/type/delete)
+ * 4. Wait for operation completion (user touched device or timeout)
+ * 5. Emit touchCompleted signal
+ * 6. Close touch notification
+ * 7. Execute action and show result notification (if applicable)
  *
  * @par Timeout Handling
  * - TouchHandler monitors timeout via QTimer
@@ -55,12 +56,12 @@ class NotificationOrchestrator;
  *     credProvider, touchHandler, actionExecutor, notifOrchestrator, config);
  *
  * // Start workflow for copy action
- * coordinator->startTouchWorkflow("Google:user@example.com", "copy", "ABC123");
- * // Shows touch notification, waits for touch, then copies code
+ * coordinator->startTouchWorkflow("Google:user@example.com", OperationType::Copy, "ABC123", deviceModel);
+ * // Emits touchRequired, shows touch notification, waits for touch, then copies code
  *
- * // Start workflow for type action
- * coordinator->startTouchWorkflow("Google:user@example.com", "type", "ABC123");
- * // Shows touch notification, waits for touch, then types code
+ * // Start workflow for generate action
+ * coordinator->startTouchWorkflow("Google:user@example.com", OperationType::Generate, "ABC123", deviceModel);
+ * // Emits touchRequired, shows touch notification, waits for touch, then generates code
  * @endcode
  */
 class TouchWorkflowCoordinator : public QObject
@@ -68,6 +69,15 @@ class TouchWorkflowCoordinator : public QObject
     Q_OBJECT
 
 public:
+    /**
+     * @brief Type of operation to perform after touch
+     */
+    enum class OperationType {
+        Generate,  ///< Generate TOTP/HOTP code
+        Copy,      ///< Copy code to clipboard
+        Type,      ///< Type code via input system
+        Delete     ///< Delete credential
+    };
     /**
      * @brief Constructs touch workflow coordinator
      *
@@ -94,13 +104,14 @@ public:
      * @brief Starts touch workflow for a credential requiring touch
      *
      * Initiates complete workflow:
-     * 1. Displays touch notification with countdown
-     * 2. Starts async code generation (blocks waiting for touch on YubiKey)
-     * 3. On success: executes action and shows result
-     * 4. On timeout/cancel: cleans up and notifies user
+     * 1. Emits touchRequired signal (client can show custom notification)
+     * 2. Displays touch notification with countdown
+     * 3. Starts async operation (generate/copy/type/delete)
+     * 4. On success: executes action, emits touchCompleted(true), shows result
+     * 5. On timeout/cancel: emits touchCompleted(false), cleans up and notifies user
      *
      * @param credentialName Full credential name (e.g., "Google:user@example.com")
-     * @param actionId Action to execute after touch: "copy" or "type"
+     * @param operationType Type of operation to perform: Generate, Copy, Type, or Delete
      * @param deviceId Device ID for multi-device support. If empty, uses default device.
      * @param deviceModel Device model for brand-specific notification icon
      *
@@ -110,7 +121,25 @@ public:
      * @par Thread Safety
      * Must be called from main/UI thread.
      */
-    void startTouchWorkflow(const QString &credentialName, const QString &actionId, const QString &deviceId, const Shared::DeviceModel& deviceModel);
+    void startTouchWorkflow(const QString &credentialName, OperationType operationType, const QString &deviceId, const Shared::DeviceModel& deviceModel);
+
+Q_SIGNALS:
+    /**
+     * @brief Emitted when user needs to touch the device
+     *
+     * Client can show custom notification or rely on daemon's notification.
+     *
+     * @param timeoutSeconds Number of seconds before timeout
+     * @param deviceModel Device model string for icon/description (e.g., "YubiKey 5C NFC")
+     */
+    void touchRequired(int timeoutSeconds, const QString &deviceModel);
+
+    /**
+     * @brief Emitted when touch workflow completes
+     *
+     * @param success true if touch detected and operation continuing, false if cancelled/timeout
+     */
+    void touchCompleted(bool success);
 
 private Q_SLOTS:
     void onCodeGenerated(const QString &credentialName, const QString &code);
@@ -145,7 +174,7 @@ private:
     NotificationOrchestrator *m_notificationOrchestrator;
     const ConfigurationProvider *m_config;
 
-    QString m_pendingActionId; // Action to execute after touch
+    OperationType m_pendingOperationType; // Operation type to execute after touch
     QString m_pendingDeviceId; // Device ID for pending touch operation
     Shared::DeviceModel m_pendingDeviceModel; // Device model for notifications
 };

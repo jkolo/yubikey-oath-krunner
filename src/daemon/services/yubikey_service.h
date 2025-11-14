@@ -98,6 +98,20 @@ public:
     OathDevice* getDevice(const QString &deviceId);
 
     /**
+     * @brief Gets device manager instance
+     * @return Pointer to YubiKeyDeviceManager (not owned)
+     *
+     * Used to access device manager for starting monitoring after D-Bus initialization.
+     */
+    YubiKeyDeviceManager* getDeviceManager() const { return m_deviceManager.get(); }
+
+    /**
+     * @brief Gets credential service for async operations
+     * @return Pointer to CredentialService (not owned)
+     */
+    CredentialService* getCredentialService() const;
+
+    /**
      * @brief Gets IDs of all currently connected devices
      * @return List of connected device IDs
      */

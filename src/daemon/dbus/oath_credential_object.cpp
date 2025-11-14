@@ -5,6 +5,7 @@
 
 #include "oath_credential_object.h"
 #include "services/yubikey_service.h"
+#include "services/credential_service.h"
 #include "logging_categories.h"
 #include "credentialadaptor.h"  // Auto-generated D-Bus adaptor
 
@@ -162,51 +163,93 @@ QString OathCredentialObject::deviceId() const
     return m_deviceId;
 }
 
-Shared::GenerateCodeResult OathCredentialObject::GenerateCode()
+// === ASYNC API IMPLEMENTATION ===
+
+void OathCredentialObject::GenerateCode()
 {
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: GenerateCode for credential:"
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: GenerateCode (async) for credential:"
                               << m_credential.originalName << "on device:" << m_deviceId;
 
-    return m_service->generateCode(m_deviceId, m_credential.originalName);
+    // Connect to service signal for this specific operation (one-shot connection)
+    auto *connection = new QMetaObject::Connection();
+    *connection = connect(m_service->getCredentialService(), &CredentialService::codeGenerated,
+            this, [this, connection](const QString &deviceId, const QString &credentialName,
+                                     const QString &code, qint64 validUntil, const QString &error) {
+        if (deviceId == m_deviceId && credentialName == m_credential.originalName) {
+            qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Code generated async for:"
+                                      << m_credential.originalName;
+
+            // Emit D-Bus signal
+            Q_EMIT CodeGenerated(code, validUntil, error);
+
+            // Disconnect one-shot signal
+            disconnect(*connection);
+            delete connection;
+        }
+    });
+
+    // Trigger async code generation
+    m_service->getCredentialService()->generateCodeAsync(m_deviceId, m_credential.originalName);
 }
 
-bool OathCredentialObject::CopyToClipboard()
+void OathCredentialObject::CopyToClipboard()
 {
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: CopyToClipboard for credential:"
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: CopyToClipboard (async) for credential:"
                               << m_credential.originalName << "on device:" << m_deviceId;
 
-    return m_service->copyCodeToClipboard(m_deviceId, m_credential.originalName);
+    // For now, use sync implementation - will be migrated to async in service layer
+    // TODO: Implement full async workflow with clipboard signals
+    const bool success = m_service->copyCodeToClipboard(m_deviceId, m_credential.originalName);
+
+    // Emit result immediately
+    Q_EMIT ClipboardCopied(success, success ? QString() : QStringLiteral("Failed to copy to clipboard"));
 }
 
-bool OathCredentialObject::TypeCode(bool fallbackToCopy)
+void OathCredentialObject::TypeCode(bool fallbackToCopy)
 {
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: TypeCode for credential:"
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: TypeCode (async) for credential:"
                               << m_credential.originalName << "on device:" << m_deviceId
                               << "fallbackToCopy:" << fallbackToCopy;
 
-    const bool success = m_service->typeCode(m_deviceId, m_credential.originalName);
+    // For now, use sync implementation - will be migrated to async in service layer
+    // TODO: Implement full async workflow with type signals
+    bool success = m_service->typeCode(m_deviceId, m_credential.originalName);
 
     // If typing failed and fallback is enabled, try clipboard
     if (!success && fallbackToCopy) {
         qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: TypeCode failed, falling back to clipboard";
-        return m_service->copyCodeToClipboard(m_deviceId, m_credential.originalName);
+        success = m_service->copyCodeToClipboard(m_deviceId, m_credential.originalName);
     }
 
-    return success;
+    // Emit result immediately
+    Q_EMIT CodeTyped(success, success ? QString() : QStringLiteral("Failed to type code"));
 }
 
 void OathCredentialObject::Delete()
 {
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Delete credential:"
+    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Delete (async) credential:"
                               << m_credential.originalName << "from device:" << m_deviceId;
 
-    // Delegate to YubiKeyService for deletion
-    const bool success = m_service->deleteCredential(m_deviceId, m_credential.originalName);
+    // Connect to service signal for this specific operation (one-shot connection)
+    auto *connection = new QMetaObject::Connection();
+    *connection = connect(m_service->getCredentialService(), &CredentialService::credentialDeleted,
+            this, [this, connection](const QString &deviceId, const QString &credentialName,
+                                     bool success, const QString &error) {
+        if (deviceId == m_deviceId && credentialName == m_credential.originalName) {
+            qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Credential deleted async:"
+                                      << m_credential.originalName << "success:" << success;
 
-    if (!success) {
-        qCWarning(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Failed to delete credential:"
-                                    << m_credential.originalName;
-    }
+            // Emit D-Bus signal
+            Q_EMIT Deleted(success, error);
+
+            // Disconnect one-shot signal
+            disconnect(*connection);
+            delete connection;
+        }
+    });
+
+    // Trigger async deletion
+    m_service->getCredentialService()->deleteCredentialAsync(m_deviceId, m_credential.originalName);
 }
 
 QVariantMap OathCredentialObject::getManagedObjectData() const

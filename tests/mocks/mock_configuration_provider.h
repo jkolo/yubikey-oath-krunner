@@ -43,6 +43,8 @@ public:
         , m_notificationExtraTime(5)
         , m_primaryAction(QStringLiteral("copy"))
         , m_deviceReconnectTimeout(30)
+        , m_enableCredentialsCache(true)
+        , m_credentialSaveRateLimit(1000)
     {
     }
 
@@ -85,6 +87,14 @@ public:
 
     int deviceReconnectTimeout() const override {
         return m_deviceReconnectTimeout;
+    }
+
+    bool enableCredentialsCache() const override {
+        return m_enableCredentialsCache;
+    }
+
+    int credentialSaveRateLimit() const override {
+        return m_credentialSaveRateLimit;
     }
 
 Q_SIGNALS:
@@ -137,6 +147,16 @@ public:
         Q_EMIT configurationChanged();
     }
 
+    void setEnableCredentialsCache(bool value) {
+        m_enableCredentialsCache = value;
+        Q_EMIT configurationChanged();
+    }
+
+    void setCredentialSaveRateLimit(int value) {
+        m_credentialSaveRateLimit = value;
+        Q_EMIT configurationChanged();
+    }
+
     // Helper: Reset to default values
     void reset() {
         m_showNotifications = true;
@@ -148,6 +168,8 @@ public:
         m_notificationExtraTime = 5;
         m_primaryAction = QStringLiteral("copy");
         m_deviceReconnectTimeout = 30;
+        m_enableCredentialsCache = true;
+        m_credentialSaveRateLimit = 1000;
         Q_EMIT configurationChanged();
     }
 
@@ -161,6 +183,8 @@ private:
     int m_notificationExtraTime;
     QString m_primaryAction;
     int m_deviceReconnectTimeout;
+    bool m_enableCredentialsCache;
+    int m_credentialSaveRateLimit;
 };
 
 } // namespace Shared

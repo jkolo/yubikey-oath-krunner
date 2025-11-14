@@ -237,8 +237,9 @@ private:
      * @return Full path to database file
      *
      * Returns ~/.local/share/krunner-yubikey/devices.db
+     * Virtual to allow tests to use temporary database paths.
      */
-    QString getDatabasePath() const;
+    virtual QString getDatabasePath() const;
 
     /**
      * @brief Ensures database directory exists

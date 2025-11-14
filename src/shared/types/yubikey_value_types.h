@@ -13,6 +13,7 @@
 #include <QDateTime>
 #include "../utils/version.h"
 #include "yubikey_model.h"
+#include "device_state.h"
 
 namespace YubiKeyOath {
 namespace Shared {
@@ -28,13 +29,16 @@ struct DeviceInfo {
     YubiKeyModel deviceModelCode{0}; ///< Numeric model code (0xSSVVPPFF format) for icon resolution
     QStringList capabilities;   ///< List of capabilities (e.g., ["FIDO2", "OATH-TOTP", "PIV"])
     QString formFactor;         ///< Human-readable form factor (e.g., "USB-A Keychain")
-    bool isConnected{false};    ///< Currently connected via PC/SC
+    DeviceState state{DeviceState::Disconnected}; ///< Device lifecycle state (Disconnected/Connecting/Authenticating/FetchingCredentials/Ready/Error)
     bool requiresPassword{false}; ///< Device requires password for OATH access
     bool hasValidPassword{false}; ///< We have a valid password stored
     QDateTime lastSeen;         ///< Last time device was seen (for offline devices)
 
     // Internal fields (not exported via D-Bus, used only within daemon for identification)
     QString _internalDeviceId;  ///< Internal device ID (hex string) - NOT serialized to D-Bus
+
+    // Helper method for backward compatibility
+    [[nodiscard]] bool isConnected() const { return state != DeviceState::Disconnected; }
 };
 
 /**

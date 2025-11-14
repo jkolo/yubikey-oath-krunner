@@ -11,6 +11,9 @@
 #include <QString>
 #include <QList>
 #include <QMap>
+#include <QDir>
+#include <QFile>
+#include <QDateTime>
 #include <optional>
 
 namespace YubiKeyOath {
@@ -19,181 +22,106 @@ namespace Daemon {
 /**
  * @brief Mock implementation of YubiKeyDatabase for testing
  *
- * In-memory implementation without actual SQL database
+ * In-memory implementation without actual SQL database.
+ * Inherits from YubiKeyDatabase to be compatible with services.
  */
-class MockYubiKeyDatabase : public QObject
+class MockYubiKeyDatabase : public YubiKeyDatabase
 {
     Q_OBJECT
 
 public:
     explicit MockYubiKeyDatabase(QObject *parent = nullptr)
-        : QObject(parent)
-        , m_initializeResult(true)
-    {}
-
-    ~MockYubiKeyDatabase() override = default;
-
-    // ========== YubiKeyDatabase Interface ==========
-
-    bool initialize()
+        : YubiKeyDatabase(parent)
+        , m_testDbPath(QDir::temp().filePath(
+              QStringLiteral("test_yubikey_") +
+              QString::number(QDateTime::currentMSecsSinceEpoch()) +
+              QStringLiteral(".db")))
     {
-        return m_initializeResult;
+        // Use unique database file for each test instance
+        // Database will be cleaned up in destructor
+        initialize();
     }
 
-    bool addDevice(const QString &deviceId, const QString &name, bool requiresPassword)
+    ~MockYubiKeyDatabase() override
     {
-        if (m_devices.contains(deviceId)) {
-            return false; // Device already exists
-        }
-
-        YubiKeyDatabase::DeviceRecord record;
-        record.deviceId = deviceId;
-        record.deviceName = name;
-        record.requiresPassword = requiresPassword;
-        record.lastSeen = QDateTime::currentDateTime();
-        record.createdAt = QDateTime::currentDateTime();
-
-        m_devices[deviceId] = record;
-        return true;
+        // Clean up test database file
+        // Base class destructor will close the database
+        QFile::remove(m_testDbPath);
     }
 
-    bool updateDeviceName(const QString &deviceId, const QString &name)
+    /**
+     * @brief Override to return test database path
+     */
+    QString getDatabasePath() const override
     {
-        if (!m_devices.contains(deviceId)) {
-            return false;
-        }
-
-        m_devices[deviceId].deviceName = name;
-        return true;
-    }
-
-    bool updateLastSeen(const QString &deviceId)
-    {
-        if (!m_devices.contains(deviceId)) {
-            return false;
-        }
-
-        m_devices[deviceId].lastSeen = QDateTime::currentDateTime();
-        return true;
-    }
-
-    bool removeDevice(const QString &deviceId)
-    {
-        if (!m_devices.contains(deviceId)) {
-            return false;
-        }
-
-        m_devices.remove(deviceId);
-        m_credentials.remove(deviceId);
-        return true;
-    }
-
-    std::optional<YubiKeyDatabase::DeviceRecord> getDevice(const QString &deviceId)
-    {
-        if (m_devices.contains(deviceId)) {
-            return m_devices[deviceId];
-        }
-        return std::nullopt;
-    }
-
-    QList<YubiKeyDatabase::DeviceRecord> getAllDevices()
-    {
-        return m_devices.values();
-    }
-
-    bool setRequiresPassword(const QString &deviceId, bool requiresPassword)
-    {
-        if (!m_devices.contains(deviceId)) {
-            return false;
-        }
-
-        m_devices[deviceId].requiresPassword = requiresPassword;
-        return true;
-    }
-
-    bool requiresPassword(const QString &deviceId)
-    {
-        if (!m_devices.contains(deviceId)) {
-            return false;
-        }
-
-        return m_devices[deviceId].requiresPassword;
-    }
-
-    bool hasDevice(const QString &deviceId)
-    {
-        return m_devices.contains(deviceId);
-    }
-
-    bool saveCredentials(const QString &deviceId, const QList<Shared::OathCredential> &credentials)
-    {
-        m_credentials[deviceId] = credentials;
-        return true;
-    }
-
-    QList<Shared::OathCredential> getCredentials(const QString &deviceId)
-    {
-        if (m_credentials.contains(deviceId)) {
-            return m_credentials[deviceId];
-        }
-        return QList<Shared::OathCredential>();
-    }
-
-    bool clearAllCredentials()
-    {
-        m_credentials.clear();
-        return true;
-    }
-
-    bool clearDeviceCredentials(const QString &deviceId)
-    {
-        m_credentials.remove(deviceId);
-        return true;
+        return m_testDbPath;
     }
 
     // ========== Test Helper Methods ==========
+    // All YubiKeyDatabase methods are inherited and use SQLite database
 
     /**
-     * @brief Sets return value for initialize()
-     */
-    void setInitializeResult(bool result)
-    {
-        m_initializeResult = result;
-    }
-
-    /**
-     * @brief Clears all stored data
+     * @brief Clears all stored data (for test isolation)
      */
     void reset()
     {
-        m_devices.clear();
-        m_credentials.clear();
-        m_initializeResult = true;
+        // Clear all data and reinitialize
+        clearAllCredentials();
+        // Note: No way to clear devices without removing database file
+        // Tests should use unique device IDs per test case
+        initialize();
     }
 
     /**
      * @brief Gets number of stored devices
      */
-    int deviceCount() const
+    int deviceCount()
     {
-        return m_devices.size();
+        return getAllDevices().size();
     }
 
     /**
      * @brief Gets number of credentials for device
      */
-    int credentialCount(const QString &deviceId) const
+    int credentialCount(const QString &deviceId)
     {
-        if (m_credentials.contains(deviceId)) {
-            return m_credentials[deviceId].size();
+        return getCredentials(deviceId).size();
+    }
+
+    /**
+     * @brief Adds or updates a single credential (test helper)
+     * @param credential Credential to add/update
+     * @return true if successful
+     *
+     * This is a test helper - real database uses saveCredentials() for bulk updates.
+     * Adds credential to existing list or updates if name matches.
+     */
+    bool addOrUpdateCredential(const Shared::OathCredential &credential)
+    {
+        // Get existing credentials for this device
+        auto credentials = getCredentials(credential.deviceId);
+
+        // Check if credential with same name exists
+        bool found = false;
+        for (auto &cred : credentials) {
+            if (cred.originalName == credential.originalName) {
+                cred = credential;  // Update existing
+                found = true;
+                break;
+            }
         }
-        return 0;
+
+        // If not found, add new credential
+        if (!found) {
+            credentials.append(credential);
+        }
+
+        // Save back to database
+        return saveCredentials(credential.deviceId, credentials);
     }
 
 private:
-    bool m_initializeResult;
-    QMap<QString, YubiKeyDatabase::DeviceRecord> m_devices;
-    QMap<QString, QList<Shared::OathCredential>> m_credentials;
+    QString m_testDbPath;  ///< Unique database file path for this test instance
 };
 
 } // namespace Daemon

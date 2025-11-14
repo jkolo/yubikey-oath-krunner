@@ -100,35 +100,97 @@ public:
     QString deviceId() const;
 
 public Q_SLOTS:
-    /**
-     * @brief Generates TOTP/HOTP code
-     * @return (code, validUntil)
-     *
-     * Handles touch requirement automatically - shows notification if needed.
-     */
-    Shared::GenerateCodeResult GenerateCode();
+    // === ASYNC API (all methods fire-and-forget with signal results) ===
 
     /**
-     * @brief Copies code to clipboard
-     * @return true on success
+     * @brief Generates TOTP/HOTP code asynchronously
      *
+     * Returns immediately. Result emitted via CodeGenerated signal.
+     * Non-blocking - uses worker pool for PC/SC operations.
+     */
+    void GenerateCode();
+
+    /**
+     * @brief Copies code to clipboard asynchronously
+     *
+     * Returns immediately. Result emitted via ClipboardCopied signal.
      * Generates code and copies to clipboard with auto-clear support.
      */
-    bool CopyToClipboard();
+    void CopyToClipboard();
 
     /**
-     * @brief Types code via keyboard emulation
+     * @brief Types code via keyboard emulation asynchronously
      * @param fallbackToCopy If typing fails, copy to clipboard instead
-     * @return true on success
+     *
+     * Returns immediately. Result emitted via CodeTyped signal.
+     * Generates code and types it via input system.
      */
-    bool TypeCode(bool fallbackToCopy);
+    void TypeCode(bool fallbackToCopy);
 
     /**
-     * @brief Deletes credential from YubiKey
+     * @brief Deletes credential from YubiKey asynchronously
      *
+     * Returns immediately. Result emitted via Deleted signal.
      * Removes credential from device and triggers object removal.
      */
     void Delete();
+
+Q_SIGNALS:
+    // === Result Signals ===
+    /**
+     * @brief Emitted when async code generation completes
+     * @param code Generated code (empty if error)
+     * @param validUntil Unix timestamp when code expires (0 if error)
+     * @param error Error message (empty if success)
+     */
+    void CodeGenerated(const QString &code, qint64 validUntil, const QString &error);
+
+    /**
+     * @brief Emitted when async clipboard copy completes
+     * @param success true if copied successfully
+     * @param error Error message (empty if success)
+     */
+    void ClipboardCopied(bool success, const QString &error);
+
+    /**
+     * @brief Emitted when async code typing completes
+     * @param success true if typed successfully
+     * @param error Error message (empty if success)
+     */
+    void CodeTyped(bool success, const QString &error);
+
+    /**
+     * @brief Emitted when async deletion completes
+     * @param success true if deleted successfully
+     * @param error Error message (empty if success)
+     */
+    void Deleted(bool success, const QString &error);
+
+    // === Workflow Status Signals ===
+    /**
+     * @brief Emitted when user needs to touch the device
+     * @param timeoutSeconds Number of seconds before timeout
+     * @param deviceModel Device model string for icon/description
+     */
+    void TouchRequired(int timeoutSeconds, const QString &deviceModel);
+
+    /**
+     * @brief Emitted when touch workflow completes
+     * @param success true if touch detected and operation continuing, false if cancelled/timeout
+     */
+    void TouchCompleted(bool success);
+
+    /**
+     * @brief Emitted when device needs to be reconnected
+     * @param deviceModel Device model string for icon/description
+     */
+    void ReconnectRequired(const QString &deviceModel);
+
+    /**
+     * @brief Emitted when reconnect workflow completes
+     * @param success true if device reconnected and operation continuing, false if cancelled
+     */
+    void ReconnectCompleted(bool success);
 
 public:
     /**

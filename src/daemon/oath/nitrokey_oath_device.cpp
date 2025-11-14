@@ -102,15 +102,19 @@ NitrokeyOathDevice::NitrokeyOathDevice(const QString &deviceId,
                                        << "formFactor=" << m_formFactor;
     }
 
-    // Connect to our own credentialCacheFetched signal to update internal state
-    // IMPORTANT: Qt::QueuedConnection required because signal is emitted from QtConcurrent thread
-    connect(this, &NitrokeyOathDevice::credentialCacheFetched,
+    // NOTE: credentialCacheFetched signal handler is no longer needed here
+    // m_credentials and m_updateInProgress are now updated directly in OathDevice::updateCredentialCacheAsync()
+    // This eliminates the signal delivery race condition that caused empty credentials cache
+    // The lambda handler below is commented out but kept for reference:
+    /*
+    connect(this, &OathDevice::credentialCacheFetched,
             this, [this](const QList<OathCredential> &credentials) {
                 qCDebug(YubiKeyOathDeviceLog) << "Updating credential cache with" << credentials.size() << "credentials";
                 m_credentials = credentials;
                 m_updateInProgress = false;
                 qCDebug(YubiKeyOathDeviceLog) << "Credential cache updated, updateInProgress reset to false";
             }, Qt::QueuedConnection);
+    */
 }
 
 NitrokeyOathDevice::~NitrokeyOathDevice()

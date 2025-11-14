@@ -46,6 +46,8 @@ public:
     int notificationExtraTime() const override;
     QString primaryAction() const override;
     int deviceReconnectTimeout() const override;
+    bool enableCredentialsCache() const override;
+    int credentialSaveRateLimit() const override;
 
 Q_SIGNALS:
     /**

@@ -39,6 +39,7 @@ TouchWorkflowCoordinator::TouchWorkflowCoordinator(YubiKeyDeviceManager *deviceM
     , m_touchHandler(touchHandler)
     , m_notificationOrchestrator(notificationOrchestrator)
     , m_config(config)
+    , m_pendingOperationType(OperationType::Generate)  // Initialize to default
 {
     init();
 }
@@ -52,18 +53,21 @@ void TouchWorkflowCoordinator::init()
             this, &TouchWorkflowCoordinator::onTouchCancelled);
 }
 
-void TouchWorkflowCoordinator::startTouchWorkflow(const QString &credentialName, const QString &actionId, const QString &deviceId, const Shared::DeviceModel& deviceModel)
+void TouchWorkflowCoordinator::startTouchWorkflow(const QString &credentialName, OperationType operationType, const QString &deviceId, const Shared::DeviceModel& deviceModel)
 {
     qCDebug(TouchWorkflowCoordinatorLog) << "Starting touch workflow for:" << credentialName
-             << "action:" << actionId << "device:" << deviceId
+             << "operation:" << static_cast<int>(operationType) << "device:" << deviceId
              << "brand:" << brandName(deviceModel.brand)
              << "model:" << deviceModel.modelString;
 
-    m_pendingActionId = actionId;
+    m_pendingOperationType = operationType;
     m_pendingDeviceId = deviceId;
     m_pendingDeviceModel = deviceModel;
     int const timeout = m_config->touchTimeout();
     qCDebug(TouchWorkflowCoordinatorLog) << "Touch timeout from config:" << timeout << "seconds";
+
+    // Emit signal for D-Bus clients (can show custom notification)
+    Q_EMIT touchRequired(timeout, deviceModel.modelString);
 
     // Start touch operation
     m_touchHandler->startTouchOperation(credentialName, timeout);
@@ -118,6 +122,9 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
 
     qCDebug(TouchWorkflowCoordinatorLog) << "Touch successful, executing pending action";
 
+    // Emit signal for D-Bus clients
+    Q_EMIT touchCompleted(true);
+
     // Close touch notification
     m_notificationOrchestrator->closeTouchNotification();
 
@@ -152,18 +159,33 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
         qCWarning(TouchWorkflowCoordinatorLog) << "Credential not found for formatting:" << credentialName;
     }
 
-    // Execute the pending action using unified notification policy
-    QString const actionId = m_pendingActionId.isEmpty() ? QStringLiteral("copy") : m_pendingActionId;
+    // Map OperationType to actionId string for ActionCoordinator
+    QString actionId;
+    switch (m_pendingOperationType) {
+    case OperationType::Generate:
+        actionId = QStringLiteral("generate");
+        break;
+    case OperationType::Copy:
+        actionId = QStringLiteral("copy");
+        break;
+    case OperationType::Type:
+        actionId = QStringLiteral("type");
+        break;
+    case OperationType::Delete:
+        actionId = QStringLiteral("delete");
+        break;
+    }
     qCDebug(TouchWorkflowCoordinatorLog) << "Executing action after touch:" << actionId;
 
     // Use YubiKeyActionCoordinator's unified executeActionWithNotification() method
     // This ensures consistent notification policy with non-touch path:
     // - Copy action: always show notification on success
     // - Type action: never show code notification (user sees code being typed)
+    // - Generate action: show code notification
     m_actionCoordinator->executeActionWithNotification(code, formattedTitle, actionId, m_pendingDeviceModel);
 
-    // Clear pending action and device
-    m_pendingActionId.clear();
+    // Clear pending operation and device
+    m_pendingOperationType = OperationType::Copy; // Reset to default
     m_pendingDeviceId.clear();
     qCDebug(TouchWorkflowCoordinatorLog) << "Touch handling completed successfully";
 }
@@ -183,6 +205,9 @@ void TouchWorkflowCoordinator::onCodeGenerationFailed(const QString &credentialN
 
     qCDebug(TouchWorkflowCoordinatorLog) << "Code generation failed, cleaning up";
 
+    // Emit signal for D-Bus clients
+    Q_EMIT touchCompleted(false);
+
     // Clean up
     cleanupTouchWorkflow();
 }
@@ -193,6 +218,9 @@ void TouchWorkflowCoordinator::onTouchTimeout(const QString &credentialName)
 
     if (!credentialName.isEmpty()) {
         qCDebug(TouchWorkflowCoordinatorLog) << "Touch timeout";
+
+        // Emit signal for D-Bus clients
+        Q_EMIT touchCompleted(false);
 
         // Note: D-Bus operations can't be cancelled, but the timeout will be
         // handled by ignoring the result if it arrives after timeout
@@ -208,6 +236,9 @@ void TouchWorkflowCoordinator::onTouchCancelled()
 {
     qCDebug(TouchWorkflowCoordinatorLog) << "Touch operation cancelled by user";
 
+    // Emit signal for D-Bus clients
+    Q_EMIT touchCompleted(false);
+
     QString const credentialName = m_touchHandler->waitingCredential();
     cleanupTouchWorkflow();
 
@@ -221,7 +252,7 @@ void TouchWorkflowCoordinator::cleanupTouchWorkflow()
 {
     m_touchHandler->cancelTouchOperation();
     m_notificationOrchestrator->closeTouchNotification();
-    m_pendingActionId.clear();
+    m_pendingOperationType = OperationType::Copy; // Reset to default
     m_pendingDeviceId.clear();
     m_pendingDeviceModel = Shared::DeviceModel{};
 }

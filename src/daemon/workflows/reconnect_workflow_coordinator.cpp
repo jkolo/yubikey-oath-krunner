@@ -167,6 +167,10 @@ void ReconnectWorkflowCoordinator::startReconnectWorkflow(const QString &deviceI
     // Reconstruct DeviceModel from database to show device-specific icon even when offline
     // This uses cached device information (name, model code) to display the correct icon
     const Shared::DeviceModel deviceModel = deviceModelFromDatabase(deviceId);
+
+    // Emit signal for D-Bus clients (can show custom notification)
+    Q_EMIT reconnectRequired(deviceModel.modelString);
+
     m_notificationOrchestrator->showReconnectNotification(deviceName, credentialName, timeoutSeconds, deviceModel);
 
     // Start timeout timer
@@ -187,6 +191,9 @@ void ReconnectWorkflowCoordinator::onDeviceAuthenticationSuccess(const QString &
     }
 
     qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Processing reconnect for device:" << deviceId;
+
+    // Emit signal for D-Bus clients
+    Q_EMIT reconnectCompleted(true);
 
     // Stop timeout timer and close reconnect notification
     m_timeoutTimer->stop();
@@ -230,6 +237,9 @@ void ReconnectWorkflowCoordinator::onReconnectTimeout()
                               << "device:" << m_pendingDeviceId
                               << "credential:" << m_pendingCredentialName;
 
+    // Emit signal for D-Bus clients
+    Q_EMIT reconnectCompleted(false);
+
     // Close reconnect notification
     m_notificationOrchestrator->closeReconnectNotification();
 
@@ -247,6 +257,9 @@ void ReconnectWorkflowCoordinator::onReconnectTimeout()
 void ReconnectWorkflowCoordinator::onReconnectCancelled()
 {
     qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Reconnect cancelled by user";
+
+    // Emit signal for D-Bus clients
+    Q_EMIT reconnectCompleted(false);
 
     // Show cancellation notification
     QString const deviceName = DeviceNameFormatter::getDeviceDisplayName(m_pendingDeviceId, m_database);

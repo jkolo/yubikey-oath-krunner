@@ -5,6 +5,7 @@
 
 #include "yubikey_dbus_service.h"
 #include "types/yubikey_value_types.h"
+#include "types/device_state.h"
 
 #include <QApplication>
 #include <QDBusConnection>
@@ -42,6 +43,7 @@ int main(int argc, char *argv[])
     qRegisterMetaType<YubiKeyOath::Shared::AddCredentialResult>("YubiKeyOath::Shared::AddCredentialResult");
     qRegisterMetaType<QList<YubiKeyOath::Shared::DeviceInfo>>("QList<YubiKeyOath::Shared::DeviceInfo>");
     qRegisterMetaType<QList<YubiKeyOath::Shared::CredentialInfo>>("QList<YubiKeyOath::Shared::CredentialInfo>");
+    qRegisterMetaType<YubiKeyOath::Shared::DeviceState>("YubiKeyOath::Shared::DeviceState");
 
     qDBusRegisterMetaType<YubiKeyOath::Shared::DeviceInfo>();
     qDBusRegisterMetaType<YubiKeyOath::Shared::CredentialInfo>();
@@ -49,6 +51,7 @@ int main(int argc, char *argv[])
     qDBusRegisterMetaType<YubiKeyOath::Shared::AddCredentialResult>();
     qDBusRegisterMetaType<QList<YubiKeyOath::Shared::DeviceInfo>>();
     qDBusRegisterMetaType<QList<YubiKeyOath::Shared::CredentialInfo>>();
+    qDBusRegisterMetaType<YubiKeyOath::Shared::DeviceState>();
 
     // Create service
     const YubiKeyOath::Daemon::YubiKeyDBusService service;

@@ -13,6 +13,8 @@
 #include "shared/types/device_model.h"
 
 #include <QSet>
+#include <QMetaObject>
+#include <QtConcurrent>
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -59,10 +61,24 @@ QList<DeviceInfo> DeviceLifecycleService::listDevices()
     for (const QString &deviceId : allDeviceIds) {
         DeviceInfo info;
         info._internalDeviceId = deviceId;
-        info.isConnected = connectedDeviceIds.contains(deviceId);
+
+        // Determine if device is connected and get its state
+        const bool isConnected = connectedDeviceIds.contains(deviceId);
+        if (isConnected) {
+            // Get state from live device object
+            if (auto *device = m_deviceManager->getDevice(deviceId)) {
+                info.state = device->state();
+            } else {
+                // Device in connected list but no object available - treat as disconnected
+                info.state = Shared::DeviceState::Disconnected;
+            }
+        } else {
+            // Device not connected
+            info.state = Shared::DeviceState::Disconnected;
+        }
 
         // Get firmware version, device model, serial number, and form factor from connected device
-        if (info.isConnected) {
+        if (isConnected) {
             if (auto *device = m_deviceManager->getDevice(deviceId)) {
                 info.firmwareVersion = device->firmwareVersion();
                 // Use DeviceModel struct fields directly
@@ -84,7 +100,7 @@ QList<DeviceInfo> DeviceLifecycleService::listDevices()
             info.lastSeen = dbRecord->lastSeen;
 
             // For disconnected devices, populate firmware/model/serial from database cache
-            if (!info.isConnected) {
+            if (!isConnected) {
                 info.serialNumber = dbRecord->serialNumber;
                 info.firmwareVersion = dbRecord->firmwareVersion;
                 info.deviceModel = deviceModelToString(dbRecord->deviceModel);  // Brand-aware conversion
@@ -100,7 +116,7 @@ QList<DeviceInfo> DeviceLifecycleService::listDevices()
 
             // For offline new devices, default to requiring password (safe default)
             // For connected new devices, requiresPassword was already set from device at line 75
-            if (!info.isConnected) {
+            if (!isConnected) {
                 info.requiresPassword = true;
             }
 
@@ -109,7 +125,7 @@ QList<DeviceInfo> DeviceLifecycleService::listDevices()
         }
 
         // Update last seen for connected devices
-        if (info.isConnected) {
+        if (isConnected) {
             m_database->updateLastSeen(deviceId);
         }
 
@@ -237,6 +253,9 @@ void DeviceLifecycleService::onDeviceConnected(const QString &deviceId)
         return;
     }
 
+    // Set initial state: Connecting
+    device->setState(Shared::DeviceState::Connecting);
+
     // Check if this is a new device
     bool const isNewDevice = !m_database->hasDevice(deviceId);
 
@@ -289,36 +308,45 @@ void DeviceLifecycleService::onDeviceConnected(const QString &deviceId)
     // Check if device requires password and load it from KWallet
     auto dbRecord = m_database->getDevice(deviceId);
     if (dbRecord.has_value() && dbRecord->requiresPassword) {
-        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Device requires password, loading synchronously from KWallet:" << deviceId;
+        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Device requires password, loading ASYNCHRONOUSLY from KWallet:" << deviceId;
 
-        // Load password synchronously
-        const QString password = m_secretStorage->loadPasswordSync(deviceId);
+        // Set device state to Authenticating (password loading phase)
+        device->setState(Shared::DeviceState::Authenticating);
 
-        if (!password.isEmpty()) {
-            qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Password loaded successfully from KWallet, saving in device and fetching credentials";
+        // Load password asynchronously to avoid blocking daemon startup
+        [[maybe_unused]] auto future = QtConcurrent::run([this, deviceId, device]() {
+            qCDebug(YubiKeyDaemonLog) << "[Worker] Loading password from KWallet for device:" << deviceId;
 
-            // Save password in device for future use (reuse device pointer from above)
-            if (device) {
-                qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Calling setPassword() for device:" << deviceId;
-                device->setPassword(password);
-                qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: setPassword() completed, now calling updateCredentialCacheAsync()";
-            } else {
-                qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: ERROR - device pointer is null for:" << deviceId;
-            }
+            const QString password = m_secretStorage->loadPasswordSync(deviceId);
 
-            // Trigger credential cache update with password
-            if (device) {
-                qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Starting async credential fetch with password for device:" << deviceId;
-                device->updateCredentialCacheAsync(password);
-            }
-        } else {
-            qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: No password in KWallet for device:" << deviceId;
-            // Try without password
-            auto *dev = m_deviceManager->getDevice(deviceId);
-            if (dev) {
-                dev->updateCredentialCacheAsync(QString());
-            }
-        }
+            // Process result on main thread
+            QMetaObject::invokeMethod(this, [this, deviceId, device, password]() {
+                if (!password.isEmpty()) {
+                    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Password loaded successfully from KWallet";
+
+                    // Save password in device for future use
+                    if (device) {
+                        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Calling setPassword() for device:" << deviceId;
+                        device->setPassword(password);
+                    } else {
+                        qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: ERROR - device pointer is null for:" << deviceId;
+                        return;
+                    }
+
+                    // Trigger credential cache update with password
+                    if (device) {
+                        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Starting async credential fetch with password for device:" << deviceId;
+                        device->updateCredentialCacheAsync(password);
+                    }
+                } else {
+                    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: No password in KWallet for device:" << deviceId;
+                    // Try without password
+                    if (device) {
+                        device->updateCredentialCacheAsync(QString());
+                    }
+                }
+            }, Qt::QueuedConnection);
+        });
     } else {
         qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Device doesn't require password, fetching credentials";
         auto *dev = m_deviceManager->getDevice(deviceId);

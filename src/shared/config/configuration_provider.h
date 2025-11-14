@@ -85,6 +85,18 @@ public:
      * @return Timeout in seconds for waiting for device reconnection
      */
     virtual int deviceReconnectTimeout() const = 0;
+
+    /**
+     * @brief Gets credential cache enable setting
+     * @return true if credential caching is enabled for offline devices
+     */
+    virtual bool enableCredentialsCache() const = 0;
+
+    /**
+     * @brief Gets credential save rate limit setting
+     * @return Minimum milliseconds between credential cache saves
+     */
+    virtual int credentialSaveRateLimit() const = 0;
 };
 
 } // namespace Shared

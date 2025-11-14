@@ -408,14 +408,25 @@ void TestProxyUnit::testCredentialProxyGenerateCode()
         properties
     );
 
-    GenerateCodeResult result = proxy.generateCode();
+    // Use async API with signal spy
+    QSignalSpy spy(&proxy, &OathCredentialProxy::codeGenerated);
+    proxy.generateCode();
 
-    QVERIFY2(!result.code.isEmpty(), "Generated code should not be empty");
-    QVERIFY2(result.code.length() == 6, "Generated code should have 6 digits");
-    QVERIFY2(result.validUntil > 0, "validUntil should be set for TOTP");
+    QVERIFY2(spy.wait(5000), "codeGenerated signal not received");
+    QCOMPARE(spy.count(), 1);
 
-    qDebug() << "  Code:" << result.code;
-    qDebug() << "  Valid until:" << result.validUntil;
+    auto args = spy.takeFirst();
+    QString code = args.at(0).toString();
+    qint64 validUntil = args.at(1).toLongLong();
+    QString error = args.at(2).toString();
+
+    QVERIFY2(error.isEmpty(), qPrintable("Error: " + error));
+    QVERIFY2(!code.isEmpty(), "Generated code should not be empty");
+    QVERIFY2(code.length() == 6, "Generated code should have 6 digits");
+    QVERIFY2(validUntil > 0, "validUntil should be set for TOTP");
+
+    qDebug() << "  Code:" << code;
+    qDebug() << "  Valid until:" << validUntil;
     qDebug() << "✅ GenerateCode works";
 }
 
@@ -439,8 +450,19 @@ void TestProxyUnit::testCredentialProxyCopyToClipboard()
         properties
     );
 
-    bool result = proxy.copyToClipboard();
-    QVERIFY2(result, "CopyToClipboard should succeed");
+    // Use async API with signal spy
+    QSignalSpy spy(&proxy, &OathCredentialProxy::clipboardCopied);
+    proxy.copyToClipboard();
+
+    QVERIFY2(spy.wait(5000), "clipboardCopied signal not received");
+    QCOMPARE(spy.count(), 1);
+
+    auto args = spy.takeFirst();
+    bool success = args.at(0).toBool();
+    QString error = args.at(1).toString();
+
+    QVERIFY2(error.isEmpty(), qPrintable("Error: " + error));
+    QVERIFY2(success, "CopyToClipboard should succeed");
 
     qDebug() << "✅ CopyToClipboard works";
 }
@@ -465,8 +487,19 @@ void TestProxyUnit::testCredentialProxyTypeCode()
         properties
     );
 
-    bool result = proxy.typeCode(false);
-    QVERIFY2(result, "TypeCode should succeed");
+    // Use async API with signal spy
+    QSignalSpy spy(&proxy, &OathCredentialProxy::codeTyped);
+    proxy.typeCode(false);
+
+    QVERIFY2(spy.wait(5000), "codeTyped signal not received");
+    QCOMPARE(spy.count(), 1);
+
+    auto args = spy.takeFirst();
+    bool success = args.at(0).toBool();
+    QString error = args.at(1).toString();
+
+    QVERIFY2(error.isEmpty(), qPrintable("Error: " + error));
+    QVERIFY2(success, "TypeCode should succeed");
 
     qDebug() << "✅ TypeCode works";
 }

@@ -126,6 +126,23 @@ public:
      */
     QString waitingDeviceId() const { return m_pendingDeviceId; }
 
+Q_SIGNALS:
+    /**
+     * @brief Emitted when device needs to be reconnected
+     *
+     * Client can show custom notification or rely on daemon's notification.
+     *
+     * @param deviceModel Device model string for icon/description (e.g., "YubiKey 5C NFC")
+     */
+    void reconnectRequired(const QString &deviceModel);
+
+    /**
+     * @brief Emitted when reconnect workflow completes
+     *
+     * @param success true if device reconnected and operation continuing, false if cancelled
+     */
+    void reconnectCompleted(bool success);
+
 private Q_SLOTS:
     void onDeviceAuthenticationSuccess(const QString &deviceId);
     void onReconnectTimeout();

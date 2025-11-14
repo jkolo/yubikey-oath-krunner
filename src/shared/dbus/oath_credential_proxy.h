@@ -85,44 +85,61 @@ public:
      */
     [[nodiscard]] QString parentDeviceId() const;
 
-    // ========== D-Bus Methods ==========
+    // ========== D-Bus Methods (all async) ==========
 
     /**
-     * @brief Generates TOTP/HOTP code
-     * @return Result structure with (code, validUntil timestamp)
+     * @brief Generates TOTP/HOTP code asynchronously
      *
-     * Synchronous D-Bus call to GenerateCode().
-     * Returns empty code and 0 timestamp on failure.
+     * Asynchronous D-Bus call to GenerateCode().
+     * Checks cache first - returns cached if valid.
+     * Result delivered via codeGenerated() signal.
      */
-    GenerateCodeResult generateCode();
+    void generateCode();
 
     /**
-     * @brief Copies code to clipboard
-     * @return true on success, false on failure
+     * @brief Copies code to clipboard asynchronously
      *
-     * Synchronous D-Bus call to CopyToClipboard().
+     * Asynchronous D-Bus call to CopyToClipboard().
      * Generates code and copies to clipboard with auto-clear support.
+     * Result delivered via clipboardCopied() signal.
      */
-    bool copyToClipboard();
+    void copyToClipboard();
 
     /**
-     * @brief Types code via keyboard emulation
+     * @brief Types code via keyboard emulation asynchronously
      * @param fallbackToCopy If true, falls back to clipboard on typing failure
-     * @return true on success, false on failure
      *
-     * Synchronous D-Bus call to TypeCode(fallbackToCopy).
+     * Asynchronous D-Bus call to TypeCode(fallbackToCopy).
      * Generates code and types it using appropriate input method.
+     * Result delivered via codeTyped() signal.
      */
-    bool typeCode(bool fallbackToCopy = true);
+    void typeCode(bool fallbackToCopy = true);
 
     /**
-     * @brief Deletes credential from YubiKey
+     * @brief Deletes credential from YubiKey asynchronously
      *
-     * Synchronous D-Bus call to Delete().
+     * Asynchronous D-Bus call to Delete().
      * After successful deletion, this proxy becomes invalid.
      * Parent DeviceProxy will emit credentialRemoved signal.
+     * Result delivered via deleted() signal.
      */
     void deleteCredential();
+
+    // ========== Cache Getters ==========
+
+    /**
+     * @brief Gets cached code if still valid
+     * @return Cached GenerateCodeResult (empty if no cache or expired)
+     *
+     * Used by KRunner to show placeholder while waiting for async result.
+     */
+    [[nodiscard]] GenerateCodeResult getCachedCode() const;
+
+    /**
+     * @brief Checks if code cache is still valid
+     * @return true if cache exists and not expired
+     */
+    [[nodiscard]] bool isCacheValid() const;
 
     // ========== Value Type Conversion ==========
 
@@ -134,7 +151,76 @@ public:
      */
     CredentialInfo toCredentialInfo() const;
 
-private:
+Q_SIGNALS:
+    // === Result Signals ===
+    /**
+     * @brief Emitted when async code generation completes
+     * @param code Generated TOTP/HOTP code (empty on error)
+     * @param validUntil Timestamp when code expires (0 on error)
+     * @param error Error message (empty on success)
+     */
+    void codeGenerated(const QString &code, qint64 validUntil, const QString &error);
+
+    /**
+     * @brief Emitted when async clipboard copy completes
+     * @param success true if copied successfully
+     * @param error Error message (empty on success)
+     */
+    void clipboardCopied(bool success, const QString &error);
+
+    /**
+     * @brief Emitted when async code typing completes
+     * @param success true if typed successfully
+     * @param error Error message (empty on success)
+     */
+    void codeTyped(bool success, const QString &error);
+
+    /**
+     * @brief Emitted when async deletion completes
+     * @param success true if deletion succeeded
+     * @param error Error message (empty on success)
+     */
+    void deleted(bool success, const QString &error);
+
+    // === Workflow Status Signals ===
+    /**
+     * @brief Emitted when user needs to touch the device
+     * @param timeoutSeconds Number of seconds before timeout
+     * @param deviceModel Device model string for icon/description
+     */
+    void touchRequired(int timeoutSeconds, const QString &deviceModel);
+
+    /**
+     * @brief Emitted when touch workflow completes
+     * @param success true if touch detected and operation continuing, false if cancelled/timeout
+     */
+    void touchCompleted(bool success);
+
+    /**
+     * @brief Emitted when device needs to be reconnected
+     * @param deviceModel Device model string for icon/description
+     */
+    void reconnectRequired(const QString &deviceModel);
+
+    /**
+     * @brief Emitted when reconnect workflow completes
+     * @param success true if device reconnected and operation continuing, false if cancelled
+     */
+    void reconnectCompleted(bool success);
+
+private Q_SLOTS:
+    void onCodeGenerated(const QString &code, qint64 validUntil, const QString &error);
+    void onClipboardCopied(bool success, const QString &error);
+    void onCodeTyped(bool success, const QString &error);
+    void onDeleted(bool success, const QString &error);
+    void onTouchRequired(int timeoutSeconds, const QString &deviceModel);
+    void onTouchCompleted(bool success);
+    void onReconnectRequired(const QString &deviceModel);
+    void onReconnectCompleted(bool success);
+
+private:  // NOLINT(readability-redundant-access-specifiers) - Required to close Q_SLOTS section for moc
+    void connectToSignals();
+
     QString m_objectPath;
     QDBusInterface *m_interface{nullptr};
 

@@ -280,7 +280,7 @@ void TestMatchBuilder::testBuildPasswordErrorMatch()
     DeviceInfo device;
     device._internalDeviceId = "ABC123DEF456";
     device.deviceName = "YubiKey ABC123";
-    device.isConnected = true;
+    device.state = YubiKeyOath::Shared::DeviceState::Ready;  // Connected device
     device.requiresPassword = true;
     device.hasValidPassword = false;
 

@@ -25,7 +25,6 @@ OathDeviceProxy::OathDeviceProxy(const QString &objectPath,
     : QObject(parent)
     , m_objectPath(objectPath)
     , m_interface(nullptr)
-    , m_isConnected(false)
     , m_requiresPassword(false)
     , m_hasValidPassword(false)
 {
@@ -44,7 +43,6 @@ OathDeviceProxy::OathDeviceProxy(const QString &objectPath,
 
     // Extract and cache device properties
     m_name = deviceProperties.value(QStringLiteral("Name")).toString();
-    m_isConnected = deviceProperties.value(QStringLiteral("IsConnected")).toBool();
     m_requiresPassword = deviceProperties.value(QStringLiteral("RequiresPassword")).toBool();
     m_hasValidPassword = deviceProperties.value(QStringLiteral("HasValidPassword")).toBool();
 
@@ -67,6 +65,11 @@ OathDeviceProxy::OathDeviceProxy(const QString &objectPath,
     // Extract last seen timestamp
     const qint64 lastSeenMsecs = deviceProperties.value(QStringLiteral("LastSeen")).toLongLong();
     m_lastSeen = QDateTime::fromMSecsSinceEpoch(lastSeenMsecs);
+
+    // Extract device state properties
+    const auto stateValue = deviceProperties.value(QStringLiteral("State")).value<quint8>();
+    m_state = static_cast<DeviceState>(stateValue);
+    m_stateMessage = deviceProperties.value(QStringLiteral("StateMessage")).toString();
 
     qCDebug(OathDeviceProxyLog) << "Created device proxy for" << m_name
                                     << "SerialNumber:" << m_serialNumber
@@ -282,7 +285,7 @@ DeviceInfo OathDeviceProxy::toDeviceInfo() const
     info.deviceModelCode = m_deviceModelCode;
     info.capabilities = m_capabilities;
     info.formFactor = m_formFactor;
-    info.isConnected = m_isConnected;
+    info.state = m_state;
     info.requiresPassword = m_requiresPassword;
     info.hasValidPassword = m_hasValidPassword;
     info.lastSeen = m_lastSeen;
@@ -340,11 +343,6 @@ void OathDeviceProxy::onPropertiesChanged(const QString &interfaceName,
         Q_EMIT nameChanged(m_name);
     }
 
-    if (changedProperties.contains(QStringLiteral("IsConnected"))) {
-        m_isConnected = changedProperties.value(QStringLiteral("IsConnected")).toBool();
-        Q_EMIT connectionChanged(m_isConnected);
-    }
-
     if (changedProperties.contains(QStringLiteral("RequiresPassword"))) {
         m_requiresPassword = changedProperties.value(QStringLiteral("RequiresPassword")).toBool();
         Q_EMIT requiresPasswordChanged(m_requiresPassword);
@@ -353,6 +351,17 @@ void OathDeviceProxy::onPropertiesChanged(const QString &interfaceName,
     if (changedProperties.contains(QStringLiteral("HasValidPassword"))) {
         m_hasValidPassword = changedProperties.value(QStringLiteral("HasValidPassword")).toBool();
         Q_EMIT hasValidPasswordChanged(m_hasValidPassword);
+    }
+
+    if (changedProperties.contains(QStringLiteral("State"))) {
+        const auto stateValue = changedProperties.value(QStringLiteral("State")).value<quint8>();
+        m_state = static_cast<DeviceState>(stateValue);
+        Q_EMIT stateChanged(m_state);
+    }
+
+    if (changedProperties.contains(QStringLiteral("StateMessage"))) {
+        m_stateMessage = changedProperties.value(QStringLiteral("StateMessage")).toString();
+        Q_EMIT stateMessageChanged(m_stateMessage);
     }
 }
 

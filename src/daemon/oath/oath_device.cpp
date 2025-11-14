@@ -7,6 +7,7 @@
 #include "oath_error_codes.h"
 #include "yk_oath_session.h"
 #include "../logging_categories.h"
+#include "shared/types/device_state.h"
 
 #include <QMutexLocker>
 #include <QThread>
@@ -80,6 +81,61 @@ OathDevice::OathDevice(QObject *parent)
 
 OathDevice::~OathDevice() = default;
 
+// ============================================================================
+// State Management Implementation
+// ============================================================================
+
+Shared::DeviceState OathDevice::state() const
+{
+    const QMutexLocker locker(&m_stateMutex);
+    return m_state;
+}
+
+QString OathDevice::lastError() const
+{
+    const QMutexLocker locker(&m_stateMutex);
+    return m_lastError;
+}
+
+void OathDevice::setState(Shared::DeviceState state)
+{
+    Shared::DeviceState oldState = Shared::DeviceState::Disconnected;
+    {
+        const QMutexLocker locker(&m_stateMutex);
+        if (m_state == state) {
+            return;  // No change
+        }
+        oldState = m_state;
+        m_state = state;
+
+        // Clear error message when leaving Error state
+        if (state != Shared::DeviceState::Error) {
+            m_lastError.clear();
+        }
+    }
+
+    // Log state transition
+    qCInfo(YubiKeyOathDeviceLog) << "Device" << m_deviceId << "state:"
+                                   << Shared::deviceStateToString(oldState) << "→"
+                                   << Shared::deviceStateToString(state);
+
+    // Emit signal outside of lock to avoid potential deadlocks
+    Q_EMIT stateChanged(state);
+}
+
+void OathDevice::setErrorState(const QString &error)
+{
+    {
+        const QMutexLocker locker(&m_stateMutex);
+        m_state = Shared::DeviceState::Error;
+        m_lastError = error;
+    }
+
+    // Emit signals outside of lock
+    Q_EMIT stateChanged(Shared::DeviceState::Error);
+    Q_EMIT errorOccurred(error);
+}
+
 // =============================================================================
 // Password Management
 // =============================================================================
@@ -96,19 +152,30 @@ void OathDevice::setPassword(const QString& password)
 
 Result<QString> OathDevice::generateCode(const QString& name)
 {
-    qCDebug(YubiKeyOathDeviceLog) << "generateCode() for" << name << "on device" << m_deviceId;
+    qCDebug(YubiKeyOathDeviceLog) << "generateCode() for" << name << "on device" << m_deviceId
+                                  << "- credentials cache size:" << m_credentials.size();
 
     // Serialize card access to prevent race conditions between threads
     QMutexLocker locker(&m_cardMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
     // Find credential to get its period
     int period = 30; // Default period
+    bool found = false;
     for (const auto &cred : m_credentials) {
         if (cred.originalName == name) {
             period = cred.period;
+            found = true;
             qCDebug(YubiKeyOathDeviceLog) << "Found credential period:" << period << "for" << name;
             break;
         }
+    }
+
+    // Validate credential exists before calling PC/SC
+    if (!found) {
+        qCWarning(YubiKeyOathDeviceLog) << "Credential" << name << "not found in cache"
+                                        << "(cache size:" << m_credentials.size() << ")"
+                                        << "- cannot generate code safely";
+        return Result<QString>::error(OathErrorCodes::CREDENTIAL_NOT_FOUND);
     }
 
     auto result = m_session->calculateCode(name, period);
@@ -246,16 +313,45 @@ void OathDevice::updateCredentialCacheAsync(const QString& password)
 
     m_updateInProgress = true;
 
+    // Set state to FetchingCredentials if not already in error state
+    if (state() != Shared::DeviceState::Error) {
+        setState(Shared::DeviceState::FetchingCredentials);
+    }
+
     const QString passwordToUse = password.isEmpty() ? m_password : password;
 
     // Note: We don't store the QFuture because we communicate via signals/slots.
     // The m_updateInProgress flag tracks whether an update is running.
     [[maybe_unused]] auto future = QtConcurrent::run([this, passwordToUse]() {
         qCDebug(YubiKeyOathDeviceLog) << "Background thread started for credential fetch";
+
         const QList<OathCredential> credentials = this->fetchCredentialsSync(passwordToUse);
 
         qCDebug(YubiKeyOathDeviceLog) << "Fetched" << credentials.size() << "credentials in background thread";
 
+        // Transition to Ready state on success
+        // setState() is thread-safe (uses mutex + emits signal)
+        const Shared::DeviceState currentState = state();
+        qCDebug(YubiKeyOathDeviceLog) << "After fetch, current state:" << Shared::deviceStateToString(currentState);
+
+        if (currentState == Shared::DeviceState::FetchingCredentials) {
+            qCDebug(YubiKeyOathDeviceLog) << "Transitioning to Ready state";
+            setState(Shared::DeviceState::Ready);
+        } else {
+            qCWarning(YubiKeyOathDeviceLog) << "NOT transitioning to Ready - state is" << Shared::deviceStateToString(currentState);
+        }
+
+        // Update credentials cache BEFORE emitting signal
+        // This ensures cache is populated when signal handlers execute and when getCredentials() is called
+        m_credentials = credentials;
+        qCDebug(YubiKeyOathDeviceLog) << "Updated credentials cache with" << credentials.size() << "credentials";
+
+        // Clear the update-in-progress flag
+        m_updateInProgress = false;
+        qCDebug(YubiKeyOathDeviceLog) << "Cleared updateInProgress flag";
+
+        // Emit signal AFTER cache is updated
+        // Signal handlers in derived classes are now redundant but kept for backwards compatibility
         Q_EMIT credentialCacheFetched(credentials);
     });
 }
