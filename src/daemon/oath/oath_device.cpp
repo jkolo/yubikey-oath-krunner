@@ -7,6 +7,7 @@
 #include "oath_error_codes.h"
 #include "yk_oath_session.h"
 #include "../logging_categories.h"
+#include "../pcsc/card_transaction.h"
 #include "shared/types/device_state.h"
 
 #include <QMutexLocker>
@@ -178,28 +179,25 @@ Result<QString> OathDevice::generateCode(const QString& name)
         return Result<QString>::error(OathErrorCodes::CREDENTIAL_NOT_FOUND);
     }
 
-    auto result = m_session->calculateCode(name, period);
+    // Begin PC/SC transaction with automatic SELECT OATH
+    const CardTransaction transaction(m_cardHandle, m_session.get());
+    if (!transaction.isValid()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Transaction failed:" << transaction.errorMessage();
+        return Result<QString>::error(transaction.errorMessage());
+    }
 
-    // Check if password required
-    if (result.isError() && result.error() == OathErrorCodes::PASSWORD_REQUIRED) {
-        qCDebug(YubiKeyOathDeviceLog) << "Password required for CALCULATE";
-
-        if (!m_password.isEmpty()) {
-            qCDebug(YubiKeyOathDeviceLog) << "Attempting re-authentication";
-            auto authResult = m_session->authenticate(m_password, m_deviceId);
-            if (authResult.isSuccess()) {
-                // Retry CALCULATE command after authentication
-                qCDebug(YubiKeyOathDeviceLog) << "Re-authentication successful, retrying CALCULATE";
-                result = m_session->calculateCode(name, period);
-            } else {
-                qCDebug(YubiKeyOathDeviceLog) << "Re-authentication failed:" << authResult.error();
-                return Result<QString>::error(tr("Authentication failed"));
-            }
-        } else {
-            qCDebug(YubiKeyOathDeviceLog) << "No password available for re-authentication";
-            return Result<QString>::error(tr("Password required"));
+    // Authenticate if password required
+    if (!m_password.isEmpty()) {
+        qCDebug(YubiKeyOathDeviceLog) << "Authenticating within transaction";
+        auto authResult = m_session->authenticate(m_password, m_deviceId);
+        if (authResult.isError()) {
+            qCWarning(YubiKeyOathDeviceLog) << "Authentication failed:" << authResult.error();
+            return Result<QString>::error(i18n("Authentication failed"));
         }
     }
+
+    // Calculate code (session no longer does its own transaction/SELECT/auth)
+    auto result = m_session->calculateCode(name, period);
 
     return result;
 }
@@ -211,6 +209,14 @@ Result<void> OathDevice::authenticateWithPassword(const QString& password)
     // Serialize card access to prevent race conditions between threads
     QMutexLocker locker(&m_cardMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
+    // Begin PC/SC transaction with automatic SELECT OATH
+    const CardTransaction transaction(m_cardHandle, m_session.get());
+    if (!transaction.isValid()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Transaction failed:" << transaction.errorMessage();
+        return Result<void>::error(transaction.errorMessage());
+    }
+
+    // Authenticate within transaction
     auto result = m_session->authenticate(password, m_deviceId);
     if (result.isSuccess()) {
         m_password = SecureMemory::SecureString(password);
@@ -227,9 +233,16 @@ Result<void> OathDevice::addCredential(const OathCredentialData &data)
     // Serialize card access to prevent race conditions between threads
     QMutexLocker locker(&m_cardMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
-    // If device requires password and we have one, authenticate first
+    // Begin PC/SC transaction with automatic SELECT OATH
+    const CardTransaction transaction(m_cardHandle, m_session.get());
+    if (!transaction.isValid()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Transaction failed:" << transaction.errorMessage();
+        return Result<void>::error(transaction.errorMessage());
+    }
+
+    // Authenticate if password required
     if (!m_password.isEmpty()) {
-        qCDebug(YubiKeyOathDeviceLog) << "Authenticating before adding credential";
+        qCDebug(YubiKeyOathDeviceLog) << "Authenticating within transaction before adding credential";
         auto authResult = m_session->authenticate(m_password, m_deviceId);
         if (authResult.isError()) {
             qCWarning(YubiKeyOathDeviceLog) << "Authentication failed:" << authResult.error();
@@ -237,7 +250,7 @@ Result<void> OathDevice::addCredential(const OathCredentialData &data)
         }
     }
 
-    // Add credential via session
+    // Add credential via session (no longer does its own transaction/SELECT/auth)
     auto result = m_session->putCredential(data);
 
     if (result.isSuccess()) {
@@ -257,9 +270,16 @@ Result<void> OathDevice::deleteCredential(const QString &name)
     // Serialize card access to prevent race conditions between threads
     QMutexLocker locker(&m_cardMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
-    // If device requires password and we have one, authenticate first
+    // Begin PC/SC transaction with automatic SELECT OATH
+    const CardTransaction transaction(m_cardHandle, m_session.get());
+    if (!transaction.isValid()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Transaction failed:" << transaction.errorMessage();
+        return Result<void>::error(transaction.errorMessage());
+    }
+
+    // Authenticate if password required
     if (!m_password.isEmpty()) {
-        qCDebug(YubiKeyOathDeviceLog) << "Authenticating before deleting credential";
+        qCDebug(YubiKeyOathDeviceLog) << "Authenticating within transaction before deleting credential";
         auto authResult = m_session->authenticate(m_password, m_deviceId);
         if (authResult.isError()) {
             qCWarning(YubiKeyOathDeviceLog) << "Authentication failed:" << authResult.error();
@@ -267,7 +287,7 @@ Result<void> OathDevice::deleteCredential(const QString &name)
         }
     }
 
-    // Delete credential via session
+    // Delete credential via session (no longer does its own transaction/SELECT/auth)
     auto result = m_session->deleteCredential(name);
 
     if (result.isSuccess()) {
@@ -286,7 +306,14 @@ Result<void> OathDevice::changePassword(const QString &oldPassword, const QStrin
     // Serialize card access to prevent race conditions between threads
     QMutexLocker locker(&m_cardMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
-    // Change password via session (handles authentication internally)
+    // Begin PC/SC transaction with automatic SELECT OATH
+    const CardTransaction transaction(m_cardHandle, m_session.get());
+    if (!transaction.isValid()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Transaction failed:" << transaction.errorMessage();
+        return Result<void>::error(transaction.errorMessage());
+    }
+
+    // Change password via session (handles authentication internally, no longer does its own transaction/SELECT)
     auto result = m_session->changePassword(oldPassword, newPassword, m_deviceId);
 
     if (result.isSuccess()) {
@@ -404,64 +431,40 @@ QList<OathCredential> OathDevice::fetchCredentialsSync(const QString& password)
     // Serialize card access to prevent race conditions between threads
     QMutexLocker locker(&m_cardMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
-    // Use CALCULATE ALL to get credentials with codes
-    qCDebug(YubiKeyOathDeviceLog) << "Attempting first CALCULATE ALL (without explicit auth)";
-    auto result = m_session->calculateAll();
+    // Begin PC/SC transaction with automatic SELECT OATH
+    const CardTransaction transaction(m_cardHandle, m_session.get());
+    if (!transaction.isValid()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Transaction failed:" << transaction.errorMessage();
+        return {};
+    }
 
-    if (result.isError()) {
-        qCWarning(YubiKeyOathDeviceLog) << "First CALCULATE ALL FAILED with error:" << result.error();
+    // Determine which password to use
+    const QString devicePassword = password.isEmpty() ? m_password : password;
 
-        // Check if password required
-        if (result.error() == OathErrorCodes::PASSWORD_REQUIRED) {
-            qCDebug(YubiKeyOathDeviceLog) << "Password required for CALCULATE ALL - will attempt authentication";
-
-            const QString devicePassword = password.isEmpty() ? m_password : password;
-            if (devicePassword.isEmpty()) {
-                qCDebug(YubiKeyOathDeviceLog) << "Using password: EMPTY (no password available)";
-            } else {
-                qCDebug(YubiKeyOathDeviceLog) << "Using password: AVAILABLE (length:" << devicePassword.length() << ")";
-            }
-
-            if (!devicePassword.isEmpty()) {
-                qCDebug(YubiKeyOathDeviceLog) << "Attempting authentication with password";
-                auto authResult = m_session->authenticate(devicePassword, m_deviceId);
-                if (authResult.isSuccess()) {
-                    qCDebug(YubiKeyOathDeviceLog) << ">>> AUTHENTICATION SUCCESSFUL <<<";
-
-                    // Update stored password
-                    m_password = SecureMemory::SecureString(devicePassword);
-
-                    // Retry CALCULATE ALL command after authentication
-                    qCDebug(YubiKeyOathDeviceLog) << "Retrying CALCULATE ALL after successful authentication";
-                    result = m_session->calculateAll();
-
-                    // BUG FIX #3: Check if retry succeeded before accessing value()
-                    if (result.isError()) {
-                        qCWarning(YubiKeyOathDeviceLog) << ">>> CALCULATE ALL FAILED AFTER AUTHENTICATION <<<";
-                        qCWarning(YubiKeyOathDeviceLog) << "Error:" << result.error();
-                        qCWarning(YubiKeyOathDeviceLog) << "Returning EMPTY credentials list";
-                        return {};
-                    } else {
-                        qCDebug(YubiKeyOathDeviceLog) << ">>> CALCULATE ALL SUCCEEDED AFTER AUTHENTICATION <<<";
-                    }
-                } else {
-                    qCWarning(YubiKeyOathDeviceLog) << ">>> AUTHENTICATION FAILED <<<";
-                    qCWarning(YubiKeyOathDeviceLog) << "Error:" << authResult.error();
-                    qCWarning(YubiKeyOathDeviceLog) << "Returning EMPTY credentials list";
-                    return {};
-                }
-            } else {
-                qCWarning(YubiKeyOathDeviceLog) << "No password available for authentication";
-                qCWarning(YubiKeyOathDeviceLog) << "Returning EMPTY credentials list";
-                return {};
-            }
+    // Authenticate if password required
+    if (!devicePassword.isEmpty()) {
+        qCDebug(YubiKeyOathDeviceLog) << "Authenticating within transaction before CALCULATE ALL";
+        auto authResult = m_session->authenticate(devicePassword, m_deviceId);
+        if (authResult.isSuccess()) {
+            qCDebug(YubiKeyOathDeviceLog) << ">>> AUTHENTICATION SUCCESSFUL <<<";
+            // Update stored password
+            m_password = SecureMemory::SecureString(devicePassword);
         } else {
-            qCWarning(YubiKeyOathDeviceLog) << "CALCULATE ALL failed with non-password error:" << result.error();
+            qCWarning(YubiKeyOathDeviceLog) << ">>> AUTHENTICATION FAILED <<<";
+            qCWarning(YubiKeyOathDeviceLog) << "Error:" << authResult.error();
             qCWarning(YubiKeyOathDeviceLog) << "Returning EMPTY credentials list";
             return {};
         }
-    } else {
-        qCDebug(YubiKeyOathDeviceLog) << ">>> FIRST CALCULATE ALL SUCCEEDED (no authentication required) <<<";
+    }
+
+    // Use CALCULATE ALL to get credentials with codes (no longer does its own transaction/SELECT/auth)
+    qCDebug(YubiKeyOathDeviceLog) << "Calling CALCULATE ALL within transaction";
+    auto result = m_session->calculateAll();
+
+    if (result.isError()) {
+        qCWarning(YubiKeyOathDeviceLog) << "CALCULATE ALL FAILED with error:" << result.error();
+        qCWarning(YubiKeyOathDeviceLog) << "Returning EMPTY credentials list";
+        return {};
     }
 
     const QList<OathCredential> credentials = result.value();
@@ -546,7 +549,7 @@ Result<void> OathDevice::reconnectCardHandle(const QString &readerName)
     }
 
     qCWarning(YubiKeyOathDeviceLog) << "Failed to reconnect after" << maxAttempts << "attempts";
-    return Result<void>::error(tr("Failed to reconnect after multiple attempts"));
+    return Result<void>::error(i18n("Failed to reconnect after multiple attempts"));
 }
 
 } // namespace Daemon

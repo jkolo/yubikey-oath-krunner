@@ -165,7 +165,7 @@ QString YubiKeyDeviceManager::connectToDevice(const QString &readerName) {
 
     const QByteArray readerBytes = readerName.toUtf8();
     const LONG result = SCardConnect(m_context, readerBytes.constData(),
-                              SCARD_SHARE_EXCLUSIVE, SCARD_PROTOCOL_T1,
+                              SCARD_SHARE_SHARED, SCARD_PROTOCOL_T1,
                               &cardHandle, &protocol);
 
     qCDebug(YubiKeyDeviceManagerLog) << "SCardConnect result:" << result << "protocol:" << protocol;

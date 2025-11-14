@@ -18,6 +18,7 @@
 #include "common/result.h"
 #include "shared/types/yubikey_model.h"
 #include "shared/utils/version.h"
+#include "../pcsc/i_oath_selector.h"
 
 // Forward declarations for PC/SC types
 #ifdef __APPLE__
@@ -72,7 +73,7 @@ struct ExtendedDeviceInfo {
  * - reconnectReady() - emitted by upper layer after successful reconnect
  * - reconnectFailed() - emitted by upper layer when reconnect fails
  */
-class YkOathSession : public QObject
+class YkOathSession : public QObject, public IOathSelector
 {
     Q_OBJECT
 
@@ -192,25 +193,12 @@ protected:
                                      int keyLength);
 
     /**
-     * @brief Ensures OATH session is active, reactivates if needed
-     * @return Result with success or error message
-     *
-     * Checks m_sessionActive flag. If session is inactive, executes SELECT
-     * to reactivate OATH applet. This is needed after external apps (like ykman)
-     * interact with device and may leave it in a different state.
-     */
-    Result<void> ensureSessionActive();
-
-    /**
      * @brief Attempts to reconnect to card after reset
      * @return true if reconnect successful, false otherwise
      *
      * Uses SCardReconnect() to refresh the card handle after external
      * apps (like ykman) reset the card. This preserves the connection
      * without requiring full disconnect/connect cycle.
-     *
-     * After successful reconnect, m_sessionActive is set to false
-     * (OATH applet needs to be selected again).
      */
     bool reconnectCard();
 
@@ -221,7 +209,6 @@ protected:
     Version m_firmwareVersion;  ///< Firmware version from SELECT TAG_VERSION
     quint32 m_selectSerialNumber = 0;  ///< Serial number from SELECT TAG_SERIAL_NUMBER (0x8F), strategy #0
     bool m_requiresPassword = false;  ///< Password requirement from SELECT TAG_CHALLENGE presence
-    bool m_sessionActive = false;  ///< Session state tracking - true if OATH applet is selected
     std::unique_ptr<OathProtocol> m_oathProtocol;  ///< Brand-specific OATH protocol implementation
     qint64 m_lastPcscOperationTime = 0;  ///< Timestamp (ms since epoch) of last PC/SC operation for rate limiting
 };

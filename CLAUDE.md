@@ -88,10 +88,71 @@ YkOathSession (base protocol)
 
 - **YubiKeyRunner** (`src/krunner/yubikeyrunner.{h,cpp}` ~200 lines): plugin entry, uses ManagerProxy
 - **YubiKeyDeviceManager** (`src/daemon/oath/yubikey_device_manager.{h,cpp}` ~400 lines): multi-device, PC/SC, hot-plug, factories
-- **YkOathSession** (`src/daemon/oath/yk_oath_session.{h,cpp}` ~450 lines): OATH protocol base, PC/SC I/O with 50ms rate limiting, PBKDF2, NOT thread-safe
+- **IOathSelector** (`src/daemon/pcsc/i_oath_selector.h` ~72 lines): Interface for OATH applet selection, implements Dependency Inversion Principle
+- **YkOathSession** (`src/daemon/oath/yk_oath_session.{h,cpp}` ~450 lines): OATH protocol base implementing IOathSelector, PC/SC I/O with 50ms rate limiting, PBKDF2, NOT thread-safe
 - **OathProtocol** (`src/daemon/oath/oath_protocol.{h,cpp}` ~200 lines): utilities, constants, TLV parsing
 - **OathErrorCodes** (`src/daemon/oath/oath_error_codes.h`): Translation-independent error constants (PASSWORD_REQUIRED, TOUCH_REQUIRED, etc.)
 - **ManagementProtocol** (`src/daemon/oath/management_protocol.{h,cpp}` ~150 lines): GET DEVICE INFO, YubiKey 4.1+
+
+### PC/SC Lock Management
+
+**Problem:** Previous approach used `SCARD_SHARE_EXCLUSIVE` for entire device lifecycle, blocking other applications (GnuPG, ykman) from accessing card.
+
+**Solution:** Use `SCARD_SHARE_SHARED` with per-operation exclusive transactions via RAII pattern.
+
+**Architecture:**
+- **IOathSelector** (`src/daemon/pcsc/i_oath_selector.h` ~72 lines): Interface for OATH applet selection
+  - Abstracts `selectOathApplication()` operation following Dependency Inversion Principle
+  - Breaks circular dependency: pcsc/ layer → IOathSelector (pcsc/) ← YkOathSession (oath/) implements
+  - Allows CardTransaction (pcsc/ layer) to work with any OATH session implementation
+  - Implemented by YkOathSession base class (all brands: YubiKey, Nitrokey)
+
+- **CardTransaction** (`src/daemon/pcsc/card_transaction.{h,cpp}` ~125 lines): RAII class managing PC/SC transaction lifecycle
+  - Constructor: `SCardBeginTransaction()` + automatic `SELECT OATH` applet via IOathSelector (unless `skipOathSelect=true`)
+  - Destructor: `SCardEndTransaction(SCARD_LEAVE_CARD)` - automatic cleanup
+  - Move semantics: Prevents double-EndTransaction via move constructor/assignment with logging
+  - Error handling: `isValid()`, `errorMessage()` for transaction/SELECT failures
+  - Security: Validates cardHandle (non-zero) and session pointer (non-null when SELECT required)
+  - Logging: Debug messages for transaction lifecycle, warnings for errors (move assignment included)
+
+**Transaction Scope:**
+- **One transaction per D-Bus operation**: BeginTransaction → SELECT OATH → authenticate (if password required) → operation → EndTransaction
+- **Managed at OathDevice level**: Each public method (`generateCode()`, `addCredential()`, `deleteCredential()`, `authenticateWithPassword()`, `changePassword()`, `fetchCredentialsSync()`) creates CardTransaction
+- **Session methods are pure protocol**: YkOathSession/NitrokeyOathSession methods (`calculateCode()`, `calculateAll()`, etc.) no longer manage transactions - they only send APDUs
+
+**Benefits:**
+1. **Cooperative multi-access**: GnuPG can access card between OATH operations (no blocking)
+2. **Atomic operations**: Each D-Bus call is fully isolated transaction (SELECT + auth + operation)
+3. **Automatic cleanup**: RAII ensures EndTransaction even on exceptions/early returns
+4. **Simplified error handling**: Transaction/SELECT errors caught before operation starts
+
+**Example Flow (generateCode):**
+```cpp
+// OathDevice::generateCode() - manages transaction
+// m_session is std::unique_ptr<YkOathSession> which implements IOathSelector
+CardTransaction transaction(m_cardHandle, m_session.get());  // Polymorphic: YkOathSession* → IOathSelector*
+if (!transaction.isValid()) {
+    return Result<QString>::error(transaction.errorMessage());  // Validation + SELECT errors
+}
+
+// Authenticate if password required
+if (!m_password.isEmpty()) {
+    auto authResult = m_session->authenticate(m_password, m_deviceId);  // No SELECT - already done
+    if (authResult.isError()) {
+        return Result<QString>::error(i18n("Authentication failed"));  // KDE i18n, NOT Qt tr()
+    }
+}
+
+// Calculate code
+auto result = m_session->calculateCode(name, period);  // Pure protocol - no transaction management
+
+// Destructor automatically calls SCardEndTransaction()
+return result;
+```
+
+**skipOathSelect Parameter:**
+- Used when method needs manual SELECT control (e.g., `getExtendedDeviceInfo()` doing Management API SELECT)
+- Default: `false` (automatic SELECT OATH)
 
 **Workflows:**
 - NotificationOrchestrator: notifications, countdown, progress
@@ -275,6 +336,19 @@ TextInputFactory → Portal (libportal, xdp_session_keyboard_key, all Wayland) �
 
 ### FormatOptionsBuilder (v2.0.0)
 Fluent API: `FormatOptionsBuilder().withUsername().withDevice(name).withDeviceCount(count).onlyWhenMultipleDevices().build()`
+
+### Dependency Inversion Principle (v2.4.0+)
+**Problem:** CardTransaction (pcsc/ layer) depended on YkOathSession (oath/ layer) - violates layering and prevents reuse
+
+**Solution:** Extract IOathSelector interface, move to pcsc/ layer, YkOathSession implements it
+
+**Result:** Clean layer separation, polymorphism (YkOathSession* → IOathSelector*), breaks circular dependency
+
+**Pattern:**
+```
+BEFORE: CardTransaction → YkOathSession (WRONG: low-level depends on high-level)
+AFTER:  CardTransaction → IOathSelector ← YkOathSession implements (CORRECT: both depend on abstraction)
+```
 
 ### Notification Management
 

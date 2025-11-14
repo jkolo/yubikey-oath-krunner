@@ -391,6 +391,7 @@ if(KF6_Wallet_FOUND AND PKG_CONFIG_FOUND)
                     ../src/daemon/oath/oath_device.cpp
                     ../src/daemon/oath/yubikey_device_manager.cpp
                     ../src/daemon/oath/yk_oath_session.cpp
+                    ../src/daemon/pcsc/card_transaction.cpp
                     ../src/daemon/oath/oath_protocol.cpp
                     ../src/daemon/oath/yk_oath_protocol.cpp
                     ../src/daemon/oath/nitrokey_secrets_oath_protocol.cpp
@@ -428,6 +429,7 @@ if(KF6_Wallet_FOUND AND PKG_CONFIG_FOUND)
                     ../src/daemon/oath/oath_device.cpp
                     ../src/daemon/oath/yubikey_device_manager.cpp
                     ../src/daemon/oath/yk_oath_session.cpp
+                    ../src/daemon/pcsc/card_transaction.cpp
                     ../src/daemon/oath/oath_protocol.cpp
                     ../src/daemon/oath/yk_oath_protocol.cpp
                     ../src/daemon/oath/nitrokey_secrets_oath_protocol.cpp
@@ -465,6 +467,7 @@ if(KF6_Wallet_FOUND AND PKG_CONFIG_FOUND)
                     ../src/daemon/oath/oath_device.cpp
                     ../src/daemon/oath/yubikey_device_manager.cpp
                     ../src/daemon/oath/yk_oath_session.cpp
+                    ../src/daemon/pcsc/card_transaction.cpp
                     ../src/daemon/oath/oath_protocol.cpp
                     ../src/daemon/oath/yk_oath_protocol.cpp
                     ../src/daemon/oath/nitrokey_secrets_oath_protocol.cpp

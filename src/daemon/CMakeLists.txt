@@ -66,6 +66,7 @@ add_executable(yubikey-oath-daemon
 
     # PC/SC monitoring
     pcsc/card_reader_monitor.cpp
+    pcsc/card_transaction.cpp
 
     # Configuration
     config/daemon_configuration.cpp
