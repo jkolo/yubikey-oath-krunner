@@ -17,6 +17,29 @@ krunner --replace  # restart (NEVER killall)
 
 **Daemon:** `systemctl --user {status,restart} app-pl.jkolo.yubikey.oath.daemon.service`, `journalctl --user-unit=app-pl.jkolo.yubikey.oath.daemon.service --follow`
 
+## Repository & Release
+
+**Primary Repository:** GitLab at `git.kolosowscy.pl:jkolo/krunner-yubikey-oath` (private)
+**Public Mirror:** GitHub at `github.com/jkolo/yubikey-oath-krunner` (automatically mirrored from GitLab)
+
+**Release Process:**
+- All development happens on GitLab (origin: `git@git.kolosowscy.pl:jkolo/krunner-yubikey-oath.git`)
+- GitHub mirror is automatically synchronized from GitLab
+- Public releases (for AUR package) are distributed via GitHub releases
+- AUR package (`krunner-yubikey-oath`) references GitHub tarball URLs
+
+**Tagging Convention:** `v{MAJOR}.{MINOR}.{PATCH}` (e.g., `v2.0.0`)
+
+**Release Workflow:**
+1. Update version in: CMakeLists.txt, yubikeyrunner.json, plasma-runner-yubikey.desktop, pl.po, README.md
+2. Create/update CHANGELOG.md
+3. Commit: `git commit -am "chore: release version X.Y.Z"`
+4. Tag: `git tag -a vX.Y.Z -m "Release version X.Y.Z"`
+5. Push to GitLab: `git push origin main && git push origin vX.Y.Z`
+6. GitHub auto-mirrors the tag
+7. Create GitHub release manually (triggers tarball generation)
+8. Update AUR package with new version and tarball SHA256
+
 ## Architecture
 
 **Source:** `src/shared/` (types, dbus, ui, utils, po, resources), `src/daemon/` (services, oath, storage, pcsc), `src/krunner/` (plugin), `src/config/` (KCM)

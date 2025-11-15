@@ -327,7 +327,7 @@ Contributions are welcome! Please:
 
 ## Project Status
 
-**Version:** 1.0.0
+**Version:** 2.0.0
 **Status:** Production Ready
 **Test Coverage:** 58.0% (8 test suites, 100% pass rate)
 
