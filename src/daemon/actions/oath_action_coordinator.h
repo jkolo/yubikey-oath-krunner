@@ -17,14 +17,14 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 // Forward declarations
-class YubiKeyService;
+class OathService;
 class ClipboardManager;
 class TextInputProvider;
 class DBusNotificationManager;
 class NotificationOrchestrator;
 class DaemonConfiguration;
-class YubiKeyDeviceManager;
-class YubiKeyDatabase;
+class OathDeviceManager;
+class OathDatabase;
 class SecretStorage;
 class TouchHandler;
 class TouchWorkflowCoordinator;
@@ -42,7 +42,7 @@ class CredentialCacheSearcher;
  * high-level methods for D-Bus service to call. It handles the decision logic
  * of whether to start a touch workflow, reconnect workflow, or execute the action directly.
  */
-class YubiKeyActionCoordinator : public QObject
+class OathActionCoordinator : public QObject
 {
     Q_OBJECT
 
@@ -56,14 +56,14 @@ public:
      * @param config Daemon configuration
      * @param parent Parent QObject
      */
-    explicit YubiKeyActionCoordinator(YubiKeyService *service,
-                                     YubiKeyDeviceManager *deviceManager,
-                                     YubiKeyDatabase *database,
+    explicit OathActionCoordinator(OathService *service,
+                                     OathDeviceManager *deviceManager,
+                                     OathDatabase *database,
                                      SecretStorage *secretStorage,
                                      DaemonConfiguration *config,
                                      QObject *parent = nullptr);
 
-    ~YubiKeyActionCoordinator() override;
+    ~OathActionCoordinator() override;
 
     /**
      * @brief Copies TOTP code to clipboard
@@ -82,7 +82,7 @@ public:
     bool typeCode(const QString &deviceId, const QString &credentialName);
 
     // Note: addCredentialFromScreen() removed - not yet implemented
-    // Use addCredential() in YubiKeyService for direct credential adding
+    // Use addCredential() in OathService for direct credential adding
 
     /**
      * @brief Executes action with code and shows notification according to policy
@@ -167,8 +167,9 @@ private:
                                     const QString &credentialName,
                                     const QString &actionType);
 
-    YubiKeyDeviceManager *m_deviceManager;
-    YubiKeyDatabase *m_database;
+    OathService *m_service;  // Not owned - for accessing services with cached credentials logic
+    OathDeviceManager *m_deviceManager;  // Not owned - passed to TouchWorkflow and CacheSearcher
+    OathDatabase *m_database;
     SecretStorage *m_secretStorage;
     DaemonConfiguration *m_config;
 

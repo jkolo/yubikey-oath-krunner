@@ -26,7 +26,7 @@ namespace Daemon {
 
 // Forward declarations
 class OathDeviceObject;
-class YubiKeyService;
+class OathService;
 
 /**
  * @brief Manager D-Bus object for YubiKey OATH daemon
@@ -69,11 +69,11 @@ class OathManagerObject : public QObject
 public:
     /**
      * @brief Constructs Manager object
-     * @param service Pointer to YubiKeyService (business logic layer)
+     * @param service Pointer to OathService (business logic layer)
      * @param connection D-Bus connection to register on
      * @param parent Parent QObject
      */
-    explicit OathManagerObject(YubiKeyService *service,
+    explicit OathManagerObject(OathService *service,
                                    QDBusConnection connection,
                                    QObject *parent = nullptr);
     ~OathManagerObject() override;
@@ -171,7 +171,7 @@ private:
      */
     static QString devicePath(const QString &deviceId, quint32 serialNumber);
 
-    YubiKeyService *m_service{nullptr};                 ///< Business logic service (not owned)
+    OathService *m_service{nullptr};                 ///< Business logic service (not owned)
     QDBusConnection m_connection;                       ///< D-Bus connection
     QString m_objectPath;                               ///< Our object path
     bool m_registered{false};                           ///< Registration state

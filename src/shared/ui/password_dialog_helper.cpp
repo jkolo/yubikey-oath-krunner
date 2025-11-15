@@ -8,6 +8,7 @@
 #include "logging_categories.h"
 #include "../dbus/oath_manager_proxy.h"
 #include "../dbus/oath_device_proxy.h"
+#include "../dbus/oath_device_session_proxy.h"
 
 #include <QPointer>
 #include <KLocalizedString>
@@ -65,8 +66,22 @@ void showDialog(
                     return;
                 }
 
-                // Test and save password via device proxy (blocking call)
-                const bool success = device->savePassword(password);
+                // Get session proxy for password operations
+                auto *session = manager->getDeviceSession(devId);
+                if (!session) {
+                    qCWarning(YubiKeyUILog) << "Session proxy not found:" << devId;
+                    if (dialogPtr) {
+                        QMetaObject::invokeMethod(dialogPtr.data(), [dialogPtr]() {
+                            if (dialogPtr) {
+                                dialogPtr->showError(i18n("Device session not found"));
+                            }
+                        }, Qt::QueuedConnection);
+                    }
+                    return;
+                }
+
+                // Test and save password via session proxy (blocking call)
+                const bool success = session->savePassword(password);
 
                 // Check if dialog still exists before accessing it
                 if (!dialogPtr) {

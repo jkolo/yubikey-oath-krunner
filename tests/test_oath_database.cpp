@@ -7,7 +7,7 @@
 #include <QTemporaryDir>
 #include <QFileInfo>
 #include <QFile>
-#include "daemon/storage/yubikey_database.h"
+#include "daemon/storage/oath_database.h"
 #include "types/oath_credential.h"
 #include "types/oath_credential_data.h"
 #include "types/yubikey_model.h"
@@ -17,13 +17,13 @@ using namespace YubiKeyOath::Daemon;
 using namespace YubiKeyOath::Shared;
 
 /**
- * @brief Testable YubiKeyDatabase that uses temporary directory
+ * @brief Testable OathDatabase that uses temporary directory
  */
-class TestableYubiKeyDatabase : public YubiKeyDatabase
+class TestableOathDatabase : public OathDatabase
 {
 public:
-    explicit TestableYubiKeyDatabase(const QString &tempPath, QObject *parent = nullptr)
-        : YubiKeyDatabase(parent)
+    explicit TestableOathDatabase(const QString &tempPath, QObject *parent = nullptr)
+        : OathDatabase(parent)
         , m_tempPath(tempPath)
     {}
 
@@ -37,7 +37,7 @@ private:
 };
 
 /**
- * @brief Test suite for YubiKeyDatabase
+ * @brief Test suite for OathDatabase
  *
  * Tests SQLite operations for device and credential storage:
  * - Database initialization and schema creation
@@ -45,7 +45,7 @@ private:
  * - Credential caching
  * - Schema migration
  */
-class TestYubiKeyDatabase : public QObject
+class TestOathDatabase : public QObject
 {
     Q_OBJECT
 
@@ -54,7 +54,7 @@ private Q_SLOTS:
     {
         qDebug() << "";
         qDebug() << "========================================";
-        qDebug() << "Test: YubiKeyDatabase";
+        qDebug() << "Test: OathDatabase";
         qDebug() << "========================================";
 
         // Create temporary directory for test database
@@ -66,7 +66,7 @@ private Q_SLOTS:
     void init()
     {
         // Create fresh database for each test
-        m_db = new TestableYubiKeyDatabase(m_tempDir->path(), this);
+        m_db = new TestableOathDatabase(m_tempDir->path(), this);
         QVERIFY(m_db->initialize());
     }
 
@@ -89,7 +89,7 @@ private Q_SLOTS:
 
         qDebug() << "";
         qDebug() << "========================================";
-        qDebug() << "YubiKeyDatabase tests complete";
+        qDebug() << "OathDatabase tests complete";
         qDebug() << "========================================";
         qDebug() << "";
         qDebug() << "✓ All test cases implemented and passing";
@@ -488,8 +488,8 @@ private Q_SLOTS:
 
 private:
     QTemporaryDir *m_tempDir = nullptr;
-    TestableYubiKeyDatabase *m_db = nullptr;
+    TestableOathDatabase *m_db = nullptr;
 };
 
-QTEST_GUILESS_MAIN(TestYubiKeyDatabase)
-#include "test_yubikey_database.moc"
+QTEST_GUILESS_MAIN(TestOathDatabase)
+#include "test_oath_database.moc"

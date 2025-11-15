@@ -4,7 +4,7 @@
  */
 
 #include "device_name_formatter.h"
-#include "daemon/storage/yubikey_database.h"
+#include "daemon/storage/oath_database.h"
 #include "shared/types/device_model.h"
 #include "shared/types/device_brand.h"
 
@@ -14,7 +14,7 @@ namespace Shared {
 QString DeviceNameFormatter::generateDefaultName(const QString &deviceId,
                                                   const DeviceModel& deviceModel,
                                                   quint32 serialNumber,
-                                                  Daemon::YubiKeyDatabase *database)
+                                                  Daemon::OathDatabase *database)
 {
     // If model brand is unknown, fall back to device ID format
     if (deviceModel.brand == DeviceBrand::Unknown) {
@@ -50,7 +50,7 @@ QString DeviceNameFormatter::generateDefaultName(const QString &deviceId,
 }
 
 QString DeviceNameFormatter::getDeviceDisplayName(const QString &deviceId,
-                                                   Daemon::YubiKeyDatabase *database)
+                                                   Daemon::OathDatabase *database)
 {
     // Try to get custom name from database
     auto deviceRecord = database->getDevice(deviceId);

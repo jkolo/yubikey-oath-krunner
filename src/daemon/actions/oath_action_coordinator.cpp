@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "yubikey_action_coordinator.h"
+#include "oath_action_coordinator.h"
 #include "action_executor.h"
-#include "../services/yubikey_service.h"
+#include "../services/oath_service.h"
 #include "../clipboard/clipboard_manager.h"
 #include "../input/text_input_factory.h"
 #include "../notification/dbus_notification_manager.h"
@@ -15,8 +15,8 @@
 #include "../workflows/touch_workflow_coordinator.h"
 #include "../workflows/reconnect_workflow_coordinator.h"
 #include "../cache/credential_cache_searcher.h"
-#include "../oath/yubikey_device_manager.h"
-#include "../storage/yubikey_database.h"
+#include "../oath/oath_device_manager.h"
+#include "../storage/oath_database.h"
 #include "../config/daemon_configuration.h"
 #include "../logging_categories.h"
 #include "formatting/credential_formatter.h"
@@ -43,19 +43,20 @@ TouchWorkflowCoordinator::OperationType stringToOperationType(const QString &act
         return TouchWorkflowCoordinator::OperationType::Delete;
     } else {
         // Default to Generate for unknown action types
-        qCWarning(YubiKeyActionCoordinatorLog) << "Unknown action type:" << actionType << "- defaulting to Generate";
+        qCWarning(OathActionCoordinatorLog) << "Unknown action type:" << actionType << "- defaulting to Generate";
         return TouchWorkflowCoordinator::OperationType::Generate;
     }
 }
 } // anonymous namespace
 
-YubiKeyActionCoordinator::YubiKeyActionCoordinator(YubiKeyService *service,
-                                         YubiKeyDeviceManager *deviceManager,
-                                         YubiKeyDatabase *database,
+OathActionCoordinator::OathActionCoordinator(OathService *service,
+                                         OathDeviceManager *deviceManager,
+                                         OathDatabase *database,
                                          SecretStorage *secretStorage,
                                          DaemonConfiguration *config,
                                          QObject *parent)
     : QObject(parent)
+    , m_service(service)
     , m_deviceManager(deviceManager)
     , m_database(database)
     , m_secretStorage(secretStorage)
@@ -94,36 +95,29 @@ YubiKeyActionCoordinator::YubiKeyActionCoordinator(YubiKeyService *service,
         database,
         config))
 {
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyActionCoordinator: Initialized with touch and reconnect workflow support";
-
-    // Pre-initialize text input provider (e.g., create Portal session in advance)
-    // This reduces latency on first use by avoiding lazy initialization delay
-    if (m_textInput) {
-        qCDebug(YubiKeyActionCoordinatorLog) << "Pre-initializing text input provider:" << m_textInput->providerName();
-        m_textInput->preInitialize();
-    }
+    qCDebug(OathDaemonLog) << "OathActionCoordinator: Initialized with touch and reconnect workflow support";
 }
 
-YubiKeyActionCoordinator::~YubiKeyActionCoordinator() = default;
+OathActionCoordinator::~OathActionCoordinator() = default;
 
-bool YubiKeyActionCoordinator::copyCodeToClipboard(const QString &deviceId, const QString &credentialName)
+bool OathActionCoordinator::copyCodeToClipboard(const QString &deviceId, const QString &credentialName)
 {
-    qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: copyCodeToClipboard" << credentialName;
+    qCDebug(OathActionCoordinatorLog) << "OathActionCoordinator: copyCodeToClipboard" << credentialName;
     return executeActionInternal(deviceId, credentialName, QStringLiteral("copy"));
 }
 
-bool YubiKeyActionCoordinator::typeCode(const QString &deviceId, const QString &credentialName)
+bool OathActionCoordinator::typeCode(const QString &deviceId, const QString &credentialName)
 {
-    qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: typeCode" << credentialName;
+    qCDebug(OathActionCoordinatorLog) << "OathActionCoordinator: typeCode" << credentialName;
     return executeActionInternal(deviceId, credentialName, QStringLiteral("type"));
 }
 
-ActionExecutor::ActionResult YubiKeyActionCoordinator::executeActionWithNotification(const QString &code,
+ActionExecutor::ActionResult OathActionCoordinator::executeActionWithNotification(const QString &code,
                                                                                     const QString &credentialName,
                                                                                     const QString &actionType,
                                                                                     const Shared::DeviceModel& deviceModel)
 {
-    qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: executeActionWithNotification"
+    qCDebug(OathActionCoordinatorLog) << "OathActionCoordinator: executeActionWithNotification"
                                 << "action:" << actionType << "credential:" << credentialName
                                 << "brand:" << brandName(deviceModel.brand)
                                 << "model:" << deviceModel.modelString;
@@ -144,41 +138,41 @@ ActionExecutor::ActionResult YubiKeyActionCoordinator::executeActionWithNotifica
         // Type action: never show code notification (user sees code being typed)
         // Error notifications are already handled by ActionExecutor
     } else {
-        qCWarning(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Unknown action type:" << actionType;
+        qCWarning(OathActionCoordinatorLog) << "OathActionCoordinator: Unknown action type:" << actionType;
         return ActionExecutor::ActionResult::Failed;
     }
 
     return result;
 }
 
-void YubiKeyActionCoordinator::showSimpleNotification(const QString &title, const QString &message, int type)
+void OathActionCoordinator::showSimpleNotification(const QString &title, const QString &message, int type)
 {
-    qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: showSimpleNotification"
+    qCDebug(OathActionCoordinatorLog) << "OathActionCoordinator: showSimpleNotification"
                                 << "title:" << title;
     m_notificationOrchestrator->showSimpleNotification(title, message, type);
 }
 
-uint YubiKeyActionCoordinator::showPersistentNotification(const QString &title, const QString &message, int type)
+uint OathActionCoordinator::showPersistentNotification(const QString &title, const QString &message, int type)
 {
-    qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: showPersistentNotification"
+    qCDebug(OathActionCoordinatorLog) << "OathActionCoordinator: showPersistentNotification"
                                 << "title:" << title;
     return m_notificationOrchestrator->showPersistentNotification(title, message, type);
 }
 
-void YubiKeyActionCoordinator::closeNotification(uint notificationId)
+void OathActionCoordinator::closeNotification(uint notificationId)
 {
-    qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: closeNotification"
+    qCDebug(OathActionCoordinatorLog) << "OathActionCoordinator: closeNotification"
                                 << "id:" << notificationId;
     m_notificationOrchestrator->closeNotification(notificationId);
 }
 
-bool YubiKeyActionCoordinator::tryStartReconnectWorkflow(
+bool OathActionCoordinator::tryStartReconnectWorkflow(
     const QString &deviceId,
     const QString &credentialName,
     const QString &actionType)
 {
-    qCDebug(YubiKeyActionCoordinatorLog)
-        << "YubiKeyActionCoordinator: Starting reconnect workflow for cached credential";
+    qCDebug(OathActionCoordinatorLog)
+        << "OathActionCoordinator: Starting reconnect workflow for cached credential";
 
     m_reconnectWorkflowCoordinator->startReconnectWorkflow(
         deviceId,
@@ -189,16 +183,16 @@ bool YubiKeyActionCoordinator::tryStartReconnectWorkflow(
     return true; // Workflow started successfully
 }
 
-bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
+bool OathActionCoordinator::executeActionInternal(const QString &deviceId,
                                                      const QString &credentialName,
                                                      const QString &actionType)
 {
     // Get device (use first connected if deviceId empty)
-    auto *device = m_deviceManager->getDeviceOrFirst(deviceId);
+    auto *device = m_service->getDevice(deviceId);
 
     // If device not found, try cached credential (offline device with cached credentials)
     if (!device) {
-        qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Device not connected, checking cache";
+        qCDebug(OathActionCoordinatorLog) << "OathActionCoordinator: Device not connected, checking cache";
 
         auto cachedDeviceId = m_cacheSearcher->findCachedCredentialDevice(credentialName, deviceId);
         if (cachedDeviceId.has_value()) {
@@ -206,7 +200,7 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
         }
 
         // Not found in cache
-        qCWarning(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Device not found"
+        qCWarning(OathActionCoordinatorLog) << "OathActionCoordinator: Device not found"
                                                 << (m_config->enableCredentialsCache() ? "and not in cache" : "(cache disabled)");
         return false;
     }
@@ -216,24 +210,24 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
 
     // Check if credential requires touch BEFORE calling generateCode() to avoid blocking
     // Also find the credential object for formatting
-    const QList<OathCredential> credentials = m_deviceManager->getCredentials();
+    const QList<OathCredential> credentials = m_service->getCredentials();
 
     // Find credential using shared utility function
     auto foundCredentialOpt = Utils::findCredential(credentials, credentialName, actualDeviceId);
     if (!foundCredentialOpt.has_value()) {
-        qCWarning(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Credential not found:" << credentialName;
+        qCWarning(OathActionCoordinatorLog) << "OathActionCoordinator: Credential not found:" << credentialName;
         return false;
     }
 
     const OathCredential &foundCredential = foundCredentialOpt.value();
     const bool requiresTouch = foundCredential.requiresTouch;
-    qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Credential" << credentialName
+    qCDebug(OathActionCoordinatorLog) << "OathActionCoordinator: Credential" << credentialName
                                 << "requiresTouch:" << requiresTouch;
 
     // Format credential display name according to configuration (same as KRunner)
     const QString deviceName = DeviceNameFormatter::getDeviceDisplayName(actualDeviceId, m_database);
 
-    const int connectedDeviceCount = static_cast<int>(m_deviceManager->getConnectedDeviceIds().size());
+    const int connectedDeviceCount = static_cast<int>(m_service->getConnectedDeviceIds().size());
 
     const FormatOptions options = FormatOptionsBuilder()
         .withUsername(m_config->showUsername())
@@ -247,7 +241,7 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
 
     // If touch required, start async touch workflow to avoid blocking
     if (requiresTouch) {
-        qCDebug(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Touch required, starting async touch workflow";
+        qCDebug(OathActionCoordinatorLog) << "OathActionCoordinator: Touch required, starting async touch workflow";
         const Shared::DeviceModel deviceModel = device->deviceModel();
         const TouchWorkflowCoordinator::OperationType opType = stringToOperationType(actionType);
         m_touchWorkflowCoordinator->startTouchWorkflow(credentialName, opType, actualDeviceId, deviceModel);
@@ -257,7 +251,7 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
     // No touch required - generate code synchronously and execute with notification
     auto codeResult = device->generateCode(credentialName);
     if (codeResult.isError()) {
-        qCWarning(YubiKeyActionCoordinatorLog) << "YubiKeyActionCoordinator: Failed to generate code:" << codeResult.error();
+        qCWarning(OathActionCoordinatorLog) << "OathActionCoordinator: Failed to generate code:" << codeResult.error();
         return false;
     }
 
@@ -268,7 +262,8 @@ bool YubiKeyActionCoordinator::executeActionInternal(const QString &deviceId,
 
     // Use unified action execution with notification handling (pass formatted title and device model)
     const ActionExecutor::ActionResult result = executeActionWithNotification(code, formattedTitle, actionType, deviceModel);
-    return result == ActionExecutor::ActionResult::Success;
+    // Success if not Failed (WaitingForPermission is a valid transient state, not a failure)
+    return result != ActionExecutor::ActionResult::Failed;
 }
 
 } // namespace Daemon

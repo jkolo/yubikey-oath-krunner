@@ -6,8 +6,8 @@
 #include "device_delegate.h"
 #include "device_card_layout.h"
 #include "device_card_painter.h"
-#include "yubikey_config.h"
-#include "yubikey_device_model.h"
+#include "oath_config.h"
+#include "oath_device_list_model.h"
 #include "logging_categories.h"
 
 #include <KLocalizedString>
@@ -49,7 +49,7 @@ protected:
                 // Close the editor - this will trigger editingFinished signal
                 auto *lineEdit = qobject_cast<QLineEdit *>(obj);
                 if (lineEdit != nullptr) {
-                    qCDebug(YubiKeyConfigLog) << "LineEditEventFilter: Enter pressed - closing editor";
+                    qCDebug(OathConfigLog) << "LineEditEventFilter: Enter pressed - closing editor";
                     lineEdit->clearFocus();  // Triggers editingFinished
                 }
                 return true;  // Consume event - prevent propagation to parent dialog
@@ -58,7 +58,7 @@ protected:
                 // Cancel editing by clearing focus without accepting changes
                 auto *lineEdit = qobject_cast<QLineEdit *>(obj);
                 if (lineEdit != nullptr) {
-                    qCDebug(YubiKeyConfigLog) << "LineEditEventFilter: Escape pressed - canceling edit";
+                    qCDebug(OathConfigLog) << "LineEditEventFilter: Escape pressed - canceling edit";
                     lineEdit->undo();  // Revert to original text
                     lineEdit->clearFocus();
                 }
@@ -117,14 +117,14 @@ void DeviceDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option
     painter->setRenderHint(QPainter::Antialiasing);
 
     // Get data from model
-    const QString deviceName = index.data(YubiKeyDeviceModel::DeviceNameRole).toString();
-    const bool isConnected = index.data(YubiKeyDeviceModel::IsConnectedRole).toBool();
-    const bool requiresPassword = index.data(YubiKeyDeviceModel::RequiresPasswordRole).toBool();
-    const bool hasValidPassword = index.data(YubiKeyDeviceModel::HasValidPasswordRole).toBool();
-    const bool showAuthorizeButton = index.data(YubiKeyDeviceModel::ShowAuthorizeButtonRole).toBool();
-    const QString modelString = index.data(YubiKeyDeviceModel::DeviceModelStringRole).toString();
-    const uint32_t modelCode = index.data(YubiKeyDeviceModel::DeviceModelRole).toUInt();
-    const QStringList capabilities = index.data(YubiKeyDeviceModel::CapabilitiesRole).toStringList();
+    const QString deviceName = index.data(OathDeviceListModel::DeviceNameRole).toString();
+    const bool isConnected = index.data(OathDeviceListModel::IsConnectedRole).toBool();
+    const bool requiresPassword = index.data(OathDeviceListModel::RequiresPasswordRole).toBool();
+    const bool hasValidPassword = index.data(OathDeviceListModel::HasValidPasswordRole).toBool();
+    const bool showAuthorizeButton = index.data(OathDeviceListModel::ShowAuthorizeButtonRole).toBool();
+    const QString modelString = index.data(OathDeviceListModel::DeviceModelStringRole).toString();
+    const uint32_t modelCode = index.data(OathDeviceListModel::DeviceModelRole).toUInt();
+    const QStringList capabilities = index.data(OathDeviceListModel::CapabilitiesRole).toStringList();
 
     // Calculate button positions
     const DeviceCardLayout::ButtonRects rects = DeviceCardLayout::calculateButtonRects(option);
@@ -162,7 +162,7 @@ void DeviceDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option
 
     // Draw Last Seen (only for disconnected devices)
     if (!isConnected) {
-        const QDateTime lastSeen = index.data(YubiKeyDeviceModel::LastSeenRole).toDateTime();
+        const QDateTime lastSeen = index.data(OathDeviceListModel::LastSeenRole).toDateTime();
         if (lastSeen.isValid()) {
             const QString lastSeenText = RelativeTimeFormatter::formatRelativeTime(lastSeen);
             DeviceCardPainter::drawLastSeen(painter, lastSeenText, rects.lastSeenRect, option);
@@ -207,8 +207,8 @@ bool DeviceDelegate::editorEvent(QEvent *event, QAbstractItemModel *model,
         m_hoveredIndex = index;
         m_hoveredButton.clear();
 
-        const bool showAuthorize = index.data(YubiKeyDeviceModel::ShowAuthorizeButtonRole).toBool();
-        const bool isConnected = index.data(YubiKeyDeviceModel::IsConnectedRole).toBool();
+        const bool showAuthorize = index.data(OathDeviceListModel::ShowAuthorizeButtonRole).toBool();
+        const bool isConnected = index.data(OathDeviceListModel::IsConnectedRole).toBool();
 
         if (showAuthorize && rects.authorizeButton.contains(mouseEvent->pos())) {
             m_hoveredButton = QStringLiteral("authorize");
@@ -240,35 +240,35 @@ bool DeviceDelegate::editorEvent(QEvent *event, QAbstractItemModel *model,
         }
 
         const DeviceCardLayout::ButtonRects rects = DeviceCardLayout::calculateButtonRects(option);
-        const QString deviceId = index.data(YubiKeyDeviceModel::DeviceIdRole).toString();
-        const QString deviceName = index.data(YubiKeyDeviceModel::DeviceNameRole).toString();
-        const bool showAuthorize = index.data(YubiKeyDeviceModel::ShowAuthorizeButtonRole).toBool();
-        const bool isConnected = index.data(YubiKeyDeviceModel::IsConnectedRole).toBool();
+        const QString deviceId = index.data(OathDeviceListModel::DeviceIdRole).toString();
+        const QString deviceName = index.data(OathDeviceListModel::DeviceNameRole).toString();
+        const bool showAuthorize = index.data(OathDeviceListModel::ShowAuthorizeButtonRole).toBool();
+        const bool isConnected = index.data(OathDeviceListModel::IsConnectedRole).toBool();
 
-        qCDebug(YubiKeyConfigLog) << "DeviceDelegate: Mouse click at" << mouseEvent->pos();
+        qCDebug(OathConfigLog) << "DeviceDelegate: Mouse click at" << mouseEvent->pos();
 
         // Check which button was clicked
         if (showAuthorize && rects.authorizeButton.contains(mouseEvent->pos())) {
-            qCDebug(YubiKeyConfigLog) << "DeviceDelegate: Authorize button clicked for device:" << deviceId;
+            qCDebug(OathConfigLog) << "DeviceDelegate: Authorize button clicked for device:" << deviceId;
             Q_EMIT authorizeClicked(deviceId, deviceName);
             return true;
         }
 
         if (isConnected && rects.changePasswordButton.contains(mouseEvent->pos())) {
-            qCDebug(YubiKeyConfigLog) << "DeviceDelegate: Change password button clicked for device:" << deviceId;
+            qCDebug(OathConfigLog) << "DeviceDelegate: Change password button clicked for device:" << deviceId;
             Q_EMIT changePasswordClicked(deviceId, deviceName);
             return true;
         }
 
         if (rects.forgetButton.contains(mouseEvent->pos())) {
-            qCDebug(YubiKeyConfigLog) << "DeviceDelegate: Forget button clicked for device:" << deviceId;
+            qCDebug(OathConfigLog) << "DeviceDelegate: Forget button clicked for device:" << deviceId;
             Q_EMIT forgetClicked(deviceId);
             return true;
         }
 
         // Check if device name was clicked (for editing)
         if (rects.nameRect.contains(mouseEvent->pos())) {
-            qCDebug(YubiKeyConfigLog) << "DeviceDelegate: Device name clicked, requesting edit";
+            qCDebug(OathConfigLog) << "DeviceDelegate: Device name clicked, requesting edit";
             Q_EMIT nameEditRequested(index);
             return true;
         }
@@ -299,19 +299,19 @@ QWidget *DeviceDelegate::createEditor(QWidget *parent, const QStyleOptionViewIte
     // This handles focus loss (clicking elsewhere, Tab key, etc.)
     // Without this connection, changes are NOT saved when editor loses focus
     connect(editor, &QLineEdit::editingFinished, emitter, [emitter, editor]() {
-        qCDebug(YubiKeyConfigLog) << "DeviceDelegate: editingFinished - committing and closing editor";
+        qCDebug(OathConfigLog) << "DeviceDelegate: editingFinished - committing and closing editor";
         emitter->emitCommitData(editor);
         emitter->emitCloseEditor(editor, QAbstractItemDelegate::NoHint);
     });
 
-    qCDebug(YubiKeyConfigLog) << "DeviceDelegate: Editor created with event filter and signal connections";
+    qCDebug(OathConfigLog) << "DeviceDelegate: Editor created with event filter and signal connections";
 
     return editor;
 }
 
 void DeviceDelegate::setEditorData(QWidget *editor, const QModelIndex &index) const
 {
-    const QString value = index.data(YubiKeyDeviceModel::DeviceNameRole).toString();
+    const QString value = index.data(OathDeviceListModel::DeviceNameRole).toString();
     auto *lineEdit = qobject_cast<QLineEdit *>(editor);
     if (lineEdit) {
         lineEdit->setText(value);
@@ -328,8 +328,8 @@ void DeviceDelegate::setModelData(QWidget *editor, QAbstractItemModel *model,
 
     const QString newName = lineEdit->text().trimmed();
     if (!newName.isEmpty()) {
-        const QString deviceId = index.data(YubiKeyDeviceModel::DeviceIdRole).toString();
-        auto *deviceModel = qobject_cast<YubiKeyDeviceModel *>(model);
+        const QString deviceId = index.data(OathDeviceListModel::DeviceIdRole).toString();
+        auto *deviceModel = qobject_cast<OathDeviceListModel *>(model);
         if (deviceModel) {
             deviceModel->setDeviceName(deviceId, newName);
         }

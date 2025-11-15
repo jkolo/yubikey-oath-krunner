@@ -13,7 +13,7 @@
 // Forward declarations
 namespace YubiKeyOath {
 namespace Daemon {
-    class YubiKeyService;
+    class OathService;
     class OathManagerObject;
 }
 }
@@ -30,31 +30,31 @@ using namespace YubiKeyOath::Shared;
  * This is a THIN layer that:
  * 1. Receives D-Bus method calls
  * 2. Converts D-Bus types to internal types (using TypeConversions)
- * 3. Delegates to YubiKeyService (business logic layer)
+ * 3. Delegates to OathService (business logic layer)
  * 4. Converts results back to D-Bus types
- * 5. Forwards signals from YubiKeyService
+ * 5. Forwards signals from OathService
  *
  * @par Architecture
  * ```
  * D-Bus Client
  *     ↓ calls
- * YubiKeyDBusService (marshaling) ← YOU ARE HERE
+ * OathDBusService (marshaling) ← YOU ARE HERE
  *     ↓ delegates
- * YubiKeyService (business logic)
+ * OathService (business logic)
  * ```
  *
  * NO business logic should be in this class!
  */
-class YubiKeyDBusService : public QObject
+class OathDBusService : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit YubiKeyDBusService(QObject *parent = nullptr);
-    ~YubiKeyDBusService() override;
+    explicit OathDBusService(QObject *parent = nullptr);
+    ~OathDBusService() override;
 
 private:
-    std::unique_ptr<YubiKeyService> m_service;
+    std::unique_ptr<OathService> m_service;
     OathManagerObject *m_manager;  // Owned by QObject hierarchy (parent = this)
 };
 

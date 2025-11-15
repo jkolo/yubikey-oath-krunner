@@ -3,15 +3,15 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "yubikey_config_icon_resolver.h"
-#include "yubikey_config.h"
+#include "oath_config_icon_resolver.h"
+#include "oath_config.h"
 #include "../shared/types/device_brand.h"
 #include "../shared/types/device_model.h"
 #include "../shared/utils/yubikey_icon_resolver.h"
 
 using namespace YubiKeyOath::Shared;
 
-QString YubiKeyConfigIconResolver::getModelIcon(const QString& modelString,
+QString OathConfigIconResolver::getModelIcon(const QString& modelString,
                                                 quint32 modelCode,
                                                 const QStringList& capabilities) const
 {

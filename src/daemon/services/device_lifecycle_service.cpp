@@ -4,9 +4,9 @@
  */
 
 #include "device_lifecycle_service.h"
-#include "../oath/yubikey_device_manager.h"
+#include "../oath/oath_device_manager.h"
 #include "../oath/oath_device.h"
-#include "../storage/yubikey_database.h"
+#include "../storage/oath_database.h"
 #include "../storage/secret_storage.h"
 #include "../logging_categories.h"
 #include "utils/device_name_formatter.h"
@@ -20,8 +20,8 @@ namespace YubiKeyOath {
 namespace Daemon {
 using namespace YubiKeyOath::Shared;
 
-DeviceLifecycleService::DeviceLifecycleService(YubiKeyDeviceManager *deviceManager,
-                                             YubiKeyDatabase *database,
+DeviceLifecycleService::DeviceLifecycleService(OathDeviceManager *deviceManager,
+                                             OathDatabase *database,
                                              SecretStorage *secretStorage,
                                              QObject *parent)
     : QObject(parent)
@@ -33,12 +33,12 @@ DeviceLifecycleService::DeviceLifecycleService(YubiKeyDeviceManager *deviceManag
     Q_ASSERT(m_database);
     Q_ASSERT(m_secretStorage);
 
-    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Initialized";
+    qCDebug(OathDaemonLog) << "DeviceLifecycleService: Initialized";
 }
 
 QList<DeviceInfo> DeviceLifecycleService::listDevices()
 {
-    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: listDevices called";
+    qCDebug(OathDaemonLog) << "DeviceLifecycleService: listDevices called";
 
     QList<DeviceInfo> devices;
 
@@ -46,7 +46,7 @@ QList<DeviceInfo> DeviceLifecycleService::listDevices()
     const QStringList connectedDeviceIds = m_deviceManager->getConnectedDeviceIds();
 
     // Get known devices from database
-    const QList<YubiKeyDatabase::DeviceRecord> knownDevices = m_database->getAllDevices();
+    const QList<OathDatabase::DeviceRecord> knownDevices = m_database->getAllDevices();
 
     // Merge device lists
     QSet<QString> allDeviceIds;
@@ -140,7 +140,7 @@ QList<DeviceInfo> DeviceLifecycleService::listDevices()
         devices.append(info);
     }
 
-    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Returning" << devices.size() << "devices";
+    qCDebug(OathDaemonLog) << "DeviceLifecycleService: Returning" << devices.size() << "devices";
     return devices;
 }
 
@@ -165,25 +165,25 @@ QDateTime DeviceLifecycleService::getDeviceLastSeen(const QString &deviceId) con
 
 bool DeviceLifecycleService::setDeviceName(const QString &deviceId, const QString &newName)
 {
-    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: setDeviceName for device:" << deviceId
+    qCDebug(OathDaemonLog) << "DeviceLifecycleService: setDeviceName for device:" << deviceId
                               << "new name:" << newName;
 
     // Validate input
     const QString trimmedName = newName.trimmed();
     if (deviceId.isEmpty() || trimmedName.isEmpty()) {
-        qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: Invalid device ID or name (empty after trim)";
+        qCWarning(OathDaemonLog) << "DeviceLifecycleService: Invalid device ID or name (empty after trim)";
         return false;
     }
 
     // Validate name length (max 64 chars)
     if (trimmedName.length() > 64) {
-        qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: Name too long (max 64 chars)";
+        qCWarning(OathDaemonLog) << "DeviceLifecycleService: Name too long (max 64 chars)";
         return false;
     }
 
     // Check if device exists in database
     if (!m_database->hasDevice(deviceId)) {
-        qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: Device not found in database:" << deviceId;
+        qCWarning(OathDaemonLog) << "DeviceLifecycleService: Device not found in database:" << deviceId;
         return false;
     }
 
@@ -191,9 +191,9 @@ bool DeviceLifecycleService::setDeviceName(const QString &deviceId, const QStrin
     const bool success = m_database->updateDeviceName(deviceId, trimmedName);
 
     if (success) {
-        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Device name updated successfully";
+        qCDebug(OathDaemonLog) << "DeviceLifecycleService: Device name updated successfully";
     } else {
-        qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: Failed to update device name in database";
+        qCWarning(OathDaemonLog) << "DeviceLifecycleService: Failed to update device name in database";
     }
 
     return success;
@@ -201,55 +201,55 @@ bool DeviceLifecycleService::setDeviceName(const QString &deviceId, const QStrin
 
 void DeviceLifecycleService::forgetDevice(const QString &deviceId)
 {
-    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: forgetDevice:" << deviceId;
+    qCDebug(OathDaemonLog) << "DeviceLifecycleService: forgetDevice:" << deviceId;
 
     // IMPORTANT: Order matters to prevent race condition!
     // 1. Remove password from KWallet FIRST (before device is re-detected)
-    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Removing password from KWallet";
+    qCDebug(OathDaemonLog) << "DeviceLifecycleService: Removing password from KWallet";
     m_secretStorage->removePassword(deviceId);
 
     // 2. Remove from database
-    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Removing device from database";
+    qCDebug(OathDaemonLog) << "DeviceLifecycleService: Removing device from database";
     if (!m_database->removeDevice(deviceId)) {
-        qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: Failed to remove device from database:" << deviceId;
-        qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: Continuing with memory cleanup despite database failure";
+        qCWarning(OathDaemonLog) << "DeviceLifecycleService: Failed to remove device from database:" << deviceId;
+        qCWarning(OathDaemonLog) << "DeviceLifecycleService: Continuing with memory cleanup despite database failure";
     }
 
     // 3. Record forget timestamp for debounce (prevents immediate re-detection)
     m_lastForgetTimestamp[deviceId] = QDateTime::currentMSecsSinceEpoch();
-    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Recorded forget timestamp for debounce";
+    qCDebug(OathDaemonLog) << "DeviceLifecycleService: Recorded forget timestamp for debounce";
 
     // 4. Clear device from memory LAST
     // This may trigger immediate re-detection if device is physically connected,
     // but password and database entry are already gone, and debounce will prevent re-add
-    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Clearing device from memory";
+    qCDebug(OathDaemonLog) << "DeviceLifecycleService: Clearing device from memory";
     clearDeviceFromMemory(deviceId);
 
-    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Device forgotten (password, database, memory cleared)";
+    qCDebug(OathDaemonLog) << "DeviceLifecycleService: Device forgotten (password, database, memory cleared)";
 }
 
 void DeviceLifecycleService::onDeviceConnected(const QString &deviceId)
 {
-    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Device connected:" << deviceId;
+    qCDebug(OathDaemonLog) << "DeviceLifecycleService: Device connected:" << deviceId;
 
     // Debounce: ignore re-detection shortly after forget (prevents dev_XXXXXXXX paths)
     // 500ms grace period allows PC/SC state to settle properly
     if (m_lastForgetTimestamp.contains(deviceId)) {
         const qint64 timeSinceForget = QDateTime::currentMSecsSinceEpoch() - m_lastForgetTimestamp[deviceId];
         if (timeSinceForget < 500) {
-            qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Ignoring re-detection"
+            qCDebug(OathDaemonLog) << "DeviceLifecycleService: Ignoring re-detection"
                                        << timeSinceForget << "ms after forget (debounce)";
             return;
         }
         // Grace period expired, clear timestamp
         m_lastForgetTimestamp.remove(deviceId);
-        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Debounce expired, processing connection";
+        qCDebug(OathDaemonLog) << "DeviceLifecycleService: Debounce expired, processing connection";
     }
 
     // Get device pointer to access requiresPassword
     auto *device = m_deviceManager->getDevice(deviceId);
     if (!device) {
-        qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: Device not found in manager:" << deviceId;
+        qCWarning(OathDaemonLog) << "DeviceLifecycleService: Device not found in manager:" << deviceId;
         return;
     }
 
@@ -264,7 +264,7 @@ void DeviceLifecycleService::onDeviceConnected(const QString &deviceId)
         const QString tempName = generateDefaultDeviceName(deviceId); // Temporary name
         const bool requiresPassword = device->requiresPassword();
         m_database->addDevice(deviceId, tempName, requiresPassword);
-        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: New device added to database with requiresPassword:" << requiresPassword;
+        qCDebug(OathDaemonLog) << "DeviceLifecycleService: New device added to database with requiresPassword:" << requiresPassword;
     }
 
     // Update extended device information (firmware, model, serial, form factor)
@@ -278,7 +278,7 @@ void DeviceLifecycleService::onDeviceConnected(const QString &deviceId)
     );
 
     if (updateSuccess) {
-        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Updated device info in database:"
+        qCDebug(OathDaemonLog) << "DeviceLifecycleService: Updated device info in database:"
                                    << "firmware=" << device->firmwareVersion().toString()
                                    << "model=" << device->deviceModel().modelString
                                    << "serial=" << device->serialNumber()
@@ -299,47 +299,47 @@ void DeviceLifecycleService::onDeviceConnected(const QString &deviceId)
         auto dbRecord = m_database->getDevice(deviceId);
         if (!dbRecord.has_value() || dbRecord->deviceName != properName) {
             m_database->updateDeviceName(deviceId, properName);
-            qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Updated device name to:" << properName;
+            qCDebug(OathDaemonLog) << "DeviceLifecycleService: Updated device name to:" << properName;
         }
     } else {
-        qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: Failed to update device info in database for:" << deviceId;
+        qCWarning(OathDaemonLog) << "DeviceLifecycleService: Failed to update device info in database for:" << deviceId;
     }
 
     // Check if device requires password and load it from KWallet
     auto dbRecord = m_database->getDevice(deviceId);
     if (dbRecord.has_value() && dbRecord->requiresPassword) {
-        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Device requires password, loading ASYNCHRONOUSLY from KWallet:" << deviceId;
+        qCDebug(OathDaemonLog) << "DeviceLifecycleService: Device requires password, loading ASYNCHRONOUSLY from KWallet:" << deviceId;
 
         // Set device state to Authenticating (password loading phase)
         device->setState(Shared::DeviceState::Authenticating);
 
         // Load password asynchronously to avoid blocking daemon startup
         [[maybe_unused]] auto future = QtConcurrent::run([this, deviceId, device]() {
-            qCDebug(YubiKeyDaemonLog) << "[Worker] Loading password from KWallet for device:" << deviceId;
+            qCDebug(OathDaemonLog) << "[Worker] Loading password from KWallet for device:" << deviceId;
 
             const QString password = m_secretStorage->loadPasswordSync(deviceId);
 
             // Process result on main thread
             QMetaObject::invokeMethod(this, [this, deviceId, device, password]() {
                 if (!password.isEmpty()) {
-                    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Password loaded successfully from KWallet";
+                    qCDebug(OathDaemonLog) << "DeviceLifecycleService: Password loaded successfully from KWallet";
 
                     // Save password in device for future use
                     if (device) {
-                        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Calling setPassword() for device:" << deviceId;
+                        qCDebug(OathDaemonLog) << "DeviceLifecycleService: Calling setPassword() for device:" << deviceId;
                         device->setPassword(password);
                     } else {
-                        qCWarning(YubiKeyDaemonLog) << "DeviceLifecycleService: ERROR - device pointer is null for:" << deviceId;
+                        qCWarning(OathDaemonLog) << "DeviceLifecycleService: ERROR - device pointer is null for:" << deviceId;
                         return;
                     }
 
                     // Trigger credential cache update with password
                     if (device) {
-                        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Starting async credential fetch with password for device:" << deviceId;
+                        qCDebug(OathDaemonLog) << "DeviceLifecycleService: Starting async credential fetch with password for device:" << deviceId;
                         device->updateCredentialCacheAsync(password);
                     }
                 } else {
-                    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: No password in KWallet for device:" << deviceId;
+                    qCDebug(OathDaemonLog) << "DeviceLifecycleService: No password in KWallet for device:" << deviceId;
                     // Try without password
                     if (device) {
                         device->updateCredentialCacheAsync(QString());
@@ -348,7 +348,7 @@ void DeviceLifecycleService::onDeviceConnected(const QString &deviceId)
             }, Qt::QueuedConnection);
         });
     } else {
-        qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Device doesn't require password, fetching credentials";
+        qCDebug(OathDaemonLog) << "DeviceLifecycleService: Device doesn't require password, fetching credentials";
         auto *dev = m_deviceManager->getDevice(deviceId);
         if (dev) {
             dev->updateCredentialCacheAsync(QString());
@@ -360,7 +360,7 @@ void DeviceLifecycleService::onDeviceConnected(const QString &deviceId)
 
 void DeviceLifecycleService::onDeviceDisconnected(const QString &deviceId)
 {
-    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Device disconnected:" << deviceId;
+    qCDebug(OathDaemonLog) << "DeviceLifecycleService: Device disconnected:" << deviceId;
 
     // Update last seen timestamp in database
     m_database->updateLastSeen(deviceId);
@@ -370,12 +370,12 @@ void DeviceLifecycleService::onDeviceDisconnected(const QString &deviceId)
 
 void DeviceLifecycleService::clearDeviceFromMemory(const QString &deviceId)
 {
-    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Clearing device from memory:" << deviceId;
+    qCDebug(OathDaemonLog) << "DeviceLifecycleService: Clearing device from memory:" << deviceId;
 
     // removeDeviceFromMemory() will delete the device object
     // Destructor handles PC/SC cleanup automatically
     m_deviceManager->removeDeviceFromMemory(deviceId);
-    qCDebug(YubiKeyDaemonLog) << "DeviceLifecycleService: Device cleared from memory";
+    qCDebug(OathDaemonLog) << "DeviceLifecycleService: Device cleared from memory";
 }
 
 QString DeviceLifecycleService::generateDefaultDeviceName(const QString &deviceId) const
@@ -386,7 +386,7 @@ QString DeviceLifecycleService::generateDefaultDeviceName(const QString &deviceI
 QString DeviceLifecycleService::generateDefaultDeviceName(const QString &deviceId,
                                                           const Shared::DeviceModel& deviceModel,
                                                           quint32 serialNumber,
-                                                          YubiKeyDatabase *database) const
+                                                          OathDatabase *database) const
 {
     return DeviceNameFormatter::generateDefaultName(deviceId, deviceModel, serialNumber, database);
 }

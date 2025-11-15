@@ -20,17 +20,36 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 // Forward declarations
-class YubiKeyService;
+class OathService;
 class OathCredentialObject;
 
 /**
  * @brief Device D-Bus object for individual YubiKey
  *
  * D-Bus path: /pl/jkolo/yubikey/oath/devices/<deviceId>
- * Interfaces: pl.jkolo.yubikey.oath.Device, Properties, Introspectable
+ * Interfaces: pl.jkolo.yubikey.oath.Device, pl.jkolo.yubikey.oath.DeviceSession, Properties, Introspectable
  *
  * Represents a single YubiKey device with its methods and properties.
  * Creates and manages Credential objects for OATH credentials on this device.
+ *
+ * @par Two-Interface Architecture
+ * This object exposes TWO D-Bus interfaces on the SAME object path:
+ *
+ * 1. **pl.jkolo.yubikey.oath.Device** (DeviceAdaptor.xml)
+ *    - Hardware and OATH application properties (Name, FirmwareVersion, SerialNumber, DeviceModel, RequiresPassword)
+ *    - OATH operations (ChangePassword, Forget, AddCredential)
+ *    - Properties are STABLE across device connections
+ *
+ * 2. **pl.jkolo.yubikey.oath.DeviceSession** (DeviceSessionAdaptor.xml)
+ *    - Runtime session state (State, StateMessage, HasValidPassword, LastSeen)
+ *    - Session operations (SavePassword)
+ *    - Properties are VOLATILE and change during device lifecycle
+ *
+ * @par PropertiesChanged Signals
+ * When emitting D-Bus PropertiesChanged signals, use the correct interface name:
+ * - emitDevicePropertyChanged() for Device interface properties
+ * - emitSessionPropertyChanged() for DeviceSession interface properties
+ * Wrong interface name will cause client proxies to NEVER receive updates!
  *
  * @par Lifetime
  * Created when YubiKey is connected, destroyed when disconnected.
@@ -39,7 +58,7 @@ class OathCredentialObject;
 class OathDeviceObject : public QObject
 {
     Q_OBJECT
-    // Note: D-Bus interface is handled by DeviceAdaptor (auto-generated from XML)
+    // Note: D-Bus interfaces are handled by DeviceAdaptor and DeviceSessionAdaptor (auto-generated from XML)
 
     // Properties exposed via D-Bus Properties interface
     Q_PROPERTY(QString Name READ name WRITE setName NOTIFY nameChanged)
@@ -54,7 +73,7 @@ class OathDeviceObject : public QObject
     Q_PROPERTY(quint32 DeviceModelCode READ deviceModelCode CONSTANT)
     Q_PROPERTY(QString FormFactor READ formFactorString CONSTANT)
     Q_PROPERTY(QStringList Capabilities READ capabilitiesList CONSTANT)
-    Q_PROPERTY(qint64 LastSeen READ lastSeen CONSTANT)
+    Q_PROPERTY(qint64 LastSeen READ lastSeen NOTIFY lastSeenChanged)
     // Note: CredentialCount and Credentials properties removed - use Manager's GetManagedObjects() instead
 
 public:
@@ -62,13 +81,13 @@ public:
      * @brief Constructs Device object
      * @param deviceId Device ID (hex string)
      * @param objectPath D-Bus object path (e.g., /pl/jkolo/yubikey/oath/devices/20252879)
-     * @param service Pointer to YubiKeyService
+     * @param service Pointer to OathService
      * @param connection D-Bus connection
      * @param parent Parent QObject
      */
     explicit OathDeviceObject(QString deviceId,
                                QString objectPath,
-                               YubiKeyService *service,
+                               OathService *service,
                                QDBusConnection connection,
                                QObject *parent = nullptr);
     ~OathDeviceObject() override;
@@ -167,6 +186,7 @@ Q_SIGNALS:
     void stateMessageChanged(const QString &message);
     void requiresPasswordChanged(bool required);
     void hasValidPasswordChanged(bool hasValid);
+    void lastSeenChanged(qint64 timestamp);
 
     // Device-specific signals
     void CredentialAdded(const QDBusObjectPath &credentialPath);
@@ -253,13 +273,30 @@ private:
 
     /**
      * @brief Emits D-Bus PropertiesChanged signal
+     * @param interfaceName D-Bus interface name (e.g., "pl.jkolo.yubikey.oath.Device")
      * @param propertyName Name of changed property
      * @param value New value
      */
-    void emitPropertyChanged(const QString &propertyName, const QVariant &value);
+    void emitPropertyChanged(const QString &interfaceName,
+                            const QString &propertyName,
+                            const QVariant &value);
+
+    /**
+     * @brief Helper: Emits D-Bus PropertiesChanged for Device interface property
+     * @param propertyName Name of changed property (e.g., "Name", "RequiresPassword")
+     * @param value New value
+     */
+    void emitDevicePropertyChanged(const QString &propertyName, const QVariant &value);
+
+    /**
+     * @brief Helper: Emits D-Bus PropertiesChanged for DeviceSession interface property
+     * @param propertyName Name of changed property (e.g., "State", "HasValidPassword")
+     * @param value New value
+     */
+    void emitSessionPropertyChanged(const QString &propertyName, const QVariant &value);
 
     QString m_deviceId;                                 ///< Device ID
-    YubiKeyService *m_service;                          ///< Business logic service (not owned)
+    OathService *m_service;                          ///< Business logic service (not owned)
     QDBusConnection m_connection;                       ///< D-Bus connection
     QString m_objectPath;                               ///< Our object path
     QString m_id;                                       ///< Public ID (last segment of path: serialNumber or dev_<deviceId>)

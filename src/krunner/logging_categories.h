@@ -18,7 +18,7 @@ namespace Runner {
  */
 
 // Main runner component
-Q_DECLARE_LOGGING_CATEGORY(YubiKeyRunnerLog)
+Q_DECLARE_LOGGING_CATEGORY(OathRunnerLog)
 
 // Orchestration layer
 Q_DECLARE_LOGGING_CATEGORY(NotificationOrchestratorLog)

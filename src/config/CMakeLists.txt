@@ -1,11 +1,11 @@
 # Configuration module for YubiKey OATH runner
 set(kcm_krunner_yubikey_SRCS
-    yubikey_config.cpp
-    yubikey_device_model.cpp
+    oath_config.cpp
+    oath_device_list_model.cpp
     device_delegate.cpp
     device_card_layout.cpp
     device_card_painter.cpp
-    yubikey_config_icon_resolver.cpp
+    oath_config_icon_resolver.cpp
     relative_time_formatter.cpp
     logging_categories.cpp
 
@@ -21,7 +21,7 @@ set(kcm_krunner_yubikey_SRCS
 )
 
 # Wrap UI files
-ki18n_wrap_ui(kcm_krunner_yubikey_SRCS yubikey_config.ui)
+ki18n_wrap_ui(kcm_krunner_yubikey_SRCS oath_config.ui)
 
 add_library(kcm_krunner_yubikey MODULE ${kcm_krunner_yubikey_SRCS})
 

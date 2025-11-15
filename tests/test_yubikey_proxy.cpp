@@ -17,6 +17,7 @@
 #include "mocks/virtual_nitrokey.h"
 #include "../src/shared/dbus/oath_manager_proxy.h"
 #include "../src/shared/dbus/oath_device_proxy.h"
+#include "../src/shared/dbus/oath_device_session_proxy.h"
 #include "../src/shared/dbus/oath_credential_proxy.h"
 #include "../src/daemon/dbus/oath_manager_object.h"  // For ManagedObjectMap
 
@@ -129,11 +130,14 @@ void TestYubiKeyProxy::printDebugInfo()
     qDebug() << "\n=== Devices ===";
     const auto devices = managerProxy()->devices();
     for (auto *device : devices) {
+        // Get session proxy for connection state
+        const auto *session = managerProxy()->getDeviceSession(device->deviceId());
+
         qDebug() << "Device:" << device->serialNumber();
         qDebug() << "  Name:" << device->name();
-        qDebug() << "  Connected:" << device->isConnected();
+        qDebug() << "  Connected:" << (session ? session->isConnected() : false);
         qDebug() << "  Requires password:" << device->requiresPassword();
-        qDebug() << "  Has valid password:" << device->hasValidPassword();
+        qDebug() << "  Has valid password:" << (session ? session->hasValidPassword() : false);
         qDebug() << "  Credentials count:" << device->credentials().size();
     }
 
@@ -260,18 +264,22 @@ void TestYubiKeyProxy::testDeviceProxyProperties()
     OathDeviceProxy *device = devices.first();
     QVERIFY(device != nullptr);
 
+    // Get session proxy for connection state
+    OathDeviceSessionProxy *session = managerProxy()->getDeviceSession(device->deviceId());
+    QVERIFY(session != nullptr);
+
     qDebug() << "Testing device:" << device->serialNumber();
 
     // Test all properties
     QVERIFY(device->serialNumber() != 0);
     QVERIFY(!device->name().isEmpty());
-    QVERIFY(device->isConnected() == true); // Should be connected
+    QVERIFY(session->isConnected() == true); // Should be connected
 
     qDebug() << "  serialNumber:" << device->serialNumber();
     qDebug() << "  name:" << device->name();
-    qDebug() << "  isConnected:" << device->isConnected();
+    qDebug() << "  isConnected:" << session->isConnected();
     qDebug() << "  requiresPassword:" << device->requiresPassword();
-    qDebug() << "  hasValidPassword:" << device->hasValidPassword();
+    qDebug() << "  hasValidPassword:" << session->hasValidPassword();
 }
 
 void TestYubiKeyProxy::testDeviceProxyCredentials()
@@ -313,13 +321,19 @@ void TestYubiKeyProxy::testDeviceProxyMethods()
 
     OathDeviceProxy *device = devices.first();
 
-    // Test toDeviceInfo conversion
-    DeviceInfo info = device->toDeviceInfo();
+    // Get session proxy for connection state
+    OathDeviceSessionProxy *session = managerProxy()->getDeviceSession(device->deviceId());
+    QVERIFY(session != nullptr);
+
+    // Test toDeviceInfo conversion (requires session proxy for runtime state)
+    DeviceInfo info = device->toDeviceInfo(session);
     QVERIFY(info.serialNumber != 0);
     QVERIFY(!info.deviceName.isEmpty());
     QCOMPARE(info.serialNumber, device->serialNumber());
     QCOMPARE(info.deviceName, device->name());
-    QCOMPARE(info.isConnected(), device->isConnected());
+    QCOMPARE(info.state, session->state());
+    QCOMPARE(info.hasValidPassword, session->hasValidPassword());
+    QCOMPARE(info.lastSeen, session->lastSeen());
 
     qDebug() << "  toDeviceInfo() works correctly";
 }

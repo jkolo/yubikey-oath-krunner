@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "../../src/daemon/storage/yubikey_database.h"
+#include "../../src/daemon/storage/oath_database.h"
 #include "../../src/shared/utils/version.h"
 #include "../../src/shared/types/device_model.h"
 #include "../../src/shared/types/device_brand.h"
@@ -16,7 +16,7 @@ using namespace YubiKeyOath::Daemon;
 using namespace YubiKeyOath::Shared;
 
 /**
- * @brief Factory for creating test YubiKeyDatabase::DeviceRecord objects
+ * @brief Factory for creating test OathDatabase::DeviceRecord objects
  *
  * Provides pre-configured device records for consistent testing.
  * Covers various YubiKey models and configurations.
@@ -36,12 +36,12 @@ public:
      * @param requiresPassword Password protection flag (default: false)
      * @return Configured YubiKey 5C NFC record
      */
-    static YubiKeyDatabase::DeviceRecord createYubiKey5C(
+    static OathDatabase::DeviceRecord createYubiKey5C(
         const QString &deviceId = QStringLiteral("test-yubikey-5c"),
         const QString &deviceName = QStringLiteral("YubiKey 5C NFC - Test"),
         bool requiresPassword = false
     ) {
-        YubiKeyDatabase::DeviceRecord record;
+        OathDatabase::DeviceRecord record;
         record.deviceId = deviceId;
         record.deviceName = deviceName;
         record.requiresPassword = requiresPassword;
@@ -64,7 +64,7 @@ public:
      * @param requiresPassword Password protection flag
      * @return Configured YubiKey 5 NFC record
      */
-    static YubiKeyDatabase::DeviceRecord createYubiKey5NFC(
+    static OathDatabase::DeviceRecord createYubiKey5NFC(
         const QString &deviceId = QStringLiteral("test-yubikey-5-nfc"),
         bool requiresPassword = false
     ) {
@@ -80,7 +80,7 @@ public:
      * @param deviceId Device identifier
      * @return Configured YubiKey 5 Nano record (no NFC)
      */
-    static YubiKeyDatabase::DeviceRecord createYubiKey5Nano(
+    static OathDatabase::DeviceRecord createYubiKey5Nano(
         const QString &deviceId = QStringLiteral("test-yubikey-nano")
     ) {
         auto record = createYubiKey5C(deviceId, QStringLiteral("YubiKey 5 Nano - Test"), false);
@@ -98,12 +98,12 @@ public:
      * @param requiresPassword Password protection flag
      * @return Configured Nitrokey 3C record
      */
-    static YubiKeyDatabase::DeviceRecord createNitrokey3C(
+    static OathDatabase::DeviceRecord createNitrokey3C(
         const QString &deviceId = QStringLiteral("test-nitrokey-3c"),
         const QString &deviceName = QStringLiteral("Nitrokey 3C NFC - Test"),
         bool requiresPassword = false
     ) {
-        YubiKeyDatabase::DeviceRecord record;
+        OathDatabase::DeviceRecord record;
         record.deviceId = deviceId;
         record.deviceName = deviceName;
         record.requiresPassword = requiresPassword;
@@ -125,7 +125,7 @@ public:
      * @param deviceId Device identifier
      * @return Configured Nitrokey 3A Mini record (no NFC)
      */
-    static YubiKeyDatabase::DeviceRecord createNitrokey3AMini(
+    static OathDatabase::DeviceRecord createNitrokey3AMini(
         const QString &deviceId = QStringLiteral("test-nitrokey-3a-mini")
     ) {
         auto record = createNitrokey3C(deviceId, QStringLiteral("Nitrokey 3A Mini - Test"), false);
@@ -142,7 +142,7 @@ public:
      * @param deviceId Device identifier
      * @return Device with requiresPassword = true
      */
-    static YubiKeyDatabase::DeviceRecord createPasswordProtectedDevice(
+    static OathDatabase::DeviceRecord createPasswordProtectedDevice(
         const QString &deviceId = QStringLiteral("test-password-device")
     ) {
         return createYubiKey5C(deviceId, QStringLiteral("Password Protected - Test"), true);
@@ -153,7 +153,7 @@ public:
      * @param deviceId Device identifier
      * @return YubiKey 4 with older firmware
      */
-    static YubiKeyDatabase::DeviceRecord createLegacyDevice(
+    static OathDatabase::DeviceRecord createLegacyDevice(
         const QString &deviceId = QStringLiteral("test-yubikey-4")
     ) {
         auto record = createYubiKey5C(deviceId, QStringLiteral("YubiKey 4 - Legacy"), false);
@@ -169,7 +169,7 @@ public:
      * @brief Creates list of diverse device records
      * @return List with YubiKey and Nitrokey devices, various models
      */
-    static QList<YubiKeyDatabase::DeviceRecord> createDiverseDeviceSet() {
+    static QList<OathDatabase::DeviceRecord> createDiverseDeviceSet() {
         return {
             createYubiKey5C(QStringLiteral("device1")),
             createYubiKey5NFC(QStringLiteral("device2")),
@@ -184,7 +184,7 @@ public:
      * @param serialNumber Serial number
      * @return Device with specified serial
      */
-    static YubiKeyDatabase::DeviceRecord createDeviceWithSerial(
+    static OathDatabase::DeviceRecord createDeviceWithSerial(
         quint32 serialNumber
     ) {
         auto record = createYubiKey5C();
@@ -198,7 +198,7 @@ public:
      * @param deviceId Device identifier
      * @return Device with recent lastSeen timestamp
      */
-    static YubiKeyDatabase::DeviceRecord createRecentlySeenDevice(
+    static OathDatabase::DeviceRecord createRecentlySeenDevice(
         const QString &deviceId = QStringLiteral("test-recent")
     ) {
         auto record = createYubiKey5C(deviceId);
@@ -211,7 +211,7 @@ public:
      * @param deviceId Device identifier
      * @return Device with old lastSeen timestamp
      */
-    static YubiKeyDatabase::DeviceRecord createStaleDevice(
+    static OathDatabase::DeviceRecord createStaleDevice(
         const QString &deviceId = QStringLiteral("test-stale")
     ) {
         auto record = createYubiKey5C(deviceId);

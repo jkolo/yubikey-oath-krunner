@@ -7,9 +7,9 @@
 #include <QSignalSpy>
 
 #include "daemon/services/credential_service.h"
-#include "mocks/mock_yubikey_device_manager.h"
-#include "mocks/mock_yubikey_oath_device.h"
-#include "mocks/mock_yubikey_database.h"
+#include "mocks/mock_oath_device_manager.h"
+#include "mocks/mock_oath_device.h"
+#include "mocks/mock_oath_database.h"
 #include "mocks/mock_daemon_configuration.h"
 #include "fixtures/test_credential_fixture.h"
 #include "fixtures/test_device_fixture.h"
@@ -24,9 +24,9 @@ using namespace YubiKeyOath::Shared;
  * Target coverage: 95% (business logic component)
  *
  * Test infrastructure:
- * - MockYubiKeyDeviceManager - Device factory with addDevice() injection
- * - MockYubiKeyOathDevice - Mock device with credentials management
- * - MockYubiKeyDatabase - In-memory credential/device storage
+ * - MockOathDeviceManager - Device factory with addDevice() injection
+ * - MockOathDevice - Mock device with credentials management
+ * - MockOathDatabase - In-memory credential/device storage
  * - MockDaemonConfiguration - Configuration provider with cache settings
  * - TestCredentialFixture - Factory for creating credential objects
  * - TestDeviceFixture - Factory for creating device records
@@ -61,9 +61,9 @@ private Q_SLOTS:
     void init()
     {
         // Create fresh mocks for each test
-        m_database = new MockYubiKeyDatabase(this);
+        m_database = new MockOathDatabase(this);
         m_config = new MockDaemonConfiguration(this);
-        m_deviceManager = new MockYubiKeyDeviceManager(this);
+        m_deviceManager = new MockOathDeviceManager(this);
 
         m_service = new CredentialService(m_deviceManager, m_database, m_config, this);
 
@@ -95,7 +95,7 @@ private Q_SLOTS:
 
         // Setup: Create connected mock device with credentials
         const QString deviceId = QStringLiteral("1234567890ABCDEF");
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
 
         auto credentials = QList<OathCredential>{
             TestCredentialFixture::createCredentialForDevice(deviceId, QStringLiteral("GitHub:user")),
@@ -103,7 +103,7 @@ private Q_SLOTS:
         };
         mockDevice->setCredentials(credentials);
 
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         QVERIFY(mockManager != nullptr);
         mockManager->addDevice(mockDevice);
 
@@ -200,18 +200,18 @@ private Q_SLOTS:
 
         // Setup: Two connected devices with credentials
         const QString device1Id = QStringLiteral("1111111111111111");
-        auto *device1 = new MockYubiKeyOathDevice(device1Id, this);
+        auto *device1 = new MockOathDevice(device1Id, this);
         device1->setCredentials(QList<OathCredential>{
             TestCredentialFixture::createCredentialForDevice(device1Id, QStringLiteral("GitHub:dev1"))
         });
 
         const QString device2Id = QStringLiteral("2222222222222222");
-        auto *device2 = new MockYubiKeyOathDevice(device2Id, this);
+        auto *device2 = new MockOathDevice(device2Id, this);
         device2->setCredentials(QList<OathCredential>{
             TestCredentialFixture::createCredentialForDevice(device2Id, QStringLiteral("AWS:dev2"))
         });
 
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         mockManager->addDevice(device1);
         mockManager->addDevice(device2);
         device1->setState(DeviceState::Ready);
@@ -253,10 +253,10 @@ private Q_SLOTS:
 
         // Setup: Connected device with NO credentials in memory (empty list)
         const QString deviceId = QStringLiteral("1234567890ABCDEF");
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
         mockDevice->setCredentials(QList<OathCredential>());  // Empty!
 
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         mockManager->addDevice(mockDevice);
         mockDevice->setState(DeviceState::Connecting);  // Not Ready yet
 
@@ -287,7 +287,7 @@ private Q_SLOTS:
 
         // Setup: Create connected mock device with credential
         const QString deviceId = QStringLiteral("1234567890ABCDEF");
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
 
         auto cred = TestCredentialFixture::createTotpCredential(
             QStringLiteral("GitHub:user"),
@@ -303,7 +303,7 @@ private Q_SLOTS:
         // Mock generateCode() to return a code
         mockDevice->setMockGenerateCodeResult(Result<QString>::success(QStringLiteral("123456")));
 
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         mockManager->addDevice(mockDevice);
         mockDevice->setState(DeviceState::Ready);
 
@@ -343,7 +343,7 @@ private Q_SLOTS:
 
         // Setup: Create connected mock device with 60-second period credential
         const QString deviceId = QStringLiteral("1234567890ABCDEF");
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
 
         auto cred = TestCredentialFixture::createTotpCredential(
             QStringLiteral("Steam:user"),
@@ -359,7 +359,7 @@ private Q_SLOTS:
         // Mock generateCode() to return a code
         mockDevice->setMockGenerateCodeResult(Result<QString>::success(QStringLiteral("ABCDE")));
 
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         mockManager->addDevice(mockDevice);
         mockDevice->setState(DeviceState::Ready);
 
@@ -383,13 +383,13 @@ private Q_SLOTS:
 
         // Setup: Create connected mock device
         const QString deviceId = QStringLiteral("1234567890ABCDEF");
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
         mockDevice->setCredentials(QList<OathCredential>());  // Empty initially
 
         // Mock addCredential() to succeed
         mockDevice->setMockAddCredentialResult(Result<void>::success());
 
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         mockManager->addDevice(mockDevice);
         mockDevice->setState(DeviceState::Ready);
 
@@ -419,7 +419,7 @@ private Q_SLOTS:
 
         // Setup: Create connected mock device with existing credential
         const QString deviceId = QStringLiteral("1234567890ABCDEF");
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
 
         auto existingCredentials = QList<OathCredential>{
             TestCredentialFixture::createCredentialForDevice(deviceId, QStringLiteral("GitHub:user"))
@@ -429,7 +429,7 @@ private Q_SLOTS:
         // Mock addCredential() to fail with duplicate error
         mockDevice->setMockAddCredentialResult(Result<void>::error(QStringLiteral("Credential already exists")));
 
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         mockManager->addDevice(mockDevice);
         mockDevice->setState(DeviceState::Ready);
 
@@ -456,7 +456,7 @@ private Q_SLOTS:
 
         // Setup: Create connected mock device with credential
         const QString deviceId = QStringLiteral("1234567890ABCDEF");
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
 
         auto credentials = QList<OathCredential>{
             TestCredentialFixture::createCredentialForDevice(deviceId, QStringLiteral("GitHub:user"))
@@ -466,7 +466,7 @@ private Q_SLOTS:
         // Mock deleteCredential() to succeed
         mockDevice->setMockDeleteCredentialResult(Result<void>::success());
 
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         mockManager->addDevice(mockDevice);
         mockDevice->setState(DeviceState::Ready);
 
@@ -492,13 +492,13 @@ private Q_SLOTS:
 
         // Setup: Create connected mock device with empty credentials
         const QString deviceId = QStringLiteral("1234567890ABCDEF");
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
         mockDevice->setCredentials(QList<OathCredential>());  // Empty
 
         // Mock deleteCredential() to fail
         mockDevice->setMockDeleteCredentialResult(Result<void>::error(QStringLiteral("Credential not found")));
 
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         mockManager->addDevice(mockDevice);
         mockDevice->setState(DeviceState::Ready);
 
@@ -517,9 +517,9 @@ private Q_SLOTS:
 
         // Setup: Create connected mock device
         const QString deviceId = QStringLiteral("1234567890ABCDEF");
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
 
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         mockManager->addDevice(mockDevice);
         mockDevice->setState(DeviceState::Ready);
 
@@ -539,7 +539,7 @@ private Q_SLOTS:
         qDebug() << "========================================";
         qDebug() << "";
         qDebug() << "✓ All test cases implemented and passing";
-        qDebug() << "✓ Mock infrastructure: MockYubiKeyDeviceManager, MockYubiKeyDatabase, MockDaemonConfiguration";
+        qDebug() << "✓ Mock infrastructure: MockOathDeviceManager, MockOathDatabase, MockDaemonConfiguration";
         qDebug() << "✓ Test coverage: CRUD operations, caching, validation";
         qDebug() << "";
         qDebug() << "Test cases executed:";
@@ -563,8 +563,8 @@ private Q_SLOTS:
 
 private:
     CredentialService *m_service = nullptr;
-    MockYubiKeyDeviceManager *m_deviceManager = nullptr;
-    MockYubiKeyDatabase *m_database = nullptr;
+    MockOathDeviceManager *m_deviceManager = nullptr;
+    MockOathDatabase *m_database = nullptr;
     MockDaemonConfiguration *m_config = nullptr;
 };
 

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>YubiKeyConfigForm</class>
- <widget class="QWidget" name="YubiKeyConfigForm">
+ <class>OathConfigForm</class>
+ <widget class="QWidget" name="OathConfigForm">
   <property name="geometry">
    <rect>
     <x>0</x>

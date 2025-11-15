@@ -1,9 +1,9 @@
-#include "yubikey_config.h"
+#include "oath_config.h"
 #include "logging_categories.h"
 #include "dbus/oath_manager_proxy.h"
-#include "yubikey_device_model.h"
+#include "oath_device_list_model.h"
 #include "device_delegate.h"
-#include "yubikey_config_icon_resolver.h"
+#include "oath_config_icon_resolver.h"
 #include "../shared/utils/yubikey_icon_resolver.h"
 
 #include <KConfigGroup>
@@ -19,12 +19,12 @@ namespace YubiKeyOath {
 namespace Config {
 using namespace YubiKeyOath::Shared;
 
-YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
+OathConfig::OathConfig(QObject *parent, const QVariantList &)
     : KCModule(qobject_cast<QWidget *>(parent))
-    , m_ui(new YubiKeyConfigForm(widget()))
+    , m_ui(new OathConfigForm(widget()))
     , m_config(KSharedConfig::openConfig(QStringLiteral("yubikey-oathrc"))->group(QStringLiteral("General")))
     , m_manager(OathManagerProxy::instance(this))
-    , m_deviceModel(std::make_unique<YubiKeyDeviceModel>(OathManagerProxy::instance(this), nullptr))
+    , m_deviceModel(std::make_unique<OathDeviceListModel>(OathManagerProxy::instance(this), nullptr))
 {
     // Set translation domain for i18n
     KLocalizedString::setApplicationDomain("yubikey_oath");
@@ -34,10 +34,10 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
 
     // Setup device list view with custom delegate
     if (m_ui->deviceListView) {
-        qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: Setting up device list view";
+        qCDebug(OathConfigLog) << "OathConfig: Setting up device list view";
 
         // Create icon resolver adapter and delegate
-        auto *iconResolver = new YubiKeyConfigIconResolver();
+        auto *iconResolver = new OathConfigIconResolver();
         auto *delegate = new DeviceDelegate(iconResolver, this);
         m_ui->deviceListView->setModel(m_deviceModel.get());
         m_ui->deviceListView->setItemDelegate(delegate);
@@ -48,11 +48,11 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
 
         // Connect delegate signals to model methods
         connect(delegate, &DeviceDelegate::authorizeClicked,
-                m_deviceModel.get(), &YubiKeyDeviceModel::showPasswordDialog);
+                m_deviceModel.get(), &OathDeviceListModel::showPasswordDialog);
         connect(delegate, &DeviceDelegate::changePasswordClicked,
-                m_deviceModel.get(), &YubiKeyDeviceModel::showChangePasswordDialog);
+                m_deviceModel.get(), &OathDeviceListModel::showChangePasswordDialog);
         connect(delegate, &DeviceDelegate::forgetClicked,
-                m_deviceModel.get(), &YubiKeyDeviceModel::forgetDevice);
+                m_deviceModel.get(), &OathDeviceListModel::forgetDevice);
 
         // Connect name edit signal to start editing
         connect(delegate, &DeviceDelegate::nameEditRequested,
@@ -60,9 +60,9 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
                     m_ui->deviceListView->edit(index);
                 });
 
-        qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: Device list view configured successfully";
+        qCDebug(OathConfigLog) << "OathConfig: Device list view configured successfully";
     } else {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyConfig: deviceListView is null!";
+        qCWarning(OathConfigLog) << "OathConfig: deviceListView is null!";
     }
 
     // Setup ComboBox user data programmatically (Qt Designer userData may not load correctly)
@@ -70,57 +70,57 @@ YubiKeyConfig::YubiKeyConfig(QObject *parent, const QVariantList &)
     m_ui->primaryActionCombo->setItemData(0, QStringLiteral("copy"));
     m_ui->primaryActionCombo->setItemData(1, QStringLiteral("type"));
 
-    qCDebug(YubiKeyConfigLog) << "ComboBox userData set programmatically";
+    qCDebug(OathConfigLog) << "ComboBox userData set programmatically";
 
     // Connect UI signals
     connect(m_ui->showNotificationsCheckbox, &QCheckBox::toggled,
-            this, &YubiKeyConfig::markAsChanged);
+            this, &OathConfig::markAsChanged);
     connect(m_ui->showUsernameCheckbox, &QCheckBox::toggled,
-            this, &YubiKeyConfig::markAsChanged);
+            this, &OathConfig::markAsChanged);
     connect(m_ui->showCodeCheckbox, &QCheckBox::toggled,
-            this, &YubiKeyConfig::markAsChanged);
+            this, &OathConfig::markAsChanged);
     connect(m_ui->showDeviceNameCheckbox, &QCheckBox::toggled,
-            this, &YubiKeyConfig::markAsChanged);
+            this, &OathConfig::markAsChanged);
     connect(m_ui->showDeviceNameOnlyWhenMultipleCheckbox, &QCheckBox::toggled,
-            this, &YubiKeyConfig::markAsChanged);
+            this, &OathConfig::markAsChanged);
     connect(m_ui->primaryActionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &YubiKeyConfig::markAsChanged);
+            this, &OathConfig::markAsChanged);
     connect(m_ui->touchTimeoutSpinbox, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, &YubiKeyConfig::markAsChanged);
+            this, &OathConfig::markAsChanged);
     connect(m_ui->notificationExtraTimeSpinbox, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, &YubiKeyConfig::markAsChanged);
+            this, &OathConfig::markAsChanged);
     connect(m_ui->enableCredentialsCacheCheckbox, &QCheckBox::toggled,
-            this, &YubiKeyConfig::markAsChanged);
+            this, &OathConfig::markAsChanged);
     connect(m_ui->deviceReconnectTimeoutSpinbox, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, &YubiKeyConfig::markAsChanged);
+            this, &OathConfig::markAsChanged);
 }
 
-QString YubiKeyConfig::getModelIcon(quint32 deviceModel) const
+QString OathConfig::getModelIcon(quint32 deviceModel) const
 {
-    qCDebug(YubiKeyConfigLog) << "getModelIcon called with deviceModel:" << deviceModel << "(hex:" << Qt::hex << deviceModel << Qt::dec << ")";
+    qCDebug(OathConfigLog) << "getModelIcon called with deviceModel:" << deviceModel << "(hex:" << Qt::hex << deviceModel << Qt::dec << ")";
     QString iconName = YubiKeyIconResolver::getIconName(deviceModel);
-    qCDebug(YubiKeyConfigLog) << "getModelIcon returning iconName:" << iconName;
+    qCDebug(OathConfigLog) << "getModelIcon returning iconName:" << iconName;
     return iconName;
 }
 
-YubiKeyConfig::~YubiKeyConfig()
+OathConfig::~OathConfig()
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: Destructor called";
+    qCDebug(OathConfigLog) << "OathConfig: Destructor called";
 
     // Destroy device model BEFORE Qt destroys UI widget
     // This ensures QML doesn't access dangling pointers during widget destruction
     // unique_ptr has sole ownership (no Qt parent) so no double-deletion risk
     if (m_deviceModel) {
-        qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: Destroying device model";
+        qCDebug(OathConfigLog) << "OathConfig: Destroying device model";
         m_deviceModel.reset();
     }
 
     // Don't delete m_ui - it has widget() as Qt parent and will be deleted automatically
     // Manual deletion would cause double-free since Qt also deletes children
-    qCDebug(YubiKeyConfigLog) << "YubiKeyConfig: Destructor complete (UI will be deleted by Qt parent)";
+    qCDebug(OathConfigLog) << "OathConfig: Destructor complete (UI will be deleted by Qt parent)";
 }
 
-void YubiKeyConfig::load()
+void OathConfig::load()
 {
     // Load settings from config
     m_ui->showNotificationsCheckbox->setChecked(m_config.readEntry("ShowNotifications", true));
@@ -147,7 +147,7 @@ void YubiKeyConfig::load()
     setNeedsSave(false);
 }
 
-void YubiKeyConfig::save()
+void OathConfig::save()
 {
     // Save settings to config
     m_config.writeEntry("ShowNotifications", m_ui->showNotificationsCheckbox->isChecked());
@@ -157,7 +157,7 @@ void YubiKeyConfig::save()
     m_config.writeEntry("ShowDeviceNameOnlyWhenMultiple", m_ui->showDeviceNameOnlyWhenMultipleCheckbox->isChecked());
 
     const QString primaryAction = m_ui->primaryActionCombo->itemData(m_ui->primaryActionCombo->currentIndex()).toString();
-    qCDebug(YubiKeyConfigLog) << "Saving PrimaryAction:" << primaryAction;
+    qCDebug(OathConfigLog) << "Saving PrimaryAction:" << primaryAction;
     m_config.writeEntry("PrimaryAction", primaryAction);
 
     m_config.writeEntry("TouchTimeout", m_ui->touchTimeoutSpinbox->value());
@@ -169,7 +169,7 @@ void YubiKeyConfig::save()
     setNeedsSave(false);
 }
 
-void YubiKeyConfig::defaults()
+void OathConfig::defaults()
 {
     m_ui->showNotificationsCheckbox->setChecked(true);
     m_ui->showUsernameCheckbox->setChecked(true);
@@ -189,12 +189,12 @@ void YubiKeyConfig::defaults()
     markAsChanged();
 }
 
-void YubiKeyConfig::markAsChanged()
+void OathConfig::markAsChanged()
 {
     setNeedsSave(true);
 }
 
-void YubiKeyConfig::validateOptions()
+void OathConfig::validateOptions()
 {
     // Add any validation logic here if needed
 }
@@ -205,7 +205,7 @@ void YubiKeyConfig::validateOptions()
 #include <KPluginFactory>
 
 // Must use unqualified name for K_PLUGIN_CLASS - MOC doesn't support namespaced names
-using YubiKeyOath::Config::YubiKeyConfig;
-K_PLUGIN_CLASS(YubiKeyConfig)
+using YubiKeyOath::Config::OathConfig;
+K_PLUGIN_CLASS(OathConfig)
 
-#include "yubikey_config.moc"
+#include "oath_config.moc"

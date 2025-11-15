@@ -4,13 +4,13 @@
  */
 
 #include "touch_workflow_coordinator.h"
-#include "../actions/yubikey_action_coordinator.h"
+#include "../actions/oath_action_coordinator.h"
 #include "notification_orchestrator.h"
 #include "config/configuration_provider.h"
 #include "../logging_categories.h"
-#include "../oath/yubikey_device_manager.h"
+#include "../oath/oath_device_manager.h"
 #include "../oath/oath_device.h"
-#include "../storage/yubikey_database.h"
+#include "../storage/oath_database.h"
 #include "touch_handler.h"
 #include "formatting/credential_formatter.h"
 #include "utils/credential_finder.h"
@@ -26,9 +26,9 @@ namespace YubiKeyOath {
 namespace Daemon {
 using namespace YubiKeyOath::Shared;
 
-TouchWorkflowCoordinator::TouchWorkflowCoordinator(YubiKeyDeviceManager *deviceManager,
-                                                   YubiKeyDatabase *database,
-                                                   YubiKeyActionCoordinator *actionCoordinator,
+TouchWorkflowCoordinator::TouchWorkflowCoordinator(OathDeviceManager *deviceManager,
+                                                   OathDatabase *database,
+                                                   OathActionCoordinator *actionCoordinator,
                                                    TouchHandler *touchHandler,
                                                    NotificationOrchestrator *notificationOrchestrator,
                                                    const ConfigurationProvider *config,
@@ -198,7 +198,7 @@ void TouchWorkflowCoordinator::onCodeGenerated(const QString &credentialName, co
     }
     qCDebug(TouchWorkflowCoordinatorLog) << "Executing action after touch:" << actionId;
 
-    // Use YubiKeyActionCoordinator's unified executeActionWithNotification() method
+    // Use OathActionCoordinator's unified executeActionWithNotification() method
     // This ensures consistent notification policy with non-touch path:
     // - Copy action: always show notification on success
     // - Type action: never show code notification (user sees code being typed)

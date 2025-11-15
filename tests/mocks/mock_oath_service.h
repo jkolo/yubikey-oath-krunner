@@ -14,7 +14,7 @@
 
 namespace YubiKeyOath {
 namespace Daemon {
-    class YubiKeyDeviceManager;
+    class OathDeviceManager;
     class CredentialService;
     class OathDevice;
 }
@@ -33,13 +33,13 @@ using namespace YubiKeyOath::Shared;
  *
  * Used in tests for OathManagerObject, OathDeviceObject, OathCredentialObject.
  */
-class MockYubiKeyService : public QObject
+class MockOathService : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit MockYubiKeyService(QObject *parent = nullptr);
-    ~MockYubiKeyService() override = default;
+    explicit MockService(QObject *parent = nullptr);
+    ~MockService() override = default;
 
     // ========================================================================
     // YubiKeyService API (subset used by D-Bus objects)
@@ -75,7 +75,7 @@ public:
      * @brief Gets device manager (always returns nullptr in mock)
      * @return nullptr (not needed for D-Bus object tests)
      */
-    YubiKeyDeviceManager* getDeviceManager() const { return nullptr; }
+    OathDeviceManager* getDeviceManager() const { return nullptr; }
 
     /**
      * @brief Gets credential service (always returns nullptr in mock)

@@ -19,7 +19,7 @@
 #include <QLatin1String>
 #include <QLoggingCategory>
 
-Q_LOGGING_CATEGORY(OathManagerProxyLog, "pl.jkolo.yubikey.oath.daemon.manager.proxy")
+Q_LOGGING_CATEGORY(OathManagerProxyLog, "pl.jkolo.yubikey.oath.client.manager.proxy")
 
 namespace YubiKeyOath {
 namespace Shared {
@@ -207,19 +207,27 @@ void OathManagerProxy::onGetManagedObjectsFinished(QDBusPendingCallWatcher *watc
 
     qCDebug(OathManagerProxyLog) << "GetManagedObjects returned" << managedObjects.size() << "objects";
 
-    // First pass: collect all device and credential objects
+    // First pass: collect all device, session, and credential objects
     QHash<QString, QVariantMap> deviceObjects; // devicePath → device properties
+    QHash<QString, QVariantMap> sessionObjects; // devicePath → session properties
     QHash<QString, QHash<QString, QVariantMap>> credentialsByDevice; // devicePath → (credPath → cred properties)
 
     for (auto it = managedObjects.constBegin(); it != managedObjects.constEnd(); ++it) {
         const QString &objectPath = it.key();
         QVariantMap const interfacesAndProperties = it.value().toMap();
 
-        // Check if this is a Device object
+        // Check if this is a Device object (hardware + OATH application interface)
         if (interfacesAndProperties.contains(QLatin1String(DEVICE_INTERFACE))) {
             QVariantMap const deviceProps = interfacesAndProperties.value(QLatin1String(DEVICE_INTERFACE)).toMap();
             deviceObjects.insert(objectPath, deviceProps);
             qCDebug(OathManagerProxyLog) << "Found device at" << objectPath;
+        }
+
+        // Check if this object has DeviceSession interface (connection state)
+        if (interfacesAndProperties.contains(QLatin1String(DEVICE_SESSION_INTERFACE))) {
+            QVariantMap const sessionProps = interfacesAndProperties.value(QLatin1String(DEVICE_SESSION_INTERFACE)).toMap();
+            sessionObjects.insert(objectPath, sessionProps);
+            qCDebug(OathManagerProxyLog) << "Found device session at" << objectPath;
         }
 
         // Check if this is a Credential object
@@ -241,13 +249,14 @@ void OathManagerProxy::onGetManagedObjectsFinished(QDBusPendingCallWatcher *watc
         }
     }
 
-    // Second pass: create device proxies with their credentials
+    // Second pass: create device proxies with their sessions and credentials
     for (auto it = deviceObjects.constBegin(); it != deviceObjects.constEnd(); ++it) {
         const QString &devicePath = it.key();
         const QVariantMap &deviceProps = it.value();
+        const QVariantMap &sessionProps = sessionObjects.value(devicePath); // May be empty if session interface not found
         QHash<QString, QVariantMap> const credentials = credentialsByDevice.value(devicePath);
 
-        addDeviceProxy(devicePath, deviceProps, credentials);
+        addDeviceProxy(devicePath, deviceProps, sessionProps, credentials);
     }
 
     qCDebug(OathManagerProxyLog) << "Async refresh complete:"
@@ -269,6 +278,11 @@ QList<OathDeviceProxy*> OathManagerProxy::devices() const
 OathDeviceProxy* OathManagerProxy::getDevice(const QString &deviceId) const
 {
     return m_devices.value(deviceId, nullptr);
+}
+
+OathDeviceSessionProxy* OathManagerProxy::getDeviceSession(const QString &deviceId) const
+{
+    return m_deviceSessions.value(deviceId, nullptr);
 }
 
 QList<OathCredentialProxy*> OathManagerProxy::getAllCredentials() const
@@ -336,15 +350,16 @@ void OathManagerProxy::onInterfacesAdded(const QDBusMessage &message)
 
     // Check if this is a Device object
     if (interfacesMap.contains(QLatin1String(DEVICE_INTERFACE))) {
-        // Extract device properties with .toMap() to unwrap QVariant (same pattern as refreshManagedObjects:205)
+        // Extract device and session properties with .toMap() to unwrap QVariant
         QVariantMap const deviceProps = interfacesMap.value(QLatin1String(DEVICE_INTERFACE)).toMap();
+        QVariantMap const sessionProps = interfacesMap.value(QLatin1String(DEVICE_SESSION_INTERFACE)).toMap();
 
         // Debug: log device properties
         qCDebug(OathManagerProxyLog) << "Device properties:" << deviceProps;
         qCDebug(OathManagerProxyLog) << "DeviceId (ID property):" << deviceProps.value(QLatin1String("ID"));
 
         QHash<QString, QVariantMap> const emptyCredentials; // New device has no credentials yet
-        addDeviceProxy(path, deviceProps, emptyCredentials);
+        addDeviceProxy(path, deviceProps, sessionProps, emptyCredentials);
     }
 
     // Credential additions are handled by DeviceProxy's CredentialAdded signal
@@ -436,6 +451,7 @@ void OathManagerProxy::onDBusServiceUnregistered(const QString &serviceName)
 
 void OathManagerProxy::addDeviceProxy(const QString &devicePath,
                                         const QVariantMap &deviceProperties,
+                                        const QVariantMap &sessionProperties,
                                         const QHash<QString, QVariantMap> &credentialObjects)
 {
     // Extract device ID from properties (ID property contains last path segment: serialNumber or dev_<deviceId>)
@@ -456,24 +472,31 @@ void OathManagerProxy::addDeviceProxy(const QString &devicePath,
     auto *device = new OathDeviceProxy(devicePath, deviceProperties, credentialObjects, this);
     m_devices.insert(deviceId, device);
 
+    // Create device session proxy (this object becomes parent, so proxy is auto-deleted)
+    auto *session = new OathDeviceSessionProxy(devicePath, sessionProperties, this);
+    m_deviceSessions.insert(deviceId, session);
+
     // Connect to device signals for credential changes
     connect(device, &OathDeviceProxy::credentialAdded,
             this, &OathManagerProxy::credentialsChanged);
     connect(device, &OathDeviceProxy::credentialRemoved,
             this, &OathManagerProxy::credentialsChanged);
 
-    // Forward device property changes
+    // Forward device property changes (Device interface)
     connect(device, &OathDeviceProxy::nameChanged,
-            this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
-    connect(device, &OathDeviceProxy::stateChanged,
             this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
     connect(device, &OathDeviceProxy::requiresPasswordChanged,
             this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
-    connect(device, &OathDeviceProxy::hasValidPasswordChanged,
+
+    // Forward session property changes (DeviceSession interface)
+    connect(session, &OathDeviceSessionProxy::stateChanged,
+            this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
+    connect(session, &OathDeviceSessionProxy::hasValidPasswordChanged,
             this, [this, device]() { Q_EMIT devicePropertyChanged(device); });
 
-    qCDebug(OathManagerProxyLog) << "Added device proxy:" << deviceId
+    qCDebug(OathManagerProxyLog) << "Added device and session proxies:" << deviceId
                                      << "Name:" << device->name()
+                                     << "State:" << static_cast<int>(session->state())
                                      << "Credentials:" << device->credentials().size();
     Q_EMIT deviceConnected(device);
 }
@@ -500,6 +523,13 @@ void OathManagerProxy::removeDeviceProxy(const QString &devicePath)
         qCDebug(OathManagerProxyLog) << "Removed device proxy:" << deviceId;
         Q_EMIT deviceDisconnected(deviceId);
         device->deleteLater();
+    }
+
+    // Remove and delete session proxy
+    auto *session = m_deviceSessions.take(deviceId);
+    if (session) {
+        qCDebug(OathManagerProxyLog) << "Removed device session proxy:" << deviceId;
+        session->deleteLater();
     }
 }
 

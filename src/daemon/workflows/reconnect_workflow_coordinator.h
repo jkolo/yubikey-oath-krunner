@@ -26,9 +26,9 @@ using Shared::OathCredential;
 using Shared::Result;
 
 // Forward declarations
-class YubiKeyService;
-class YubiKeyDatabase;
-class YubiKeyActionCoordinator;
+class OathService;
+class OathDatabase;
+class OathActionCoordinator;
 class NotificationOrchestrator;
 
 /**
@@ -83,9 +83,9 @@ public:
      *
      * @note Automatically connects to device authentication signals from service
      */
-    explicit ReconnectWorkflowCoordinator(YubiKeyService *service,
-                                          YubiKeyDatabase *database,
-                                          YubiKeyActionCoordinator *actionCoordinator,
+    explicit ReconnectWorkflowCoordinator(OathService *service,
+                                          OathDatabase *database,
+                                          OathActionCoordinator *actionCoordinator,
                                           NotificationOrchestrator *notificationOrchestrator,
                                           const ConfigurationProvider *config,
                                           QObject *parent = nullptr);
@@ -183,9 +183,9 @@ private:
      */
     void cleanupReconnectWorkflow();
 
-    YubiKeyService *m_service;
-    YubiKeyDatabase *m_database;
-    YubiKeyActionCoordinator *m_actionCoordinator;
+    OathService *m_service;
+    OathDatabase *m_database;
+    OathActionCoordinator *m_actionCoordinator;
     NotificationOrchestrator *m_notificationOrchestrator;
     const ConfigurationProvider *m_config;
 

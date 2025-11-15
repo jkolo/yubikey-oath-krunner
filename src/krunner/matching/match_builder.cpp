@@ -9,6 +9,7 @@
 #include "dbus/oath_manager_proxy.h"
 #include "dbus/oath_credential_proxy.h"
 #include "dbus/oath_device_proxy.h"
+#include "dbus/oath_device_session_proxy.h"
 #include "../logging_categories.h"
 #include "../shared/utils/yubikey_icon_resolver.h"
 
@@ -65,7 +66,10 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(OathCredentialProxy *cred
         // - Serial number as string (e.g., "20252879")
         // - "dev_<hexhash>" for devices without serial number
         deviceIdToName[device->deviceId()] = device->name();
-        if (device->isConnected()) {
+
+        // Get session proxy for connection state
+        const auto *session = manager->getDeviceSession(device->deviceId());
+        if (session && session->isConnected()) {
             connectedDeviceCount++;
         }
     }

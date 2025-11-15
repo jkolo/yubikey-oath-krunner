@@ -4,7 +4,7 @@
  */
 
 #include "oath_credential_object.h"
-#include "services/yubikey_service.h"
+#include "services/oath_service.h"
 #include "services/credential_service.h"
 #include "logging_categories.h"
 #include "credentialadaptor.h"  // Auto-generated D-Bus adaptor
@@ -20,7 +20,7 @@ static constexpr const char *CREDENTIAL_INTERFACE = "pl.jkolo.yubikey.oath.Crede
 
 OathCredentialObject::OathCredentialObject(Shared::OathCredential credential,
                                                  QString deviceId,
-                                                 YubiKeyService *service,
+                                                 OathService *service,
                                                  QDBusConnection connection,
                                                  QObject *parent)
     : QObject(parent)
@@ -35,18 +35,18 @@ OathCredentialObject::OathCredentialObject(Shared::OathCredential credential,
     // Format: /pl/jkolo/yubikey/oath/devices/<deviceId>/credentials/<credentialId>
     // credentialId is encoded by parent
 
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Constructing for credential:"
+    qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: Constructing for credential:"
                               << m_credential.originalName << "on device:" << m_deviceId;
 
     // Create D-Bus adaptor for Credential interface
     // This automatically registers pl.jkolo.yubikey.oath.Credential interface
     new CredentialAdaptor(this);
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: CredentialAdaptor created";
+    qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: CredentialAdaptor created";
 }
 
 OathCredentialObject::~OathCredentialObject()
 {
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Destructor for credential:"
+    qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: Destructor for credential:"
                               << m_credential.originalName;
     unregisterObject();
 }
@@ -54,7 +54,7 @@ OathCredentialObject::~OathCredentialObject()
 void OathCredentialObject::setObjectPath(const QString &path)
 {
     if (m_registered) {
-        qCWarning(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Cannot change path after registration";
+        qCWarning(OathDaemonLog) << "YubiKeyCredentialObject: Cannot change path after registration";
         return;
     }
     m_objectPath = path;
@@ -63,14 +63,14 @@ void OathCredentialObject::setObjectPath(const QString &path)
 bool OathCredentialObject::registerObject()
 {
     if (m_registered) {
-        qCWarning(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Already registered:"
+        qCWarning(OathDaemonLog) << "YubiKeyCredentialObject: Already registered:"
                                     << m_credential.originalName;
         return true;
     }
 
     // Object path must be set by parent before calling registerObject()
     if (m_objectPath.isEmpty()) {
-        qCCritical(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Cannot register - no object path set";
+        qCCritical(OathDaemonLog) << "YubiKeyCredentialObject: Cannot register - no object path set";
         return false;
     }
 
@@ -78,13 +78,13 @@ bool OathCredentialObject::registerObject()
     // Using ExportAdaptors ensures we use the interface name from the adaptor's Q_CLASSINFO,
     // not the C++ class name
     if (!m_connection.registerObject(m_objectPath, this, QDBusConnection::ExportAdaptors)) {
-        qCCritical(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Failed to register at"
+        qCCritical(OathDaemonLog) << "YubiKeyCredentialObject: Failed to register at"
                                      << m_objectPath << ":" << m_connection.lastError().message();
         return false;
     }
 
     m_registered = true;
-    qCInfo(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Registered successfully:"
+    qCInfo(OathDaemonLog) << "YubiKeyCredentialObject: Registered successfully:"
                              << m_credential.originalName << "at" << m_objectPath;
 
     return true;
@@ -98,7 +98,7 @@ void OathCredentialObject::unregisterObject()
 
     m_connection.unregisterObject(m_objectPath);
     m_registered = false;
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Unregistered:" << m_credential.originalName;
+    qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: Unregistered:" << m_credential.originalName;
 }
 
 QString OathCredentialObject::objectPath() const
@@ -167,7 +167,7 @@ QString OathCredentialObject::deviceId() const
 
 void OathCredentialObject::GenerateCode()
 {
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: GenerateCode (async) for credential:"
+    qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: GenerateCode (async) for credential:"
                               << m_credential.originalName << "on device:" << m_deviceId;
 
     // Connect to service signal for this specific operation (one-shot connection)
@@ -176,7 +176,7 @@ void OathCredentialObject::GenerateCode()
             this, [this, connection](const QString &deviceId, const QString &credentialName,
                                      const QString &code, qint64 validUntil, const QString &error) {
         if (deviceId == m_deviceId && credentialName == m_credential.originalName) {
-            qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Code generated async for:"
+            qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: Code generated async for:"
                                       << m_credential.originalName;
 
             // Emit D-Bus signal
@@ -194,7 +194,7 @@ void OathCredentialObject::GenerateCode()
 
 void OathCredentialObject::CopyToClipboard()
 {
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: CopyToClipboard (async) for credential:"
+    qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: CopyToClipboard (async) for credential:"
                               << m_credential.originalName << "on device:" << m_deviceId;
 
     // For now, use sync implementation - will be migrated to async in service layer
@@ -207,7 +207,7 @@ void OathCredentialObject::CopyToClipboard()
 
 void OathCredentialObject::TypeCode(bool fallbackToCopy)
 {
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: TypeCode (async) for credential:"
+    qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: TypeCode (async) for credential:"
                               << m_credential.originalName << "on device:" << m_deviceId
                               << "fallbackToCopy:" << fallbackToCopy;
 
@@ -217,7 +217,7 @@ void OathCredentialObject::TypeCode(bool fallbackToCopy)
 
     // If typing failed and fallback is enabled, try clipboard
     if (!success && fallbackToCopy) {
-        qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: TypeCode failed, falling back to clipboard";
+        qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: TypeCode failed, falling back to clipboard";
         success = m_service->copyCodeToClipboard(m_deviceId, m_credential.originalName);
     }
 
@@ -227,7 +227,7 @@ void OathCredentialObject::TypeCode(bool fallbackToCopy)
 
 void OathCredentialObject::Delete()
 {
-    qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Delete (async) credential:"
+    qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: Delete (async) credential:"
                               << m_credential.originalName << "from device:" << m_deviceId;
 
     // Connect to service signal for this specific operation (one-shot connection)
@@ -236,7 +236,7 @@ void OathCredentialObject::Delete()
             this, [this, connection](const QString &deviceId, const QString &credentialName,
                                      bool success, const QString &error) {
         if (deviceId == m_deviceId && credentialName == m_credential.originalName) {
-            qCDebug(YubiKeyDaemonLog) << "YubiKeyCredentialObject: Credential deleted async:"
+            qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: Credential deleted async:"
                                       << m_credential.originalName << "success:" << success;
 
             // Emit D-Bus signal

@@ -64,21 +64,21 @@ namespace Daemon {
  * - For multi-device aggregation: use getCredentials() to get all credentials
  * - For device lifecycle: listen to deviceConnected/deviceDisconnected signals
  */
-class YubiKeyDeviceManager : public QObject
+class OathDeviceManager : public QObject
 {
     Q_OBJECT
 
 public:
     /**
-     * @brief Constructs YubiKeyDeviceManager instance
+     * @brief Constructs OathDeviceManager instance
      * @param parent Parent QObject
      */
-    explicit YubiKeyDeviceManager(QObject *parent = nullptr);
+    explicit OathDeviceManager(QObject *parent = nullptr);
 
     /**
      * @brief Destructor
      */
-    ~YubiKeyDeviceManager();
+    ~OathDeviceManager();
 
     // Device lifecycle management
     /**
@@ -230,7 +230,7 @@ Q_SIGNALS:
      * @param deviceId Device ID that is being reconnected
      *
      * This signal is emitted when reconnectDeviceAsync() begins reconnect attempt.
-     * Used by YubiKeyService to show reconnect notification.
+     * Used by OathService to show reconnect notification.
      */
     void reconnectStarted(const QString &deviceId);
 

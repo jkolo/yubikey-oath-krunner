@@ -89,10 +89,10 @@ ActionExecutor::ActionResult ActionExecutor::executeTypeAction(const QString &co
         return ActionResult::WaitingForPermission;
     }
 
-    // Real failure - fallback to clipboard
+    // Real failure - fallback to clipboard with detailed notification
     qCWarning(ActionExecutorLog) << "Failed to type code for:" << credentialName << "- falling back to clipboard";
-    Q_EMIT notificationRequested(i18n("YubiKey OATH"),
-                                i18n("Failed to type code, copied to clipboard instead"),
+    Q_EMIT notificationRequested(i18n("Typing Failed"),
+                                i18n("Could not type code (portal session error). Code copied to clipboard instead."),
                                 1);
 
     // Execute fallback

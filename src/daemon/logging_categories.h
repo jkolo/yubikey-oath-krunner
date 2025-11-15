@@ -18,10 +18,10 @@ namespace Daemon {
  */
 
 // Daemon service
-Q_DECLARE_LOGGING_CATEGORY(YubiKeyDaemonLog)
+Q_DECLARE_LOGGING_CATEGORY(OathDaemonLog)
 
 // OATH components
-Q_DECLARE_LOGGING_CATEGORY(YubiKeyDeviceManagerLog)
+Q_DECLARE_LOGGING_CATEGORY(OathDeviceManagerLog)
 Q_DECLARE_LOGGING_CATEGORY(YubiKeyOathDeviceLog)
 
 // PC/SC components
@@ -30,10 +30,10 @@ Q_DECLARE_LOGGING_CATEGORY(YubiKeyPcscLog)
 // Storage components
 Q_DECLARE_LOGGING_CATEGORY(CardReaderMonitorLog)
 Q_DECLARE_LOGGING_CATEGORY(SecretStorageLog)
-Q_DECLARE_LOGGING_CATEGORY(YubiKeyDatabaseLog)
+Q_DECLARE_LOGGING_CATEGORY(OathDatabaseLog)
 
 // Action and workflow components (moved from krunner)
-Q_DECLARE_LOGGING_CATEGORY(YubiKeyActionCoordinatorLog)
+Q_DECLARE_LOGGING_CATEGORY(OathActionCoordinatorLog)
 Q_DECLARE_LOGGING_CATEGORY(ActionExecutorLog)
 Q_DECLARE_LOGGING_CATEGORY(NotificationOrchestratorLog)
 Q_DECLARE_LOGGING_CATEGORY(TouchWorkflowCoordinatorLog)

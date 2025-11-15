@@ -16,8 +16,8 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 // Forward declarations
-class YubiKeyDeviceManager;
-class YubiKeyDatabase;
+class OathDeviceManager;
+class OathDatabase;
 class SecretStorage;
 class OathDevice;
 
@@ -27,7 +27,7 @@ class OathDevice;
  * Handles device enumeration, connection, disconnection, naming, and removal.
  * Coordinates between hardware detection, database persistence, and password storage.
  *
- * Extracted from YubiKeyService to follow Single Responsibility Principle.
+ * Extracted from OathService to follow Single Responsibility Principle.
  */
 class DeviceLifecycleService : public QObject
 {
@@ -41,8 +41,8 @@ public:
      * @param secretStorage KWallet storage for loading passwords
      * @param parent Parent QObject
      */
-    explicit DeviceLifecycleService(YubiKeyDeviceManager *deviceManager,
-                                   YubiKeyDatabase *database,
+    explicit DeviceLifecycleService(OathDeviceManager *deviceManager,
+                                   OathDatabase *database,
                                    SecretStorage *secretStorage,
                                    QObject *parent = nullptr);
 
@@ -163,10 +163,10 @@ private:
     QString generateDefaultDeviceName(const QString &deviceId,
                                       const Shared::DeviceModel& deviceModel,
                                       quint32 serialNumber,
-                                      YubiKeyDatabase *database) const;
+                                      OathDatabase *database) const;
 
-    YubiKeyDeviceManager *m_deviceManager;  // Not owned
-    YubiKeyDatabase *m_database;            // Not owned
+    OathDeviceManager *m_deviceManager;  // Not owned
+    OathDatabase *m_database;            // Not owned
     SecretStorage *m_secretStorage;         // Not owned
 
     QMap<QString, qint64> m_lastForgetTimestamp;  ///< Debounce: timestamp of last forget per device

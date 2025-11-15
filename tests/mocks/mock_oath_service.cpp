@@ -3,22 +3,22 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "mock_yubikey_service.h"
+#include "mock_oath_service.h"
 
 namespace YubiKeyOath {
 namespace Daemon {
 
-MockYubiKeyService::MockYubiKeyService(QObject *parent)
+MockService::MockService(QObject *parent)
     : QObject(parent)
 {
 }
 
-QList<DeviceInfo> MockYubiKeyService::listDevices()
+QList<DeviceInfo> MockService::listDevices()
 {
     return m_devices.values();
 }
 
-QList<OathCredential> MockYubiKeyService::getCredentials(const QString &deviceId)
+QList<OathCredential> MockService::getCredentials(const QString &deviceId)
 {
     if (deviceId.isEmpty()) {
         return getCredentials();
@@ -27,7 +27,7 @@ QList<OathCredential> MockYubiKeyService::getCredentials(const QString &deviceId
     return m_credentials.value(deviceId);
 }
 
-QList<OathCredential> MockYubiKeyService::getCredentials()
+QList<OathCredential> MockService::getCredentials()
 {
     QList<OathCredential> allCredentials;
 
@@ -38,24 +38,24 @@ QList<OathCredential> MockYubiKeyService::getCredentials()
     return allCredentials;
 }
 
-OathDevice* MockYubiKeyService::getDevice(const QString &deviceId)
+OathDevice* MockService::getDevice(const QString &deviceId)
 {
     Q_UNUSED(deviceId);
     return nullptr;  // Not implemented in mock
 }
 
-void MockYubiKeyService::addMockDevice(const DeviceInfo &device)
+void MockService::addMockDevice(const DeviceInfo &device)
 {
     m_devices.insert(device._internalDeviceId, device);
 }
 
-void MockYubiKeyService::removeMockDevice(const QString &deviceId)
+void MockService::removeMockDevice(const QString &deviceId)
 {
     m_devices.remove(deviceId);
     m_credentials.remove(deviceId);
 }
 
-void MockYubiKeyService::addMockCredential(const QString &deviceId, const OathCredential &credential)
+void MockService::addMockCredential(const QString &deviceId, const OathCredential &credential)
 {
     if (!m_credentials.contains(deviceId)) {
         m_credentials.insert(deviceId, QList<OathCredential>());
@@ -64,38 +64,38 @@ void MockYubiKeyService::addMockCredential(const QString &deviceId, const OathCr
     m_credentials[deviceId].append(credential);
 }
 
-void MockYubiKeyService::clearMockCredentials(const QString &deviceId)
+void MockService::clearMockCredentials(const QString &deviceId)
 {
     m_credentials.remove(deviceId);
 }
 
-void MockYubiKeyService::clear()
+void MockService::clear()
 {
     m_devices.clear();
     m_credentials.clear();
 }
 
-int MockYubiKeyService::credentialCount(const QString &deviceId) const
+int MockService::credentialCount(const QString &deviceId) const
 {
     return m_credentials.value(deviceId).size();
 }
 
-void MockYubiKeyService::emitDeviceConnected(const QString &deviceId)
+void MockService::emitDeviceConnected(const QString &deviceId)
 {
     Q_EMIT deviceConnected(deviceId);
 }
 
-void MockYubiKeyService::emitDeviceDisconnected(const QString &deviceId)
+void MockService::emitDeviceDisconnected(const QString &deviceId)
 {
     Q_EMIT deviceDisconnected(deviceId);
 }
 
-void MockYubiKeyService::emitDeviceForgotten(const QString &deviceId)
+void MockService::emitDeviceForgotten(const QString &deviceId)
 {
     Q_EMIT deviceForgotten(deviceId);
 }
 
-void MockYubiKeyService::emitCredentialsUpdated(const QString &deviceId)
+void MockService::emitCredentialsUpdated(const QString &deviceId)
 {
     Q_EMIT credentialsUpdated(deviceId);
 }

@@ -4,7 +4,7 @@
  */
 
 #include "mocks/mock_touch_handler.h"
-#include "mocks/mock_yubikey_action_coordinator.h"
+#include "mocks/mock_oath_action_coordinator.h"
 #include "mocks/mock_notification_orchestrator.h"
 #include "mocks/mock_dbus_notification_manager.h"
 #include "mocks/mock_configuration_provider.h"
@@ -45,7 +45,7 @@ private Q_SLOTS:
     void testCompleteWorkflowSequence();
 
 private:
-    MockYubiKeyActionCoordinator *m_actionCoordinator = nullptr;
+    MockOathActionCoordinator *m_actionCoordinator = nullptr;
     MockTouchHandler *m_touchHandler = nullptr;
     MockDBusNotificationManager *m_dbusNotif = nullptr;
     MockNotificationOrchestrator *m_notificationOrch = nullptr;
@@ -60,7 +60,7 @@ void TestTouchWorkflowCoordinator::initTestCase()
 void TestTouchWorkflowCoordinator::init()
 {
     // Create fresh instances for each test
-    m_actionCoordinator = new MockYubiKeyActionCoordinator(this);
+    m_actionCoordinator = new MockOathActionCoordinator(this);
     m_touchHandler = new MockTouchHandler(this);
     m_dbusNotif = new MockDBusNotificationManager(this);
     m_config = new MockConfigurationProvider(this);

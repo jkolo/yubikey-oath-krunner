@@ -3,7 +3,7 @@
 
 set(krunner_yubikey_SRCS
     # Runner entry point
-    yubikeyrunner.cpp
+    oathrunner.cpp
 
     # Configuration components
     config/krunner_configuration.cpp

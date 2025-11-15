@@ -1,0 +1,53 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node>
+  <!--
+    pl.jkolo.yubikey.oath.DeviceSession:
+    @short_description: Device session interface for connection state and configuration
+
+    This interface represents the runtime session state between the daemon and the device.
+    It manages connection lifecycle, password validation, and daemon-side configuration.
+
+    This interface is exposed on the same D-Bus object as pl.jkolo.yubikey.oath.Device,
+    under path: /pl/jkolo/yubikey/oath/devices/<serialNumber>
+    (or /pl/jkolo/yubikey/oath/devices/dev_<deviceId> for devices without serial number)
+  -->
+  <interface name="pl.jkolo.yubikey.oath.DeviceSession">
+
+    <!-- Methods -->
+    <method name="SavePassword">
+      <arg direction="in" type="s" name="password"/>
+      <arg direction="out" type="b" name="success"/>
+      <annotation name="org.freedesktop.DBus.Method.NoReply" value="false"/>
+      <!-- Tests the password by attempting connection, then saves to KWallet if valid -->
+    </method>
+
+    <!-- Properties -->
+    <property name="State" type="y" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+      <!-- Connection lifecycle state -->
+      <!-- Values: 0x00=Disconnected, 0x01=Connecting, 0x02=Authenticating, 0x03=FetchingCredentials, 0x04=Ready, 0xFF=Error -->
+    </property>
+
+    <property name="StateMessage" type="s" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+      <!-- Human-readable state description (e.g. error message when State=Error) -->
+    </property>
+
+    <property name="HasValidPassword" type="b" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+      <!-- Whether the daemon has a valid password stored in KWallet for this session -->
+    </property>
+
+    <property name="LastSeen" type="x" access="read">
+      <annotation name="org.freedesktop.DBus.Property.EmitsChangedSignal" value="true"/>
+      <!-- Timestamp (milliseconds since Unix epoch) when device was last detected -->
+    </property>
+
+  </interface>
+
+  <!-- Note: Standard D-Bus interfaces (Properties, Introspectable, Peer)
+       are handled automatically by Qt's meta-object system and do not need XML definitions
+       for adaptor generation. They are implemented in the C++ class. -->
+
+</node>

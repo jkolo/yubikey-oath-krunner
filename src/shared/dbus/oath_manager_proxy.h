@@ -11,6 +11,7 @@
 #include <QHash>
 #include <QMap>
 #include "oath_device_proxy.h"
+#include "oath_device_session_proxy.h"
 #include "types/device_state.h"
 
 // Forward declarations
@@ -95,6 +96,13 @@ public:
     OathDeviceProxy* getDevice(const QString &deviceId) const;
 
     /**
+     * @brief Gets device session proxy by ID
+     * @param deviceId Device ID (hex string)
+     * @return Device session proxy pointer or nullptr if not found
+     */
+    OathDeviceSessionProxy* getDeviceSession(const QString &deviceId) const;
+
+    /**
      * @brief Gets all credential proxies from all devices
      * @return List of credential proxy pointers
      *
@@ -171,6 +179,7 @@ private:  // NOLINT(readability-redundant-access-specifiers) - Required to close
 
     void addDeviceProxy(const QString &devicePath,
                        const QVariantMap &deviceProperties,
+                       const QVariantMap &sessionProperties,
                        const QHash<QString, QVariantMap> &credentialObjects);
     void removeDeviceProxy(const QString &devicePath);
 
@@ -185,8 +194,9 @@ private:  // NOLINT(readability-redundant-access-specifiers) - Required to close
     // Manager properties
     QString m_version;
 
-    // Device proxies (owned by this object via Qt parent-child)
+    // Device and session proxies (owned by this object via Qt parent-child)
     QHash<QString, OathDeviceProxy*> m_devices; // key: device ID
+    QHash<QString, OathDeviceSessionProxy*> m_deviceSessions; // key: device ID
 
     static constexpr const char *SERVICE_NAME = "pl.jkolo.yubikey.oath.daemon";
     static constexpr const char *MANAGER_PATH = "/pl/jkolo/yubikey/oath";
@@ -194,6 +204,7 @@ private:  // NOLINT(readability-redundant-access-specifiers) - Required to close
     static constexpr const char *OBJECT_MANAGER_INTERFACE = "org.freedesktop.DBus.ObjectManager";
     static constexpr const char *PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties";
     static constexpr const char *DEVICE_INTERFACE = "pl.jkolo.yubikey.oath.Device";
+    static constexpr const char *DEVICE_SESSION_INTERFACE = "pl.jkolo.yubikey.oath.DeviceSession";
     static constexpr const char *CREDENTIAL_INTERFACE = "pl.jkolo.yubikey.oath.Credential";
 };
 

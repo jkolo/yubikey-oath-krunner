@@ -24,12 +24,12 @@ namespace Daemon {
  * Inherits from OathDevice to be compatible with services that expect OathDevice*.
  * Provides simplified mock implementations of all required virtual methods.
  */
-class MockYubiKeyOathDevice : public OathDevice
+class MockOathDevice : public OathDevice
 {
     Q_OBJECT
 
 public:
-    explicit MockYubiKeyOathDevice(const QString &deviceId, QObject *parent = nullptr)
+    explicit MockOathDevice(const QString &deviceId, QObject *parent = nullptr)
         : OathDevice(parent)
         , m_mockDeviceId(deviceId)
         , m_mockReaderName(QStringLiteral("Mock Reader"))
@@ -44,7 +44,7 @@ public:
         m_mockDeviceModel.formFactor = 1;
     }
 
-    ~MockYubiKeyOathDevice() override = default;
+    ~MockOathDevice() override = default;
 
     // ========== OathDevice Pure Virtual Method Implementations ==========
 

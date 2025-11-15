@@ -16,7 +16,7 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 // Forward declarations
-class YubiKeyService;
+class OathService;
 
 /**
  * @brief Credential D-Bus object for individual OATH credential
@@ -52,13 +52,13 @@ public:
      * @brief Constructs Credential object
      * @param credential OathCredential data
      * @param deviceId Parent device ID
-     * @param service Pointer to YubiKeyService
+     * @param service Pointer to OathService
      * @param connection D-Bus connection
      * @param parent Parent QObject
      */
     explicit OathCredentialObject(Shared::OathCredential credential,
                                    QString deviceId,
-                                   YubiKeyService *service,
+                                   OathService *service,
                                    QDBusConnection connection,
                                    QObject *parent = nullptr);
     ~OathCredentialObject() override;
@@ -204,7 +204,7 @@ public:
 private:
     Shared::OathCredential m_credential;     ///< Credential data
     QString m_deviceId;                      ///< Parent device ID
-    YubiKeyService *m_service;               ///< Business logic service (not owned)
+    OathService *m_service;               ///< Business logic service (not owned)
     QDBusConnection m_connection;            ///< D-Bus connection
     QString m_objectPath;                    ///< Our object path
     bool m_registered;                       ///< Registration state

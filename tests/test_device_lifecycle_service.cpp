@@ -7,9 +7,9 @@
 #include <QSignalSpy>
 
 #include "daemon/services/device_lifecycle_service.h"
-#include "mocks/mock_yubikey_device_manager.h"
-#include "mocks/mock_yubikey_oath_device.h"
-#include "mocks/mock_yubikey_database.h"
+#include "mocks/mock_oath_device_manager.h"
+#include "mocks/mock_oath_device.h"
+#include "mocks/mock_oath_database.h"
 #include "mocks/mock_secret_storage.h"
 #include "fixtures/test_device_fixture.h"
 #include "shared/utils/version.h"
@@ -24,9 +24,9 @@ using namespace YubiKeyOath::Shared;
  * Target coverage: 95% (business logic component)
  *
  * Test infrastructure:
- * - MockYubiKeyDeviceManager - Device factory with addDevice() injection
- * - MockYubiKeyOathDevice - Mock device with state management
- * - MockYubiKeyDatabase - In-memory device/credential storage
+ * - MockOathDeviceManager - Device factory with addDevice() injection
+ * - MockOathDevice - Mock device with state management
+ * - MockOathDatabase - In-memory device/credential storage
  * - MockSecretStorage - KWallet mock with password storage
  * - TestDeviceFixture - Factory for creating device records
  *
@@ -58,9 +58,9 @@ private Q_SLOTS:
     void init()
     {
         // Create fresh mocks for each test
-        m_database = new MockYubiKeyDatabase(this);
+        m_database = new MockOathDatabase(this);
         m_secretStorage = new MockSecretStorage(this);
-        m_deviceManager = new MockYubiKeyDeviceManager(this);
+        m_deviceManager = new MockOathDeviceManager(this);
 
         m_service = new DeviceLifecycleService(m_deviceManager, m_database,
                                               m_secretStorage, this);
@@ -93,10 +93,10 @@ private Q_SLOTS:
 
         // Setup: Create connected mock device (firmware version already set in constructor)
         const QString deviceId = QStringLiteral("1234567890ABCDEF");
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
         mockDevice->setRequiresPassword(false);
 
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         QVERIFY(mockManager != nullptr);
         mockManager->addDevice(mockDevice);
 
@@ -146,8 +146,8 @@ private Q_SLOTS:
 
         // Setup: Connected device
         const QString connectedId = QStringLiteral("1111111111111111");
-        auto *connectedDevice = new MockYubiKeyOathDevice(connectedId, this);
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *connectedDevice = new MockOathDevice(connectedId, this);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         mockManager->addDevice(connectedDevice);
 
         // Set state AFTER adding to manager
@@ -270,10 +270,10 @@ private Q_SLOTS:
 
         // Setup: Create device with password
         const QString deviceId = QStringLiteral("1234567890ABCDEF");
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
         mockDevice->setRequiresPassword(true);
 
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         mockManager->addDevice(mockDevice);
 
         // Add to database
@@ -307,10 +307,10 @@ private Q_SLOTS:
 
         // Setup: Create new mock device (firmware version already set in constructor)
         const QString deviceId = QStringLiteral("1234567890ABCDEF");
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
         mockDevice->setRequiresPassword(false);
 
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         mockManager->addDevice(mockDevice);
 
         // Verify NOT in database
@@ -346,10 +346,10 @@ private Q_SLOTS:
         m_database->addDevice(deviceId, customName, false);
 
         // Create mock device (firmware version already set in constructor)
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
         mockDevice->setRequiresPassword(false);
 
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         mockManager->addDevice(mockDevice);
 
         // Act: Trigger device connected
@@ -403,7 +403,7 @@ private Q_SLOTS:
         qDebug() << "========================================";
         qDebug() << "";
         qDebug() << "✓ All test cases implemented and passing";
-        qDebug() << "✓ Mock infrastructure: MockYubiKeyDeviceManager, MockYubiKeyDatabase, MockSecretStorage";
+        qDebug() << "✓ Mock infrastructure: MockOathDeviceManager, MockOathDatabase, MockSecretStorage";
         qDebug() << "✓ Test coverage: device listing, naming, cleanup, connection events";
         qDebug() << "";
         qDebug() << "Test cases executed:";
@@ -425,8 +425,8 @@ private Q_SLOTS:
 
 private:
     DeviceLifecycleService *m_service = nullptr;
-    MockYubiKeyDeviceManager *m_deviceManager = nullptr;
-    MockYubiKeyDatabase *m_database = nullptr;
+    MockOathDeviceManager *m_deviceManager = nullptr;
+    MockOathDatabase *m_database = nullptr;
     MockSecretStorage *m_secretStorage = nullptr;
 };
 

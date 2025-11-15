@@ -24,23 +24,55 @@ krunner --replace  # restart (NEVER killall)
 ### D-Bus Hierarchy
 
 ```
-/pl/jkolo/yubikey/oath (Manager) → /devices/<id> (Device) → /credentials/<id> (Credential)
+/pl/jkolo/yubikey/oath (Manager) → /devices/<id> (Device + DeviceSession) → /credentials/<id> (Credential)
 ```
 
 **Legacy:** `pl.jkolo.yubikey.oath.daemon.Device` at `/Device` (ListDevices, GetCredentials, GenerateCode, etc.)
 
-**Objects:**
-- **OathManagerProxy** (~100 lines): singleton, ObjectManager, devices(), getAllCredentials(), signals: deviceConnected/Disconnected, credentialsChanged
-- **OathDeviceProxy** (~150 lines): credentials(), savePassword(), changePassword(), forget(), addCredential(), setName()
+**D-Bus Interfaces (v2.0.0+):**
+One D-Bus object at `/devices/<id>` exposes **two interfaces**:
+- **pl.jkolo.yubikey.oath.Device** - hardware properties + OATH application operations (ChangePassword, AddCredential, Forget)
+- **pl.jkolo.yubikey.oath.DeviceSession** - connection state + daemon configuration (State, SavePassword, HasValidPassword)
+
+**Client Proxy Objects:**
+- **OathManagerProxy** (~120 lines): singleton, ObjectManager, devices(), getDeviceSession(), getAllCredentials(), signals: deviceConnected/Disconnected, credentialsChanged
+- **OathDeviceProxy** (~130 lines): credentials(), changePassword(), forget(), addCredential(), setName(), requiresPassword()
+- **OathDeviceSessionProxy** (~150 lines): state(), stateMessage(), hasValidPassword(), lastSeen(), isConnected(), savePassword()
 - **OathCredentialProxy** (~100 lines): generateCode(), copyToClipboard(), typeCode(), deleteCredential()
 
+**Daemon Objects:**
+- **OathDeviceObject** (~280 lines): exposes both Device and DeviceSession interfaces via 2 adaptors on same D-Bus object
+
 **Service:** YubiKeyDBusService (marshaling ~135 lines) → YubiKeyService (business logic ~430 lines) → PasswordService (~225 lines), DeviceLifecycleService (~510 lines), CredentialService (~660 lines)
+
+**Example Usage:**
+```cpp
+// Client-side: Two proxies for one D-Bus object
+OathManagerProxy *manager = OathManagerProxy::instance();
+OathDeviceProxy *device = manager->getDevice(deviceId);
+OathDeviceSessionProxy *session = manager->getDeviceSession(deviceId);
+
+// Device operations (OATH application)
+if (device->requiresPassword()) {
+    device->changePassword(oldPass, newPass);  // modifies on YubiKey
+}
+device->addCredential(name, secret, ...);
+
+// Session operations (daemon state)
+if (session->state() == DeviceState::Ready) {
+    session->savePassword(password);  // saves to KWallet
+}
+```
 
 ### Multi-Brand OATH (v2.0.0+)
 
 **Supported:** YubiKey (NEO/4/5/Bio), Nitrokey (3A/3C/3Mini)
 
 **⚠️ BREAKING CHANGES (v2.0.0):**
+- **D-Bus interface split:** `pl.jkolo.yubikey.oath.Device` split into Device (hardware/OATH) + DeviceSession (connection state)
+  - Device interface: removed `State`, `StateMessage`, `HasValidPassword`, `LastSeen`, `SavePassword()`
+  - New DeviceSession interface: `State`, `StateMessage`, `HasValidPassword`, `LastSeen`, `SavePassword()`
+  - **Client migration:** Use `OathDeviceProxy` + `OathDeviceSessionProxy` instead of single proxy
 - `IDeviceIconResolver` interface changed: 2-param → 3-param (added `capabilities`)
 - D-Bus proxy classes renamed: `YubiKey*Proxy` → `Oath*Proxy`
 - Internal API changes for brand-agnostic device handling
@@ -327,6 +359,21 @@ return result;
 ### Input System
 
 TextInputFactory → Portal (libportal, xdp_session_keyboard_key, all Wayland) → X11 (XTest extension)
+
+**Portal Session Lifecycle (v2.5.0+):**
+- **Session-Per-Operation**: Portal RemoteDesktop session is created and destroyed for EACH typeText() operation (not persisted across daemon lifecycle)
+- **Benefits**: Faster daemon startup (~30s improvement), no session state management, cleaner resource usage
+- **Portal Handle Reuse**: XdpPortal handle is cached and reused across operations (only session is recreated)
+- **Restore Token**: Saved in KWallet - user approves permission once, subsequent sessions auto-approve without dialog
+- **Timing**: Session creation ~1-2s with restore token (vs ~30s on first permission), typing ~10-50ms, session close ~5-10ms
+- **Logging**: QElapsedTimer tracks portal init, session create/close, and typing operations (visible with `QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*=true"`)
+- **Error Handling**: Session creation failure triggers automatic fallback to clipboard with notification "Could not type code (portal session error). Code copied to clipboard instead."
+
+**Implementation:**
+- `PortalTextInput::typeText()` (portal_text_input.cpp:45-118): Creates session → types → closes session
+- `PortalTextInput::closeSession()` (portal_text_input.cpp:504-518): Closes session, keeps portal handle
+- `PortalTextInput::cleanup()` (portal_text_input.cpp:520-533): Full cleanup (session + portal) on destructor
+- No `preInitialize()` call - daemon starts immediately, session created on-demand
 
 ### KCM
 

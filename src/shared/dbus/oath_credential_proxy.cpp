@@ -12,7 +12,7 @@
 #include <QLoggingCategory>
 #include <QDateTime>
 
-Q_LOGGING_CATEGORY(OathCredentialProxyLog, "pl.jkolo.yubikey.oath.daemon.credential.proxy")
+Q_LOGGING_CATEGORY(OathCredentialProxyLog, "pl.jkolo.yubikey.oath.client.credential.proxy")
 
 namespace YubiKeyOath {
 namespace Shared {
@@ -73,13 +73,18 @@ OathCredentialProxy::~OathCredentialProxy()
     qCDebug(OathCredentialProxyLog) << "Destroying credential proxy for" << m_fullName;
 }
 
-QString OathCredentialProxy::parentDeviceId() const
+QString OathCredentialProxy::deviceIdFromPath(const QString &credentialPath)
 {
     // Extract device ID from object path
     // Path format: /pl/jkolo/yubikey/oath/devices/<deviceId>/credentials/<credentialId>
     // Segments:     0   1     2       3    4       5           6            7
     // We want segment 6 (0-indexed from root)
-    return m_objectPath.section(QLatin1Char('/'), 6, 6);
+    return credentialPath.section(QLatin1Char('/'), 6, 6);
+}
+
+QString OathCredentialProxy::parentDeviceId() const
+{
+    return deviceIdFromPath(m_objectPath);
 }
 
 // ========== Async Methods (fire-and-forget, results via signals) ==========

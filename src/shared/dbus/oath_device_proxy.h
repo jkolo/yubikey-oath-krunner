@@ -21,6 +21,8 @@ class QDBusObjectPath;
 namespace YubiKeyOath {
 namespace Shared {
 
+class OathDeviceSessionProxy; // Forward declaration
+
 /**
  * @brief Proxy for a single YubiKey device with its credentials
  *
@@ -81,13 +83,8 @@ public:
     [[nodiscard]] QStringList capabilities() const { return m_capabilities; } // const property
     [[nodiscard]] bool requiresPassword() const { return m_requiresPassword; }
 
-    // Helper method: isConnected based on state
-    [[nodiscard]] bool isConnected() const { return m_state != DeviceState::Disconnected; }
-    [[nodiscard]] bool hasValidPassword() const { return m_hasValidPassword; }
-    [[nodiscard]] QDateTime lastSeen() const { return m_lastSeen; } // const property - last time seen
-    [[nodiscard]] DeviceState state() const { return m_state; } // device lifecycle state
-    [[nodiscard]] QString stateMessage() const { return m_stateMessage; } // state error/detail message
     // Note: credentialCount() removed - use credentials().size() instead
+    // Note: isConnected(), hasValidPassword(), lastSeen(), state(), stateMessage() moved to OathDeviceSessionProxy
 
     // ========== Credential Management ==========
 
@@ -105,15 +102,7 @@ public:
     OathCredentialProxy* getCredential(const QString &credentialName) const;
 
     // ========== D-Bus Methods ==========
-
-    /**
-     * @brief Saves password for device
-     * @param password Password to save to KWallet
-     * @return true on success, false on failure
-     *
-     * Synchronous D-Bus call to SavePassword().
-     */
-    bool savePassword(const QString &password);
+    // Note: SavePassword() moved to OathDeviceSessionProxy
 
     /**
      * @brief Changes device password
@@ -174,9 +163,10 @@ public:
 
     /**
      * @brief Converts to DeviceInfo value type
+     * @param session Optional session proxy for populating session properties (state, hasValidPassword, lastSeen)
      * @return DeviceInfo structure for D-Bus marshaling or display
      */
-    DeviceInfo toDeviceInfo() const;
+    DeviceInfo toDeviceInfo(const OathDeviceSessionProxy *session = nullptr) const;
 
 Q_SIGNALS:
     /**
@@ -203,23 +193,7 @@ Q_SIGNALS:
      */
     void requiresPasswordChanged(bool requiresPassword);
 
-    /**
-     * @brief Emitted when hasValidPassword property changes
-     * @param hasValid New hasValidPassword state
-     */
-    void hasValidPasswordChanged(bool hasValid);
-
-    /**
-     * @brief Emitted when device state changes
-     * @param newState New device state
-     */
-    void stateChanged(DeviceState newState);
-
-    /**
-     * @brief Emitted when device state message changes
-     * @param message State error/detail message
-     */
-    void stateMessageChanged(const QString &message);
+    // Note: hasValidPasswordChanged(), stateChanged(), stateMessageChanged() moved to OathDeviceSessionProxy
 
 private Q_SLOTS:
     void onCredentialAddedSignal(const QDBusObjectPath &credentialPath);
@@ -246,10 +220,7 @@ private:  // NOLINT(readability-redundant-access-specifiers) - Required to close
     QString m_formFactor; // const - human-readable form factor string
     QStringList m_capabilities; // const - list of capability strings
     bool m_requiresPassword;
-    bool m_hasValidPassword;
-    QDateTime m_lastSeen; // const - last time device was seen (for offline devices)
-    DeviceState m_state{DeviceState::Disconnected}; // device lifecycle state
-    QString m_stateMessage; // state error/detail message
+    // Note: m_hasValidPassword, m_lastSeen, m_state, m_stateMessage moved to OathDeviceSessionProxy
 
     // Credential proxies (owned by this object via Qt parent-child)
     QHash<QString, OathCredentialProxy*> m_credentials; // key: credential name

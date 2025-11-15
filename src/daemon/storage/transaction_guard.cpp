@@ -16,10 +16,10 @@ TransactionGuard::TransactionGuard(QSqlDatabase &db)
     , m_transactionStarted(m_db.transaction())
 {
     if (!m_transactionStarted) {
-        qCWarning(YubiKeyDatabaseLog) << "TransactionGuard: Failed to start transaction:"
+        qCWarning(OathDatabaseLog) << "TransactionGuard: Failed to start transaction:"
                                       << m_db.lastError().text();
     } else {
-        qCDebug(YubiKeyDatabaseLog) << "TransactionGuard: Transaction started";
+        qCDebug(OathDatabaseLog) << "TransactionGuard: Transaction started";
     }
 }
 
@@ -27,7 +27,7 @@ TransactionGuard::~TransactionGuard()
 {
     // Auto-rollback if transaction was started but not committed
     if (m_transactionStarted && !m_committed) {
-        qCDebug(YubiKeyDatabaseLog) << "TransactionGuard: Auto-rolling back uncommitted transaction";
+        qCDebug(OathDatabaseLog) << "TransactionGuard: Auto-rolling back uncommitted transaction";
         m_db.rollback();
     }
 }
@@ -35,25 +35,25 @@ TransactionGuard::~TransactionGuard()
 bool TransactionGuard::commit()
 {
     if (!m_transactionStarted) {
-        qCWarning(YubiKeyDatabaseLog) << "TransactionGuard: Cannot commit - transaction was not started";
+        qCWarning(OathDatabaseLog) << "TransactionGuard: Cannot commit - transaction was not started";
         return false;
     }
 
     if (m_committed) {
-        qCWarning(YubiKeyDatabaseLog) << "TransactionGuard: Cannot commit - already committed";
+        qCWarning(OathDatabaseLog) << "TransactionGuard: Cannot commit - already committed";
         return false;
     }
 
     if (!m_db.commit()) {
-        qCWarning(YubiKeyDatabaseLog) << "TransactionGuard: Commit failed:"
+        qCWarning(OathDatabaseLog) << "TransactionGuard: Commit failed:"
                                       << m_db.lastError().text();
-        qCDebug(YubiKeyDatabaseLog) << "TransactionGuard: Rolling back after failed commit";
+        qCDebug(OathDatabaseLog) << "TransactionGuard: Rolling back after failed commit";
         m_db.rollback();
         return false;
     }
 
     m_committed = true;
-    qCDebug(YubiKeyDatabaseLog) << "TransactionGuard: Transaction committed successfully";
+    qCDebug(OathDatabaseLog) << "TransactionGuard: Transaction committed successfully";
     return true;
 }
 

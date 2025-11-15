@@ -12,7 +12,7 @@
 // Forward declaration
 namespace YubiKeyOath {
 namespace Daemon {
-    class YubiKeyDatabase;
+    class OathDatabase;
 }
 }
 
@@ -47,7 +47,7 @@ public:
     static QString generateDefaultName(const QString &deviceId,
                                       const DeviceModel& deviceModel,
                                       quint32 serialNumber,
-                                      Daemon::YubiKeyDatabase *database);
+                                      Daemon::OathDatabase *database);
 
     /**
      * @brief Generates default device name from device ID (legacy fallback)
@@ -88,7 +88,7 @@ public:
      * @endcode
      */
     static QString getDeviceDisplayName(const QString &deviceId,
-                                        Daemon::YubiKeyDatabase *database);
+                                        Daemon::OathDatabase *database);
 };
 
 } // namespace Shared

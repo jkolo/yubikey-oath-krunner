@@ -65,7 +65,8 @@ public:
 private:
     bool initializePortal();
     bool createSession();
-    void cleanup();
+    void closeSession();  // Close session but keep portal handle (for session-per-operation)
+    void cleanup();       // Full cleanup: close session AND portal
 
     bool sendKeyEvents(const QString &text);
     bool sendKeycode(uint32_t keycode, bool pressed);

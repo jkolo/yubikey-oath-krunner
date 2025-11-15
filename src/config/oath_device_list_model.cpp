@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "yubikey_device_model.h"
+#include "oath_device_list_model.h"
 #include "dbus/oath_manager_proxy.h"
 #include "dbus/oath_device_proxy.h"
+#include "dbus/oath_device_session_proxy.h"
 #include "ui/password_dialog_helper.h"
 #include "ui/change_password_dialog_helper.h"
 #include "logging_categories.h"
@@ -17,27 +18,27 @@ namespace YubiKeyOath {
 namespace Config {
 using namespace YubiKeyOath::Shared;
 
-YubiKeyDeviceModel::YubiKeyDeviceModel(OathManagerProxy *manager, QObject *parent)
+OathDeviceListModel::OathDeviceListModel(OathManagerProxy *manager, QObject *parent)
     : QAbstractListModel(parent)
     , m_manager(manager)
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Initialized with manager proxy";
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Initialized with manager proxy";
 
     // Connect to manager proxy signals for real-time updates
     connect(m_manager, &OathManagerProxy::deviceConnected,
-            this, &YubiKeyDeviceModel::onDeviceConnected);
+            this, &OathDeviceListModel::onDeviceConnected);
     connect(m_manager, &OathManagerProxy::deviceDisconnected,
-            this, &YubiKeyDeviceModel::onDeviceDisconnected);
+            this, &OathDeviceListModel::onDeviceDisconnected);
     connect(m_manager, &OathManagerProxy::credentialsChanged,
-            this, &YubiKeyDeviceModel::onCredentialsUpdated);
+            this, &OathDeviceListModel::onCredentialsUpdated);
     connect(m_manager, &OathManagerProxy::devicePropertyChanged,
-            this, &YubiKeyDeviceModel::onDevicePropertyChanged);
+            this, &OathDeviceListModel::onDevicePropertyChanged);
 
     // Initial refresh
     refreshDevices();
 }
 
-int YubiKeyDeviceModel::rowCount(const QModelIndex &parent) const
+int OathDeviceListModel::rowCount(const QModelIndex &parent) const
 {
     if (parent.isValid()) {
         return 0;
@@ -45,7 +46,7 @@ int YubiKeyDeviceModel::rowCount(const QModelIndex &parent) const
     return static_cast<int>(m_devices.size());
 }
 
-QVariant YubiKeyDeviceModel::data(const QModelIndex &index, int role) const
+QVariant OathDeviceListModel::data(const QModelIndex &index, int role) const
 {
     if (!index.isValid() || index.row() >= m_devices.size()) {
         return {};
@@ -68,7 +69,7 @@ QVariant YubiKeyDeviceModel::data(const QModelIndex &index, int role) const
         // Show "Authorize" button if device is connected, requires password, and we don't have valid password
         return device.isConnected() && device.requiresPassword && !device.hasValidPassword;
     case DeviceModelRole:
-        qCDebug(YubiKeyConfigLog) << "DeviceModel role requested for device:" << device.deviceName
+        qCDebug(OathConfigLog) << "DeviceModel role requested for device:" << device.deviceName
                                   << "returning deviceModelCode:" << device.deviceModelCode
                                   << "(hex: 0x" << Qt::hex << device.deviceModelCode << Qt::dec << ")";
         return device.deviceModelCode;
@@ -87,7 +88,7 @@ QVariant YubiKeyDeviceModel::data(const QModelIndex &index, int role) const
     }
 }
 
-QHash<int, QByteArray> YubiKeyDeviceModel::roleNames() const
+QHash<int, QByteArray> OathDeviceListModel::roleNames() const
 {
     QHash<int, QByteArray> roles;
     roles[DeviceIdRole] = "deviceId";
@@ -105,7 +106,7 @@ QHash<int, QByteArray> YubiKeyDeviceModel::roleNames() const
     return roles;
 }
 
-Qt::ItemFlags YubiKeyDeviceModel::flags(const QModelIndex &index) const
+Qt::ItemFlags OathDeviceListModel::flags(const QModelIndex &index) const
 {
     if (!index.isValid()) {
         return Qt::NoItemFlags;
@@ -114,9 +115,9 @@ Qt::ItemFlags YubiKeyDeviceModel::flags(const QModelIndex &index) const
     return Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsEditable;
 }
 
-void YubiKeyDeviceModel::refreshDevices()
+void OathDeviceListModel::refreshDevices()
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Refreshing device list from manager proxy";
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Refreshing device list from manager proxy";
 
     beginResetModel();
 
@@ -124,68 +125,78 @@ void YubiKeyDeviceModel::refreshDevices()
     m_devices.clear();
     const QList<OathDeviceProxy*> deviceProxies = m_manager->devices();
     for (const auto *deviceProxy : deviceProxies) {
-        m_devices.append(deviceProxy->toDeviceInfo());
+        // Get session proxy for this device to populate session properties
+        const auto *session = m_manager->getDeviceSession(deviceProxy->deviceId());
+        m_devices.append(deviceProxy->toDeviceInfo(session));
     }
 
     endResetModel();
 
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Refresh complete, total devices:" << m_devices.size();
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Refresh complete, total devices:" << m_devices.size();
 
     for (const auto &device : m_devices) {
-        qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device" << device.deviceName
+        qCDebug(OathConfigLog) << "OathDeviceListModel: Device" << device.deviceName
                  << "connected:" << device.isConnected()
                  << "requiresPassword:" << device.requiresPassword
                  << "hasValidPassword:" << device.hasValidPassword;
     }
 }
 
-void YubiKeyDeviceModel::authorizeDevice(const QString &deviceId)
+void OathDeviceListModel::authorizeDevice(const QString &deviceId)
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Authorization requested for device:" << deviceId;
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Authorization requested for device:" << deviceId;
 
     const DeviceInfo * const device = findDevice(deviceId);
     if (!device) {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found:" << deviceId;
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Device not found:" << deviceId;
         return;
     }
 
     if (!device->isConnected()) {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not connected:" << deviceId;
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Device not connected:" << deviceId;
         return;
     }
 
     if (!device->requiresPassword) {
-        qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device does not require password:" << deviceId;
+        qCDebug(OathConfigLog) << "OathDeviceListModel: Device does not require password:" << deviceId;
         return;
     }
 
     // PasswordDialog will be opened from QML via authorizeDevice() signal/method
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device ready for authorization";
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Device ready for authorization";
 }
 
-bool YubiKeyDeviceModel::testAndSavePassword(const QString &deviceId, const QString &password)
+bool OathDeviceListModel::testAndSavePassword(const QString &deviceId, const QString &password)
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Testing password for device:" << deviceId;
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Testing password for device:" << deviceId;
 
     if (password.isEmpty()) {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Empty password provided";
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Empty password provided";
         Q_EMIT passwordTestFailed(deviceId, i18n("Password cannot be empty"));
         return false;
     }
 
     // Get device proxy
-    OathDeviceProxy *deviceProxy = m_manager->getDevice(deviceId);
+    const OathDeviceProxy * const deviceProxy = m_manager->getDevice(deviceId);
     if (!deviceProxy) {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found:" << deviceId;
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Device not found:" << deviceId;
         Q_EMIT passwordTestFailed(deviceId, i18n("Device not found"));
         return false;
     }
 
-    // Test and save password via device proxy
-    const bool success = deviceProxy->savePassword(password);
+    // Get session proxy for password operations
+    OathDeviceSessionProxy * const sessionProxy = m_manager->getDeviceSession(deviceId);
+    if (!sessionProxy) {
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Session proxy not found:" << deviceId;
+        Q_EMIT passwordTestFailed(deviceId, i18n("Device session not found"));
+        return false;
+    }
+
+    // Test and save password via session proxy
+    const bool success = sessionProxy->savePassword(password);
 
     if (success) {
-        qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Password saved successfully";
+        qCDebug(OathConfigLog) << "OathDeviceListModel: Password saved successfully";
 
         // Update device info
         DeviceInfo * const device = findDevice(deviceId);
@@ -202,31 +213,31 @@ bool YubiKeyDeviceModel::testAndSavePassword(const QString &deviceId, const QStr
         }
         return true;
     } else {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Invalid password or save failed";
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Invalid password or save failed";
         Q_EMIT passwordTestFailed(deviceId, i18n("Invalid password. Please try again."));
         return false;
     }
 }
 
-void YubiKeyDeviceModel::showPasswordDialog(const QString &deviceId,
+void OathDeviceListModel::showPasswordDialog(const QString &deviceId,
                                              const QString &deviceName)
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Showing password dialog for device:" << deviceId;
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Showing password dialog for device:" << deviceId;
 
     // Validate device state first (same as authorizeDevice)
     const DeviceInfo * const device = findDevice(deviceId);
     if (!device) {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found:" << deviceId;
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Device not found:" << deviceId;
         return;
     }
 
     if (!device->isConnected()) {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not connected:" << deviceId;
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Device not connected:" << deviceId;
         return;
     }
 
     if (!device->requiresPassword) {
-        qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device does not require password:" << deviceId;
+        qCDebug(OathConfigLog) << "OathDeviceListModel: Device does not require password:" << deviceId;
         return;
     }
 
@@ -242,20 +253,20 @@ void YubiKeyDeviceModel::showPasswordDialog(const QString &deviceId,
     );
 }
 
-void YubiKeyDeviceModel::showChangePasswordDialog(const QString &deviceId,
+void OathDeviceListModel::showChangePasswordDialog(const QString &deviceId,
                                                    const QString &deviceName)
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Showing change password dialog for device:" << deviceId;
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Showing change password dialog for device:" << deviceId;
 
     // Validate device state first
     const DeviceInfo * const device = findDevice(deviceId);
     if (!device) {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found:" << deviceId;
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Device not found:" << deviceId;
         return;
     }
 
     if (!device->isConnected()) {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not connected:" << deviceId;
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Device not connected:" << deviceId;
         return;
     }
 
@@ -272,20 +283,20 @@ void YubiKeyDeviceModel::showChangePasswordDialog(const QString &deviceId,
     );
 }
 
-void YubiKeyDeviceModel::forgetDevice(const QString &deviceId)
+void OathDeviceListModel::forgetDevice(const QString &deviceId)
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Forgetting device:" << deviceId;
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Forgetting device:" << deviceId;
 
     const int row = findDeviceIndex(deviceId);
     if (row < 0) {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found:" << deviceId;
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Device not found:" << deviceId;
         return;
     }
 
     // Get device proxy
     OathDeviceProxy *deviceProxy = m_manager->getDevice(deviceId);
     if (!deviceProxy) {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device proxy not found:" << deviceId;
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Device proxy not found:" << deviceId;
         return;
     }
 
@@ -297,38 +308,38 @@ void YubiKeyDeviceModel::forgetDevice(const QString &deviceId)
     m_devices.removeAt(row);
     endRemoveRows();
 
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device forgotten successfully:" << deviceId;
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Device forgotten successfully:" << deviceId;
 }
 
-bool YubiKeyDeviceModel::setDeviceName(const QString &deviceId, const QString &newName)
+bool OathDeviceListModel::setDeviceName(const QString &deviceId, const QString &newName)
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Setting device name:" << deviceId
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Setting device name:" << deviceId
                               << "to:" << newName;
 
     // Validate input
     const QString trimmedName = newName.trimmed();
     if (deviceId.isEmpty() || trimmedName.isEmpty()) {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Invalid device ID or name (empty after trim)";
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Invalid device ID or name (empty after trim)";
         return false;
     }
 
     // Validate name length (max 64 chars)
     if (trimmedName.length() > 64) {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Name too long (max 64 chars)";
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Name too long (max 64 chars)";
         return false;
     }
 
     // Get device proxy
     OathDeviceProxy *deviceProxy = m_manager->getDevice(deviceId);
     if (!deviceProxy) {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device proxy not found:" << deviceId;
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Device proxy not found:" << deviceId;
         return false;
     }
 
     // Update via device proxy
     deviceProxy->setName(trimmedName);
 
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device name updated successfully via device proxy";
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Device name updated successfully via device proxy";
 
     // Update local model
     DeviceInfo * const device = findDevice(deviceId);
@@ -340,19 +351,19 @@ bool YubiKeyDeviceModel::setDeviceName(const QString &deviceId, const QString &n
         if (row >= 0) {
             const QModelIndex idx = index(row);
             Q_EMIT dataChanged(idx, idx, {DeviceNameRole});
-            qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Model updated and QML notified";
+            qCDebug(OathConfigLog) << "OathDeviceListModel: Model updated and QML notified";
         }
     } else {
-        qCWarning(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found in local model after successful D-Bus update";
+        qCWarning(OathConfigLog) << "OathDeviceListModel: Device not found in local model after successful D-Bus update";
     }
 
     return true;
 }
 
-void YubiKeyDeviceModel::onDeviceConnected(OathDeviceProxy *device)
+void OathDeviceListModel::onDeviceConnected(OathDeviceProxy *device)
 {
     if (device) {
-        qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device connected:"
+        qCDebug(OathConfigLog) << "OathDeviceListModel: Device connected:"
                                   << device->serialNumber() << device->name();
     }
 
@@ -360,51 +371,55 @@ void YubiKeyDeviceModel::onDeviceConnected(OathDeviceProxy *device)
     refreshDevices();
 }
 
-void YubiKeyDeviceModel::onDeviceDisconnected(const QString &deviceId)
+void OathDeviceListModel::onDeviceDisconnected(const QString &deviceId)
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device disconnected:" << deviceId;
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Device disconnected:" << deviceId;
 
     // Refresh device list from manager
     refreshDevices();
 }
 
-void YubiKeyDeviceModel::onCredentialsUpdated()
+void OathDeviceListModel::onCredentialsUpdated()
 {
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Credentials updated";
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Credentials updated";
 
     // Refresh device list from manager
     refreshDevices();
 }
 
-void YubiKeyDeviceModel::onDevicePropertyChanged(OathDeviceProxy *device)
+void OathDeviceListModel::onDevicePropertyChanged(OathDeviceProxy *device)
 {
     if (!device) {
         return;
     }
 
     const QString deviceId = device->deviceId();
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device property changed:" << deviceId
+
+    // Get session proxy for connection state
+    const auto *session = m_manager->getDeviceSession(deviceId);
+
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Device property changed:" << deviceId
                               << "Name:" << device->name()
-                              << "IsConnected:" << device->isConnected();
+                              << "IsConnected:" << (session ? session->isConnected() : false);
 
     // Find device in model
     const int row = findDeviceIndex(deviceId);
     if (row < 0) {
-        qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Device not found in model, skipping update";
+        qCDebug(OathConfigLog) << "OathDeviceListModel: Device not found in model, skipping update";
         return;
     }
 
     // Update device info from proxy (efficient single-row update)
-    m_devices[row] = device->toDeviceInfo();
+    m_devices[row] = device->toDeviceInfo(session);
 
     // Notify view of changes for this row only (all roles may have changed)
     const QModelIndex idx = index(row);
     Q_EMIT dataChanged(idx, idx);
 
-    qCDebug(YubiKeyConfigLog) << "YubiKeyDeviceModel: Updated row" << row << "for device" << deviceId;
+    qCDebug(OathConfigLog) << "OathDeviceListModel: Updated row" << row << "for device" << deviceId;
 }
 
-DeviceInfo* YubiKeyDeviceModel::findDevice(const QString &deviceId)
+DeviceInfo* OathDeviceListModel::findDevice(const QString &deviceId)
 {
     for (DeviceInfo &device : m_devices) {
         if (device._internalDeviceId == deviceId) {
@@ -414,7 +429,7 @@ DeviceInfo* YubiKeyDeviceModel::findDevice(const QString &deviceId)
     return nullptr;
 }
 
-const DeviceInfo* YubiKeyDeviceModel::findDevice(const QString &deviceId) const
+const DeviceInfo* OathDeviceListModel::findDevice(const QString &deviceId) const
 {
     for (const DeviceInfo &device : m_devices) {
         if (device._internalDeviceId == deviceId) {
@@ -424,7 +439,7 @@ const DeviceInfo* YubiKeyDeviceModel::findDevice(const QString &deviceId) const
     return nullptr;
 }
 
-int YubiKeyDeviceModel::findDeviceIndex(const QString &deviceId) const
+int OathDeviceListModel::findDeviceIndex(const QString &deviceId) const
 {
     for (int i = 0; i < m_devices.size(); ++i) {
         if (m_devices.at(i)._internalDeviceId == deviceId) {

@@ -38,7 +38,7 @@ void PcscOperation::run()
 
     if (timeSince < minInterval) {
         const qint64 sleepTime = minInterval - timeSince;
-        qCDebug(YubiKeyDaemonLog) << "Rate limiting device" << m_deviceId
+        qCDebug(OathDaemonLog) << "Rate limiting device" << m_deviceId
                                   << "- sleeping for" << sleepTime << "ms";
         QThread::msleep(sleepTime);
     }
@@ -48,10 +48,10 @@ void PcscOperation::run()
 
     // Execute the operation
     // Note: No exception handling - project compiled with -fno-exceptions
-    qCDebug(YubiKeyDaemonLog) << "Executing PC/SC operation for device" << m_deviceId
+    qCDebug(OathDaemonLog) << "Executing PC/SC operation for device" << m_deviceId
                               << "priority" << static_cast<int>(m_priority);
     m_operation();
-    qCDebug(YubiKeyDaemonLog) << "PC/SC operation completed for device" << m_deviceId;
+    qCDebug(OathDaemonLog) << "PC/SC operation completed for device" << m_deviceId;
 }
 
 // ============================================================================
@@ -63,15 +63,15 @@ PcscWorkerPool::PcscWorkerPool(QObject *parent)
     , m_threadPool(new QThreadPool(this))
 {
     m_threadPool->setMaxThreadCount(DEFAULT_MAX_THREADS);
-    qCInfo(YubiKeyDaemonLog) << "PcscWorkerPool initialized with"
+    qCInfo(OathDaemonLog) << "PcscWorkerPool initialized with"
                              << DEFAULT_MAX_THREADS << "worker threads";
 }
 
 PcscWorkerPool::~PcscWorkerPool()
 {
-    qCInfo(YubiKeyDaemonLog) << "PcscWorkerPool shutting down...";
+    qCInfo(OathDaemonLog) << "PcscWorkerPool shutting down...";
     m_threadPool->waitForDone();
-    qCInfo(YubiKeyDaemonLog) << "PcscWorkerPool shutdown complete";
+    qCInfo(OathDaemonLog) << "PcscWorkerPool shutdown complete";
 }
 
 PcscWorkerPool& PcscWorkerPool::instance()
@@ -85,11 +85,11 @@ void PcscWorkerPool::submit(const QString& deviceId,
                              PcscOperationPriority priority)
 {
     if (deviceId.isEmpty()) {
-        qCWarning(YubiKeyDaemonLog) << "Cannot submit PC/SC operation with empty device ID";
+        qCWarning(OathDaemonLog) << "Cannot submit PC/SC operation with empty device ID";
         return;
     }
 
-    qCDebug(YubiKeyDaemonLog) << "Queuing PC/SC operation for device" << deviceId
+    qCDebug(OathDaemonLog) << "Queuing PC/SC operation for device" << deviceId
                               << "priority" << static_cast<int>(priority);
 
     // Create runnable (will be auto-deleted by thread pool)
@@ -117,13 +117,13 @@ void PcscWorkerPool::clearDeviceHistory(const QString& deviceId)
 {
     const QMutexLocker locker(&m_rateLimitMutex);
     if (m_deviceLastOperation.remove(deviceId) > 0) {
-        qCDebug(YubiKeyDaemonLog) << "Cleared rate limiting history for device" << deviceId;
+        qCDebug(OathDaemonLog) << "Cleared rate limiting history for device" << deviceId;
     }
 }
 
 bool PcscWorkerPool::waitForDone(int msecs)
 {
-    qCDebug(YubiKeyDaemonLog) << "Waiting for all PC/SC operations to complete"
+    qCDebug(OathDaemonLog) << "Waiting for all PC/SC operations to complete"
                               << "(timeout:" << msecs << "ms)";
     return m_threadPool->waitForDone(msecs);
 }
@@ -136,12 +136,12 @@ int PcscWorkerPool::activeThreadCount() const
 void PcscWorkerPool::setMaxThreadCount(int maxThreads)
 {
     if (maxThreads < 1 || maxThreads > 16) {
-        qCWarning(YubiKeyDaemonLog) << "Invalid max thread count" << maxThreads
+        qCWarning(OathDaemonLog) << "Invalid max thread count" << maxThreads
                                     << "- must be between 1 and 16";
         return;
     }
 
-    qCInfo(YubiKeyDaemonLog) << "Setting max thread count to" << maxThreads;
+    qCInfo(OathDaemonLog) << "Setting max thread count to" << maxThreads;
     m_threadPool->setMaxThreadCount(maxThreads);
 }
 

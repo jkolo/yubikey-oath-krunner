@@ -17,8 +17,8 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 // Forward declarations
-class YubiKeyDeviceManager;
-class YubiKeyDatabase;
+class OathDeviceManager;
+class OathDatabase;
 class OathDevice;
 class DBusNotificationManager;
 
@@ -31,7 +31,7 @@ class DBusNotificationManager;
  * - Adding new credentials (interactive dialog and automatic modes)
  * - Deleting credentials from devices
  *
- * Extracted from YubiKeyService to follow Single Responsibility Principle.
+ * Extracted from OathService to follow Single Responsibility Principle.
  */
 class CredentialService : public QObject
 {
@@ -45,8 +45,8 @@ public:
      * @param config Configuration for cache and notification settings
      * @param parent Parent QObject
      */
-    explicit CredentialService(YubiKeyDeviceManager *deviceManager,
-                              YubiKeyDatabase *database,
+    explicit CredentialService(OathDeviceManager *deviceManager,
+                              OathDatabase *database,
                               Shared::ConfigurationProvider *config,
                               QObject *parent = nullptr);
 
@@ -254,8 +254,8 @@ private:
                                                      const QString &selectedDeviceId,
                                                      QString &errorMessage);
 
-    YubiKeyDeviceManager *m_deviceManager;  // Not owned
-    YubiKeyDatabase *m_database;            // Not owned
+    OathDeviceManager *m_deviceManager;  // Not owned
+    OathDatabase *m_database;            // Not owned
     Shared::ConfigurationProvider *m_config;          // Not owned
     std::unique_ptr<DBusNotificationManager> m_notificationManager;  // Owned
 

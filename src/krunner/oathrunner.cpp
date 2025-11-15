@@ -3,10 +3,11 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "yubikeyrunner.h"
+#include "oathrunner.h"
 #include "dbus/oath_manager_proxy.h"
 #include "dbus/oath_credential_proxy.h"
 #include "dbus/oath_device_proxy.h"
+#include "dbus/oath_device_session_proxy.h"
 #include "ui/password_dialog_helper.h"
 #include "logging_categories.h"
 #include "shared/utils/yubikey_icon_resolver.h"
@@ -29,11 +30,11 @@ namespace YubiKeyOath {
 namespace Runner {
 using namespace YubiKeyOath::Shared;
 
-YubiKeyRunner::YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData)
+OathRunner::OathRunner(QObject *parent, const KPluginMetaData &metaData)
     : KRunner::AbstractRunner(parent, metaData)
     , m_manager(OathManagerProxy::instance(this))
 {
-    qCDebug(YubiKeyRunnerLog) << "Constructor called - using proxy architecture";
+    qCDebug(OathRunnerLog) << "Constructor called - using proxy architecture";
 
     // Set translation domain for i18n
     KLocalizedString::setApplicationDomain("yubikey_oath");
@@ -57,48 +58,48 @@ YubiKeyRunner::YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData)
 
     // Connect Manager proxy signals
     connect(m_manager, &OathManagerProxy::deviceConnected,
-            this, &YubiKeyRunner::onDeviceConnected);
+            this, &OathRunner::onDeviceConnected);
     connect(m_manager, &OathManagerProxy::deviceDisconnected,
-            this, &YubiKeyRunner::onDeviceDisconnected);
+            this, &OathRunner::onDeviceDisconnected);
     connect(m_manager, &OathManagerProxy::credentialsChanged,
-            this, &YubiKeyRunner::onCredentialsUpdated);
+            this, &OathRunner::onCredentialsUpdated);
     connect(m_manager, &OathManagerProxy::daemonUnavailable,
-            this, &YubiKeyRunner::onDaemonUnavailable);
+            this, &OathRunner::onDaemonUnavailable);
     connect(m_manager, &OathManagerProxy::devicePropertyChanged,
-            this, &YubiKeyRunner::onDevicePropertyChanged);
+            this, &OathRunner::onDevicePropertyChanged);
 
     // Connect configuration change signal - setupActions only, no reload
     // (reload is called automatically by QFileSystemWatcher in config)
     connect(m_config.get(), &KRunnerConfiguration::configurationChanged,
-            this, &YubiKeyRunner::setupActions);
+            this, &OathRunner::setupActions);
 
-    qCDebug(YubiKeyRunnerLog) << "Constructor finished";
+    qCDebug(OathRunnerLog) << "Constructor finished";
 }
 
-YubiKeyRunner::~YubiKeyRunner() = default;
+OathRunner::~OathRunner() = default;
 
-void YubiKeyRunner::init()
+void OathRunner::init()
 {
-    qCDebug(YubiKeyRunnerLog) << "init() called";
+    qCDebug(OathRunnerLog) << "init() called";
     reloadConfiguration();
 
     // Check if daemon is available
     if (m_manager->isDaemonAvailable()) {
-        qCDebug(YubiKeyRunnerLog) << "YubiKey D-Bus daemon is available";
+        qCDebug(OathRunnerLog) << "YubiKey D-Bus daemon is available";
         // Initialize device state cache
         updateDeviceStateCache();
     } else {
-        qCDebug(YubiKeyRunnerLog) << "YubiKey D-Bus daemon not available - will auto-start on first use";
+        qCDebug(OathRunnerLog) << "YubiKey D-Bus daemon not available - will auto-start on first use";
     }
 }
 
-void YubiKeyRunner::setupActions()
+void OathRunner::setupActions()
 {
     m_actions.clear();
 
     // Get primary action from configuration
     const QString primary = m_config->primaryAction();
-    qCDebug(YubiKeyRunnerLog) << "setupActions() - primary action:" << primary;
+    qCDebug(OathRunnerLog) << "setupActions() - primary action:" << primary;
 
     // Add only the alternative action as a button
     // Primary action is triggered by Enter (without action ID)
@@ -120,21 +121,21 @@ void YubiKeyRunner::setupActions()
                                       QStringLiteral("edit-delete"),
                                       i18n("Delete credential")));
 
-    qCDebug(YubiKeyRunnerLog) << "setupActions() - created" << m_actions.size() << "action(s)";
+    qCDebug(OathRunnerLog) << "setupActions() - created" << m_actions.size() << "action(s)";
 }
 
-void YubiKeyRunner::match(KRunner::RunnerContext &context)
+void OathRunner::match(KRunner::RunnerContext &context)
 {
-    qCDebug(YubiKeyRunnerLog) << "match() called with query:" << context.query();
+    qCDebug(OathRunnerLog) << "match() called with query:" << context.query();
 
     // Allow minimum 2 characters to enable searching from "ad" and "add"
     if (!context.isValid() || context.query().length() < 2) {
-        qCDebug(YubiKeyRunnerLog) << "Query too short or invalid (minimum 2 characters)";
+        qCDebug(OathRunnerLog) << "Query too short or invalid (minimum 2 characters)";
         return;
     }
 
     if (!m_manager->isDaemonAvailable()) {
-        qCDebug(YubiKeyRunnerLog) << "D-Bus daemon not available";
+        qCDebug(OathRunnerLog) << "D-Bus daemon not available";
         return;
     }
 
@@ -145,7 +146,7 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
     for (const QString &keyword : m_addOathKeywords) {
         if (query.contains(keyword)) {
             matchesKeyword = true;
-            qCDebug(YubiKeyRunnerLog) << "Detected 'Add OATH' command (matched keyword:" << keyword << ")";
+            qCDebug(OathRunnerLog) << "Detected 'Add OATH' command (matched keyword:" << keyword << ")";
             break;
         }
     }
@@ -153,7 +154,7 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
     if (matchesKeyword) {
         // Get all devices and create a match for each one
         const QList<OathDeviceProxy*> allDevices = m_manager->devices();
-        qCDebug(YubiKeyRunnerLog) << "Creating Add OATH matches for" << allDevices.size() << "devices";
+        qCDebug(OathRunnerLog) << "Creating Add OATH matches for" << allDevices.size() << "devices";
 
         for (const auto *device : allDevices) {
             // Reconstruct DeviceModel for icon resolution
@@ -171,7 +172,10 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
             match.setText(i18n("Add OATH to %1", device->name()));
             match.setIcon(QIcon::fromTheme(iconName));  // Use device-specific icon from theme
 
-            if (device->isConnected()) {
+            // Get session proxy for connection state
+            const auto *session = m_manager->getDeviceSession(device->deviceId());
+
+            if (session && session->isConnected()) {
                 match.setSubtext(i18n("Device is connected - ready to add"));
                 match.setRelevance(1.0);
             } else {
@@ -183,39 +187,45 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
             match.setData(QVariantList{device->deviceId()});
 
             context.addMatch(match);
-            qCDebug(YubiKeyRunnerLog) << "Created Add OATH match for device:" << device->name()
+            qCDebug(OathRunnerLog) << "Created Add OATH match for device:" << device->name()
                                        << "ID:" << device->deviceId()
-                                       << "connected:" << device->isConnected();
+                                       << "connected:" << (session ? session->isConnected() : false);
         }
     }
 
     // Use cached device state counts (updated on device property changes)
-    qCDebug(YubiKeyRunnerLog) << "Device state cache:"
+    qCDebug(OathRunnerLog) << "Device state cache:"
                               << m_cachedReadyDevices << "ready,"
                               << m_cachedInitializingDevices << "initializing";
 
     // Get all devices to check their password status
     const QList<OathDeviceProxy*> devices = m_manager->devices();
-    qCDebug(YubiKeyRunnerLog) << "Found" << devices.size() << "known devices";
+    qCDebug(OathRunnerLog) << "Found" << devices.size() << "known devices";
 
     // For each CONNECTED device that needs password, show password error match
     // Skip devices that are still initializing
     for (const auto *device : devices) {
-        const DeviceState state = device->state();
+        // Get session proxy for connection state
+        const auto *session = m_manager->getDeviceSession(device->deviceId());
+        if (!session) {
+            continue; // Skip if session not available
+        }
+
+        const DeviceState state = session->state();
 
         // Skip non-ready devices (counted in cache)
         if (isDeviceStateTransitional(state)) {
-            qCDebug(YubiKeyRunnerLog) << "Device" << device->name()
+            qCDebug(OathRunnerLog) << "Device" << device->name()
                                       << "is initializing (state:" << deviceStateToString(state) << ")";
             continue; // Skip non-ready devices
         }
 
-        if (device->isConnected() &&
+        if (session->isConnected() &&
             device->requiresPassword() &&
-            !device->hasValidPassword()) {
-            qCDebug(YubiKeyRunnerLog) << "Device requires password:"
+            !session->hasValidPassword()) {
+            qCDebug(OathRunnerLog) << "Device requires password:"
                                       << device->name() << "serial:" << device->serialNumber();
-            const DeviceInfo deviceInfo = device->toDeviceInfo();
+            const DeviceInfo deviceInfo = device->toDeviceInfo(session);
             const KRunner::QueryMatch match = m_matchBuilder->buildPasswordErrorMatch(deviceInfo);
             context.addMatch(match);
             // DON'T return - continue to show credentials from other devices!
@@ -224,16 +234,16 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
 
     // If all devices are still initializing, wait for them to become ready
     if (m_cachedReadyDevices == 0 && m_cachedInitializingDevices > 0) {
-        qCDebug(YubiKeyRunnerLog) << m_cachedInitializingDevices << "device(s) still initializing - no credentials available yet";
+        qCDebug(OathRunnerLog) << m_cachedInitializingDevices << "device(s) still initializing - no credentials available yet";
         return;
     }
 
     // Get credentials from ALL devices (manager aggregates them)
     const QList<OathCredentialProxy*> credentials = m_manager->getAllCredentials();
-    qCDebug(YubiKeyRunnerLog) << "Found" << credentials.size() << "total credentials";
+    qCDebug(OathRunnerLog) << "Found" << credentials.size() << "total credentials";
 
     if (credentials.isEmpty()) {
-        qCDebug(YubiKeyRunnerLog) << "No credentials available from any device";
+        qCDebug(OathRunnerLog) << "No credentials available from any device";
         return;
     }
 
@@ -245,7 +255,7 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
         const QString account = credential->username().toLower();
 
         if (name.contains(query) || issuer.contains(query) || account.contains(query)) {
-            qCDebug(YubiKeyRunnerLog) << "Creating match for credential:" << credential->fullName();
+            qCDebug(OathRunnerLog) << "Creating match for credential:" << credential->fullName();
             const KRunner::QueryMatch match = m_matchBuilder->buildCredentialMatch(
                 credential, query, m_manager);
             context.addMatch(match);
@@ -253,21 +263,21 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
         }
     }
 
-    qCDebug(YubiKeyRunnerLog) << "Total credential matches:" << matchCount;
+    qCDebug(OathRunnerLog) << "Total credential matches:" << matchCount;
 }
 
-void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::QueryMatch &match)
+void OathRunner::run(const KRunner::RunnerContext &context, const KRunner::QueryMatch &match)
 {
     Q_UNUSED(context)
-    qCDebug(YubiKeyRunnerLog) << "run() called with match ID:" << match.id();
+    qCDebug(OathRunnerLog) << "run() called with match ID:" << match.id();
 
     // Handle "Add OATH to {Device}" command
     if (match.id().startsWith(QStringLiteral("add-oath-to-"))) {
-        qCDebug(YubiKeyRunnerLog) << "Starting Add OATH Credential workflow for device";
+        qCDebug(OathRunnerLog) << "Starting Add OATH Credential workflow for device";
 
         // Extract device ID from match data
         const QString deviceId = match.data().toList().at(0).toString();
-        qCDebug(YubiKeyRunnerLog) << "Target device ID:" << deviceId;
+        qCDebug(OathRunnerLog) << "Target device ID:" << deviceId;
 
         // Find the device proxy
         const QList<OathDeviceProxy*> devices = m_manager->devices();
@@ -281,14 +291,14 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         }
 
         if (!targetDevice) {
-            qCWarning(YubiKeyRunnerLog) << "Device not found:" << deviceId;
+            qCWarning(OathRunnerLog) << "Device not found:" << deviceId;
             return;
         }
 
         // Delegate to device with empty parameters to trigger interactive mode (dialog)
         // Dialog will handle waiting for device connection if needed
         // Use async call to prevent blocking KRunner UI
-        qCDebug(YubiKeyRunnerLog) << "Calling AddCredential asynchronously on device:" << targetDevice->name();
+        qCDebug(OathRunnerLog) << "Calling AddCredential asynchronously on device:" << targetDevice->name();
 
         QDBusInterface interface(
             QStringLiteral("pl.jkolo.yubikey.oath.daemon"),
@@ -310,13 +320,13 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
             false       // requireTouch
         );
 
-        qCDebug(YubiKeyRunnerLog) << "Async call initiated, KRunner can close immediately";
+        qCDebug(OathRunnerLog) << "Async call initiated, KRunner can close immediately";
         return;
     }
 
     const QStringList data = match.data().toStringList();
     if (data.size() < 5) {
-        qCDebug(YubiKeyRunnerLog) << "Invalid match data";
+        qCDebug(OathRunnerLog) << "Invalid match data";
         return;
     }
 
@@ -330,26 +340,26 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
     const bool isPasswordError = data.at(4) == QStringLiteral("true");
     const QString deviceId = data.size() > 5 ? data.at(5) : QString();
 
-    qCDebug(YubiKeyRunnerLog) << "credentialName:" << credentialName
+    qCDebug(OathRunnerLog) << "credentialName:" << credentialName
              << "deviceId:" << deviceId
              << "isPasswordError:" << isPasswordError;
 
     // Handle password error match
     if (isPasswordError) {
-        qCDebug(YubiKeyRunnerLog) << "Showing password dialog for authentication error";
+        qCDebug(OathRunnerLog) << "Showing password dialog for authentication error";
 
         // Use device ID from match data
         if (deviceId.isEmpty()) {
-            qCDebug(YubiKeyRunnerLog) << "No device ID in match data";
+            qCDebug(OathRunnerLog) << "No device ID in match data";
             return;
         }
 
-        qCDebug(YubiKeyRunnerLog) << "Requesting password for device:" << deviceId;
+        qCDebug(OathRunnerLog) << "Requesting password for device:" << deviceId;
 
         // Get device from manager
         const OathDeviceProxy *const device = m_manager->getDevice(deviceId);
         if (!device) {
-            qCWarning(YubiKeyRunnerLog) << "Device not found:" << deviceId;
+            qCWarning(OathRunnerLog) << "Device not found:" << deviceId;
             return;
         }
 
@@ -362,7 +372,7 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
     }
 
     if (credentialName.isEmpty()) {
-        qCDebug(YubiKeyRunnerLog) << "Empty credential name";
+        qCDebug(OathRunnerLog) << "Empty credential name";
         return;
     }
 
@@ -389,7 +399,7 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
     }
 
     if (!credential) {
-        qCWarning(YubiKeyRunnerLog) << "Credential not found:" << credentialName;
+        qCWarning(OathRunnerLog) << "Credential not found:" << credentialName;
         return;
     }
 
@@ -397,14 +407,14 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
     const QString primaryAction = m_config->primaryAction();
     const QString actionId = m_actionManager->determineAction(match, primaryAction);
 
-    qCDebug(YubiKeyRunnerLog) << "Action selection - primary from config:" << primaryAction
+    qCDebug(OathRunnerLog) << "Action selection - primary from config:" << primaryAction
              << "determined action:" << actionId
              << "action name:" << m_actionManager->getActionName(actionId);
 
     // Execute action via credential proxy methods
     if (actionId == QStringLiteral("delete")) {
         // Show confirmation dialog before deleting
-        qCDebug(YubiKeyRunnerLog) << "Showing delete confirmation dialog for:" << credentialName;
+        qCDebug(OathRunnerLog) << "Showing delete confirmation dialog for:" << credentialName;
 
         const QMessageBox::StandardButton reply = QMessageBox::question(
             nullptr,
@@ -415,23 +425,23 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         );
 
         if (reply == QMessageBox::Yes) {
-            qCDebug(YubiKeyRunnerLog) << "User confirmed deletion for:" << credentialName;
+            qCDebug(OathRunnerLog) << "User confirmed deletion for:" << credentialName;
             credential->deleteCredential();
-            qCDebug(YubiKeyRunnerLog) << "Delete action completed successfully:" << credentialName;
+            qCDebug(OathRunnerLog) << "Delete action completed successfully:" << credentialName;
         } else {
-            qCDebug(YubiKeyRunnerLog) << "User cancelled deletion for:" << credentialName;
+            qCDebug(OathRunnerLog) << "User cancelled deletion for:" << credentialName;
         }
 
         return;
     } else if (actionId == QStringLiteral("type")) {
         // Type action must execute AFTER KRunner closes completely
         // Use QTimer to delay execution until window closes
-        qCDebug(YubiKeyRunnerLog) << "Scheduling type action (async) for KRunner to close";
+        qCDebug(OathRunnerLog) << "Scheduling type action (async) for KRunner to close";
 
         // Schedule execution: wait for KRunner to close (100ms delay - optimized)
         // Capture by value (QString is copy-on-write, safe for async execution)
         QTimer::singleShot(100, this, [this, credentialName, deviceId]() {
-            qCDebug(YubiKeyRunnerLog) << "Executing type action (async) after KRunner close:" << credentialName;
+            qCDebug(OathRunnerLog) << "Executing type action (async) after KRunner close:" << credentialName;
 
             // Re-find credential (proxy might have changed during delay)
             OathCredentialProxy *cred = nullptr;
@@ -443,7 +453,7 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
             }
 
             if (!cred) {
-                qCWarning(YubiKeyRunnerLog) << "Credential not found after delay:" << credentialName;
+                qCWarning(OathRunnerLog) << "Credential not found after delay:" << credentialName;
                 return;
             }
 
@@ -451,23 +461,23 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
             cred->typeCode(true);
             // Result will be delivered via CodeTyped signal
             // TouchWorkflowCoordinator will show notifications if needed
-            qCDebug(YubiKeyRunnerLog) << "Type action requested (async)";
+            qCDebug(OathRunnerLog) << "Type action requested (async)";
         });
 
         // Return immediately - action will execute asynchronously
         return;
     } else {  // copy - fire-and-forget async call
-        qCDebug(YubiKeyRunnerLog) << "Executing copy action (async) via credential proxy";
+        qCDebug(OathRunnerLog) << "Executing copy action (async) via credential proxy";
         credential->copyToClipboard();
         // Result will be delivered via ClipboardCopied signal
         // TouchWorkflowCoordinator will show notifications if needed
-        qCDebug(YubiKeyRunnerLog) << "Copy action requested (async)";
+        qCDebug(OathRunnerLog) << "Copy action requested (async)";
     }
 }
 
-void YubiKeyRunner::showPasswordDialog(const QString &deviceId, const QString &deviceName)
+void OathRunner::showPasswordDialog(const QString &deviceId, const QString &deviceName)
 {
-    qCDebug(YubiKeyRunnerLog) << "showPasswordDialog() for device:" << deviceId;
+    qCDebug(OathRunnerLog) << "showPasswordDialog() for device:" << deviceId;
 
     // Use PasswordDialogHelper for non-modal password dialog with retry
     PasswordDialogHelper::showDialog(
@@ -477,14 +487,14 @@ void YubiKeyRunner::showPasswordDialog(const QString &deviceId, const QString &d
         this,
         []() {
             // Password success callback - daemon already saved password
-            qCDebug(YubiKeyRunnerLog) << "Password saved successfully";
+            qCDebug(OathRunnerLog) << "Password saved successfully";
         }
     );
 }
 
-void YubiKeyRunner::reloadConfiguration()
+void OathRunner::reloadConfiguration()
 {
-    qCDebug(YubiKeyRunnerLog) << "reloadConfiguration() called";
+    qCDebug(OathRunnerLog) << "reloadConfiguration() called";
 
     // Note: Don't call m_config->reload() here to avoid infinite recursion
     // QFileSystemWatcher automatically calls reload() which emits configurationChanged()
@@ -502,53 +512,60 @@ void YubiKeyRunner::reloadConfiguration()
     m_addOathKeywords << QStringLiteral("totp");
     m_addOathKeywords << QStringLiteral("hotp");
 
-    qCDebug(YubiKeyRunnerLog) << "Add OATH keywords:" << m_addOathKeywords;
+    qCDebug(OathRunnerLog) << "Add OATH keywords:" << m_addOathKeywords;
 
     // This method is kept for manual reload from init()
     setupActions();
 }
 
-void YubiKeyRunner::onDeviceConnected(OathDeviceProxy *device)
+void OathRunner::onDeviceConnected(OathDeviceProxy *device)
 {
     if (device) {
-        qCDebug(YubiKeyRunnerLog) << "Device connected:" << device->name()
+        // Get session proxy for connection state
+        const auto *session = m_manager->getDeviceSession(device->deviceId());
+        if (!session) {
+            qCWarning(OathRunnerLog) << "Session proxy not found for device:" << device->name();
+            return;
+        }
+
+        qCDebug(OathRunnerLog) << "Device connected:" << device->name()
                                   << "serial:" << device->serialNumber()
-                                  << "state:" << deviceStateToString(device->state());
+                                  << "state:" << deviceStateToString(session->state());
 
         // Connect to state change signals for logging/debugging
-        connect(device, &OathDeviceProxy::stateChanged, this, [device](DeviceState newState) {
-            qCDebug(YubiKeyRunnerLog) << "Device" << device->name()
+        connect(session, &OathDeviceSessionProxy::stateChanged, this, [device](DeviceState newState) {
+            qCDebug(OathRunnerLog) << "Device" << device->name()
                                       << "state changed to:" << deviceStateToString(newState);
         });
     }
 }
 
-void YubiKeyRunner::onDeviceDisconnected(const QString &deviceId)
+void OathRunner::onDeviceDisconnected(const QString &deviceId)
 {
-    qCDebug(YubiKeyRunnerLog) << "Device disconnected:" << deviceId;
+    qCDebug(OathRunnerLog) << "Device disconnected:" << deviceId;
 }
 
-void YubiKeyRunner::onCredentialsUpdated()
+void OathRunner::onCredentialsUpdated()
 {
-    qCDebug(YubiKeyRunnerLog) << "Credentials updated";
+    qCDebug(OathRunnerLog) << "Credentials updated";
 }
 
-void YubiKeyRunner::onDaemonUnavailable()
+void OathRunner::onDaemonUnavailable()
 {
-    qCWarning(YubiKeyRunnerLog) << "Daemon became unavailable";
+    qCWarning(OathRunnerLog) << "Daemon became unavailable";
     // Clear cache when daemon unavailable
     m_cachedReadyDevices = 0;
     m_cachedInitializingDevices = 0;
 }
 
-void YubiKeyRunner::onDevicePropertyChanged(OathDeviceProxy *device)
+void OathRunner::onDevicePropertyChanged(OathDeviceProxy *device)
 {
     Q_UNUSED(device)
     // Device property changed (could be state, password, etc.) - update cache
     updateDeviceStateCache();
 }
 
-void YubiKeyRunner::updateDeviceStateCache()
+void OathRunner::updateDeviceStateCache()
 {
     const QList<OathDeviceProxy*> devices = m_manager->devices();
 
@@ -556,7 +573,13 @@ void YubiKeyRunner::updateDeviceStateCache()
     int initializingDevices = 0;
 
     for (const auto *device : devices) {
-        const DeviceState state = device->state();
+        // Get session proxy for connection state
+        const auto *session = m_manager->getDeviceSession(device->deviceId());
+        if (!session) {
+            continue; // Skip if session not available
+        }
+
+        const DeviceState state = session->state();
 
         if (isDeviceStateTransitional(state)) {
             initializingDevices++;
@@ -568,14 +591,14 @@ void YubiKeyRunner::updateDeviceStateCache()
     m_cachedReadyDevices = readyDevices;
     m_cachedInitializingDevices = initializingDevices;
 
-    qCDebug(YubiKeyRunnerLog) << "Device state cache updated:"
+    qCDebug(OathRunnerLog) << "Device state cache updated:"
                               << m_cachedReadyDevices << "ready,"
                               << m_cachedInitializingDevices << "initializing";
 }
 
-K_PLUGIN_CLASS_WITH_JSON(YubiKeyRunner, "yubikeyrunner.json")
+K_PLUGIN_CLASS_WITH_JSON(OathRunner, "yubikeyrunner.json")
 
 } // namespace Runner
 } // namespace YubiKeyOath
 
-#include "yubikeyrunner.moc"
+#include "oathrunner.moc"

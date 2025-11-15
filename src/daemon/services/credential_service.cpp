@@ -4,9 +4,9 @@
  */
 
 #include "credential_service.h"
-#include "../oath/yubikey_device_manager.h"
+#include "../oath/oath_device_manager.h"
 #include "../oath/oath_device.h"
-#include "../storage/yubikey_database.h"
+#include "../storage/oath_database.h"
 #include "../../shared/config/configuration_provider.h"
 #include "../logging_categories.h"
 #include "../ui/add_credential_dialog.h"
@@ -23,8 +23,8 @@ namespace YubiKeyOath {
 namespace Daemon {
 using namespace YubiKeyOath::Shared;
 
-CredentialService::CredentialService(YubiKeyDeviceManager *deviceManager,
-                                   YubiKeyDatabase *database,
+CredentialService::CredentialService(OathDeviceManager *deviceManager,
+                                   OathDatabase *database,
                                    Shared::ConfigurationProvider *config,
                                    QObject *parent)
     : QObject(parent)
@@ -37,7 +37,7 @@ CredentialService::CredentialService(YubiKeyDeviceManager *deviceManager,
     Q_ASSERT(m_database);
     Q_ASSERT(m_config);
 
-    qCDebug(YubiKeyDaemonLog) << "CredentialService: Initialized";
+    qCDebug(OathDaemonLog) << "CredentialService: Initialized";
 }
 
 CredentialService::~CredentialService() = default;
@@ -59,7 +59,7 @@ void CredentialService::appendCachedCredentialsForOfflineDevice(
     // Get cached credentials for this offline device (or connected but not initialized)
     auto cached = m_database->getCredentials(deviceId);
     if (!cached.isEmpty()) {
-        qCDebug(YubiKeyDaemonLog) << "CredentialService: Adding" << cached.size()
+        qCDebug(OathDaemonLog) << "CredentialService: Adding" << cached.size()
                                   << "cached credentials for offline device:" << deviceId;
         credentialsList.append(cached);
     }
@@ -67,7 +67,7 @@ void CredentialService::appendCachedCredentialsForOfflineDevice(
 
 QList<OathCredential> CredentialService::getCredentials(const QString &deviceId)
 {
-    qCDebug(YubiKeyDaemonLog) << "CredentialService: getCredentials for device:" << deviceId;
+    qCDebug(OathDaemonLog) << "CredentialService: getCredentials for device:" << deviceId;
 
     QList<OathCredential> credentials;
 
@@ -87,7 +87,7 @@ QList<OathCredential> CredentialService::getCredentials(const QString &deviceId)
             credentials = device->credentials();
             // If device is connected but credentials not yet loaded in memory, fall back to cache
             if (credentials.isEmpty()) {
-                qCDebug(YubiKeyDaemonLog) << "CredentialService: Device connected but credentials not in memory, using database cache";
+                qCDebug(OathDaemonLog) << "CredentialService: Device connected but credentials not in memory, using database cache";
                 appendCachedCredentialsForOfflineDevice(deviceId, credentials);
             }
         } else {
@@ -96,7 +96,7 @@ QList<OathCredential> CredentialService::getCredentials(const QString &deviceId)
         }
     }
 
-    qCDebug(YubiKeyDaemonLog) << "CredentialService: Returning" << credentials.size() << "credentials";
+    qCDebug(OathDaemonLog) << "CredentialService: Returning" << credentials.size() << "credentials";
     return credentials;
 }
 
@@ -109,13 +109,13 @@ QList<OathCredential> CredentialService::getCredentials()
 GenerateCodeResult CredentialService::generateCode(const QString &deviceId,
                                                    const QString &credentialName)
 {
-    qCDebug(YubiKeyDaemonLog) << "CredentialService: generateCode for credential:"
+    qCDebug(OathDaemonLog) << "CredentialService: generateCode for credential:"
                               << credentialName << "on device:" << deviceId;
 
     // Get device instance
     auto *device = m_deviceManager->getDevice(deviceId);
     if (!device) {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: Device" << deviceId << "not found";
+        qCWarning(OathDaemonLog) << "CredentialService: Device" << deviceId << "not found";
         return {.code = QString(), .validUntil = 0};
     }
 
@@ -123,7 +123,7 @@ GenerateCodeResult CredentialService::generateCode(const QString &deviceId,
     auto result = device->generateCode(credentialName);
 
     if (result.isError()) {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: Failed to generate code:" << result.error();
+        qCWarning(OathDaemonLog) << "CredentialService: Failed to generate code:" << result.error();
         return {.code = QString(), .validUntil = 0};
     }
 
@@ -135,7 +135,7 @@ GenerateCodeResult CredentialService::generateCode(const QString &deviceId,
     for (const auto &cred : credentials) {
         if (cred.originalName == credentialName) {
             period = cred.period;
-            qCDebug(YubiKeyDaemonLog) << "CredentialService: Found credential period:" << period;
+            qCDebug(OathDaemonLog) << "CredentialService: Found credential period:" << period;
             break;
         }
     }
@@ -146,7 +146,7 @@ GenerateCodeResult CredentialService::generateCode(const QString &deviceId,
     qint64 const validityRemaining = period - timeInPeriod;
     const qint64 validUntil = currentTime + validityRemaining;
 
-    qCDebug(YubiKeyDaemonLog) << "CredentialService: Generated code, period:" << period
+    qCDebug(OathDaemonLog) << "CredentialService: Generated code, period:" << period
                               << "valid until:" << validUntil;
     return {.code = code, .validUntil = validUntil};
 }
@@ -161,14 +161,14 @@ AddCredentialResult CredentialService::addCredential(const QString &deviceId,
                                                     int counter,
                                                     bool requireTouch)
 {
-    qCDebug(YubiKeyDaemonLog) << "CredentialService: addCredential called - device:" << deviceId
+    qCDebug(OathDaemonLog) << "CredentialService: addCredential called - device:" << deviceId
                               << "name:" << name << "hasSecret:" << !secret.isEmpty();
 
     // Check if we need interactive mode (dialog)
     const bool needsInteractiveMode = deviceId.isEmpty() || name.isEmpty() || secret.isEmpty();
 
     if (needsInteractiveMode) {
-        qCDebug(YubiKeyDaemonLog) << "CredentialService: Using interactive mode (showing dialog asynchronously)";
+        qCDebug(OathDaemonLog) << "CredentialService: Using interactive mode (showing dialog asynchronously)";
 
         // Prepare initial data with provided parameters (or defaults)
         OathCredentialData initialData;
@@ -198,12 +198,12 @@ AddCredentialResult CredentialService::addCredential(const QString &deviceId,
     }
 
     // Automatic mode - all required parameters provided
-    qCDebug(YubiKeyDaemonLog) << "CredentialService: Using automatic mode (no dialog)";
+    qCDebug(OathDaemonLog) << "CredentialService: Using automatic mode (no dialog)";
 
     // Get device instance
     auto *device = m_deviceManager->getDevice(deviceId);
     if (!device) {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: Device" << deviceId << "not found";
+        qCWarning(OathDaemonLog) << "CredentialService: Device" << deviceId << "not found";
         return {QStringLiteral("Error"), i18n("Device not found")};
     }
 
@@ -219,7 +219,7 @@ AddCredentialResult CredentialService::addCredential(const QString &deviceId,
     } else if (typeUpper == QStringLiteral("TOTP") || type.isEmpty()) {
         data.type = OathType::TOTP; // Default to TOTP
     } else {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: Invalid type:" << type;
+        qCWarning(OathDaemonLog) << "CredentialService: Invalid type:" << type;
         return {QStringLiteral("Error"), i18n("Invalid credential type (must be TOTP or HOTP)")};
     }
 
@@ -236,7 +236,7 @@ AddCredentialResult CredentialService::addCredential(const QString &deviceId,
     // Only prepend period if it's non-standard (not 30 seconds)
     if (data.type == OathType::TOTP && data.period != 30) {
         data.name = QString::number(data.period) + QStringLiteral("/") + data.name;
-        qCDebug(YubiKeyDaemonLog) << "CredentialService: Encoded period in name:" << data.name;
+        qCDebug(OathDaemonLog) << "CredentialService: Encoded period in name:" << data.name;
     }
 
     // Split name into issuer and account if not already set
@@ -254,7 +254,7 @@ AddCredentialResult CredentialService::addCredential(const QString &deviceId,
     // Validate data
     const QString validationError = data.validate();
     if (!validationError.isEmpty()) {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: Validation failed:" << validationError;
+        qCWarning(OathDaemonLog) << "CredentialService: Validation failed:" << validationError;
         return {QStringLiteral("Error"), validationError};
     }
 
@@ -262,27 +262,27 @@ AddCredentialResult CredentialService::addCredential(const QString &deviceId,
     auto result = device->addCredential(data);
 
     if (result.isError()) {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: Failed to add credential:" << result.error();
+        qCWarning(OathDaemonLog) << "CredentialService: Failed to add credential:" << result.error();
         return {QStringLiteral("Error"), result.error()};
     }
 
-    qCDebug(YubiKeyDaemonLog) << "CredentialService: Credential added successfully";
+    qCDebug(OathDaemonLog) << "CredentialService: Credential added successfully";
     return {QStringLiteral("Success"), i18n("Credential added successfully")};
 }
 
 bool CredentialService::deleteCredential(const QString &deviceId, const QString &credentialName)
 {
-    qCDebug(YubiKeyDaemonLog) << "CredentialService: deleteCredential" << credentialName << "device:" << deviceId;
+    qCDebug(OathDaemonLog) << "CredentialService: deleteCredential" << credentialName << "device:" << deviceId;
 
     if (credentialName.isEmpty()) {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: Empty credential name";
+        qCWarning(OathDaemonLog) << "CredentialService: Empty credential name";
         return false;
     }
 
     // Get device instance
     auto *device = m_deviceManager->getDevice(deviceId);
     if (!device) {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: Device" << deviceId << "not found";
+        qCWarning(OathDaemonLog) << "CredentialService: Device" << deviceId << "not found";
         return false;
     }
 
@@ -290,14 +290,14 @@ bool CredentialService::deleteCredential(const QString &deviceId, const QString 
     const Result<void> result = device->deleteCredential(credentialName);
 
     if (result.isSuccess()) {
-        qCDebug(YubiKeyDaemonLog) << "CredentialService: Credential deleted successfully";
+        qCDebug(OathDaemonLog) << "CredentialService: Credential deleted successfully";
 
         // Emit signal to notify clients that credentials changed
         Q_EMIT credentialsUpdated(deviceId);
 
         return true;
     } else {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: Failed to delete credential:" << result.error();
+        qCWarning(OathDaemonLog) << "CredentialService: Failed to delete credential:" << result.error();
         return false;
     }
 }
@@ -306,12 +306,12 @@ bool CredentialService::deleteCredential(const QString &deviceId, const QString 
 
 void CredentialService::generateCodeAsync(const QString &deviceId, const QString &credentialName)
 {
-    qCDebug(YubiKeyDaemonLog) << "CredentialService: generateCodeAsync for credential:"
+    qCDebug(OathDaemonLog) << "CredentialService: generateCodeAsync for credential:"
                               << credentialName << "on device:" << deviceId;
 
     // Validate input
     if (deviceId.isEmpty() || credentialName.isEmpty()) {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: Invalid parameters (empty deviceId or credentialName)";
+        qCWarning(OathDaemonLog) << "CredentialService: Invalid parameters (empty deviceId or credentialName)";
         Q_EMIT codeGenerated(deviceId, credentialName, QString(), 0,
                            i18n("Invalid parameters: deviceId and credentialName cannot be empty"));
         return;
@@ -320,14 +320,14 @@ void CredentialService::generateCodeAsync(const QString &deviceId, const QString
     // Get device instance
     auto *device = m_deviceManager->getDevice(deviceId);
     if (!device) {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: Device" << deviceId << "not found";
+        qCWarning(OathDaemonLog) << "CredentialService: Device" << deviceId << "not found";
         Q_EMIT codeGenerated(deviceId, credentialName, QString(), 0, i18n("Device not found"));
         return;
     }
 
     // Run PC/SC operation in background thread to avoid blocking
     [[maybe_unused]] auto future = QtConcurrent::run([this, device, deviceId, credentialName]() {
-        qCDebug(YubiKeyDaemonLog) << "CredentialService: [Worker] Generating code for:" << credentialName;
+        qCDebug(OathDaemonLog) << "CredentialService: [Worker] Generating code for:" << credentialName;
 
         // PC/SC operation (100-500ms, or longer if touch required)
         auto result = device->generateCode(credentialName);
@@ -353,10 +353,10 @@ void CredentialService::generateCodeAsync(const QString &deviceId, const QString
             qint64 const timeInPeriod = currentTime % period;
             qint64 const validityRemaining = period - timeInPeriod;
             validUntil = currentTime + validityRemaining;
-            qCDebug(YubiKeyDaemonLog) << "CredentialService: [Worker] Code generated, valid until:" << validUntil;
+            qCDebug(OathDaemonLog) << "CredentialService: [Worker] Code generated, valid until:" << validUntil;
         } else {
             error = result.error();
-            qCWarning(YubiKeyDaemonLog) << "CredentialService: [Worker] Failed to generate code:" << error;
+            qCWarning(OathDaemonLog) << "CredentialService: [Worker] Failed to generate code:" << error;
         }
 
         // Emit result on main thread
@@ -368,11 +368,11 @@ void CredentialService::generateCodeAsync(const QString &deviceId, const QString
 
 void CredentialService::deleteCredentialAsync(const QString &deviceId, const QString &credentialName)
 {
-    qCDebug(YubiKeyDaemonLog) << "CredentialService: deleteCredentialAsync" << credentialName << "device:" << deviceId;
+    qCDebug(OathDaemonLog) << "CredentialService: deleteCredentialAsync" << credentialName << "device:" << deviceId;
 
     // Validate input
     if (credentialName.isEmpty()) {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: Empty credential name";
+        qCWarning(OathDaemonLog) << "CredentialService: Empty credential name";
         Q_EMIT credentialDeleted(deviceId, credentialName, false, i18n("Credential name cannot be empty"));
         return;
     }
@@ -380,14 +380,14 @@ void CredentialService::deleteCredentialAsync(const QString &deviceId, const QSt
     // Get device instance
     auto *device = m_deviceManager->getDevice(deviceId);
     if (!device) {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: Device" << deviceId << "not found";
+        qCWarning(OathDaemonLog) << "CredentialService: Device" << deviceId << "not found";
         Q_EMIT credentialDeleted(deviceId, credentialName, false, i18n("Device not found"));
         return;
     }
 
     // Run PC/SC operation in background thread to avoid blocking
     [[maybe_unused]] auto future = QtConcurrent::run([this, device, deviceId, credentialName]() {
-        qCDebug(YubiKeyDaemonLog) << "CredentialService: [Worker] Deleting credential:" << credentialName;
+        qCDebug(OathDaemonLog) << "CredentialService: [Worker] Deleting credential:" << credentialName;
 
         // PC/SC operation (100-500ms)
         const Result<void> result = device->deleteCredential(credentialName);
@@ -397,10 +397,10 @@ void CredentialService::deleteCredentialAsync(const QString &deviceId, const QSt
 
         if (result.isSuccess()) {
             success = true;
-            qCDebug(YubiKeyDaemonLog) << "CredentialService: [Worker] Credential deleted successfully";
+            qCDebug(OathDaemonLog) << "CredentialService: [Worker] Credential deleted successfully";
         } else {
             error = result.error();
-            qCWarning(YubiKeyDaemonLog) << "CredentialService: [Worker] Failed to delete credential:" << error;
+            qCWarning(OathDaemonLog) << "CredentialService: [Worker] Failed to delete credential:" << error;
         }
 
         // Emit result on main thread
@@ -418,7 +418,7 @@ void CredentialService::deleteCredentialAsync(const QString &deviceId, const QSt
 void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
                                                      const OathCredentialData &initialData)
 {
-    qCDebug(YubiKeyDaemonLog) << "CredentialService: Showing add credential dialog asynchronously";
+    qCDebug(OathDaemonLog) << "CredentialService: Showing add credential dialog asynchronously";
 
     // Get all available devices (connected and disconnected)
     const QList<DeviceInfo> availableDevices = getAvailableDevices();
@@ -432,13 +432,13 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
     // Remove from list when dialog is destroyed
     connect(dialog, &QObject::destroyed, this, [this, dialog]() {
         m_activeDialogs.removeAll(dialog);
-        qCDebug(YubiKeyDaemonLog) << "CredentialService: Dialog destroyed, removed from active list";
+        qCDebug(OathDaemonLog) << "CredentialService: Dialog destroyed, removed from active list";
     });
 
     // Connect credentialReadyToSave signal to handle async save
     connect(dialog, &AddCredentialDialog::credentialReadyToSave,
             this, [this, dialog](const OathCredentialData &data, const QString &selectedDeviceId) {
-        qCDebug(YubiKeyDaemonLog) << "CredentialService: Credential ready to save -"
+        qCDebug(OathDaemonLog) << "CredentialService: Credential ready to save -"
                                   << "name:" << data.name
                                   << "issuer:" << data.issuer
                                   << "account:" << data.account
@@ -455,17 +455,17 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
 
         if (!device) {
             // Device NOT connected - wait for connection
-            qCDebug(YubiKeyDaemonLog) << "CredentialService: Device not connected, waiting for connection:" << selectedDeviceId;
+            qCDebug(OathDaemonLog) << "CredentialService: Device not connected, waiting for connection:" << selectedDeviceId;
 
             // Update dialog overlay
             dialog->updateOverlayStatus(i18n("Waiting for device connection..."));
 
             // Connect to deviceConnected signal and wait
             auto *connection = new QMetaObject::Connection();
-            *connection = connect(m_deviceManager, &YubiKeyDeviceManager::deviceConnected,
+            *connection = connect(m_deviceManager, &OathDeviceManager::deviceConnected,
                     this, [this, dialog, data, selectedDeviceId, connection](const QString &deviceId) {
                 if (deviceId == selectedDeviceId) {
-                    qCDebug(YubiKeyDaemonLog) << "CredentialService: Device connected:" << deviceId;
+                    qCDebug(OathDaemonLog) << "CredentialService: Device connected:" << deviceId;
 
                     // Update overlay
                     dialog->updateOverlayStatus(i18n("Device connected - saving credential..."));
@@ -484,7 +484,7 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
 
                     // === ASYNCHRONOUS PC/SC OPERATION (background thread) ===
                     QFuture<Result<void>> const future = QtConcurrent::run([device, data]() -> Result<void> {
-                        qCDebug(YubiKeyDaemonLog) << "CredentialService: Background thread - starting addCredential";
+                        qCDebug(OathDaemonLog) << "CredentialService: Background thread - starting addCredential";
 
                         // Make copy for modification
                         OathCredentialData dialogData = data;
@@ -492,7 +492,7 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
                         // Encode period in credential name for TOTP (ykman-compatible format: [period/]issuer:account)
                         if (dialogData.type == OathType::TOTP && dialogData.period != 30) {
                             dialogData.name = QString::number(dialogData.period) + QStringLiteral("/") + dialogData.name;
-                            qCDebug(YubiKeyDaemonLog) << "CredentialService: Encoded period in name:" << dialogData.name;
+                            qCDebug(OathDaemonLog) << "CredentialService: Encoded period in name:" << dialogData.name;
                         }
 
                         // PC/SC operation in background thread
@@ -503,12 +503,12 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
                     auto *watcher = new QFutureWatcher<Result<void>>(this);
                     connect(watcher, &QFutureWatcher<Result<void>>::finished,
                             this, [this, watcher, dialog, device, data]() {
-                        qCDebug(YubiKeyDaemonLog) << "CredentialService: Background thread finished";
+                        qCDebug(OathDaemonLog) << "CredentialService: Background thread finished";
 
                         auto result = watcher->result();
 
                         if (result.isSuccess()) {
-                            qCDebug(YubiKeyDaemonLog) << "CredentialService: Credential added successfully";
+                            qCDebug(OathDaemonLog) << "CredentialService: Credential added successfully";
 
                             // Trigger credential refresh
                             device->updateCredentialCacheAsync();
@@ -533,7 +533,7 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
                             // Emit signal
                             Q_EMIT credentialsUpdated(device->deviceId());
                         } else {
-                            qCWarning(YubiKeyDaemonLog) << "CredentialService: Failed to add credential:" << result.error();
+                            qCWarning(OathDaemonLog) << "CredentialService: Failed to add credential:" << result.error();
                             dialog->showSaveResult(false, result.error());
                         }
 
@@ -562,7 +562,7 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
         // - PC/SC communication (100-500ms)
         // - Touch-required credentials (user interaction time)
         QFuture<Result<void>> const future = QtConcurrent::run([device, data]() -> Result<void> {
-            qCDebug(YubiKeyDaemonLog) << "CredentialService: Background thread - starting addCredential";
+            qCDebug(OathDaemonLog) << "CredentialService: Background thread - starting addCredential";
 
             // Make copy for modification
             OathCredentialData dialogData = data;
@@ -571,7 +571,7 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
             // Only prepend period if it's non-standard (not 30 seconds)
             if (dialogData.type == OathType::TOTP && dialogData.period != 30) {
                 dialogData.name = QString::number(dialogData.period) + QStringLiteral("/") + dialogData.name;
-                qCDebug(YubiKeyDaemonLog) << "CredentialService: Encoded period in name:" << dialogData.name;
+                qCDebug(OathDaemonLog) << "CredentialService: Encoded period in name:" << dialogData.name;
             }
 
             // PC/SC operation in background thread - this may take 100-500ms
@@ -582,12 +582,12 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
         auto *watcher = new QFutureWatcher<Result<void>>(this);
         connect(watcher, &QFutureWatcher<Result<void>>::finished,
                 this, [this, watcher, dialog, device, data]() {
-            qCDebug(YubiKeyDaemonLog) << "CredentialService: Background thread finished";
+            qCDebug(OathDaemonLog) << "CredentialService: Background thread finished";
 
             auto result = watcher->result();
 
             if (result.isSuccess()) {
-                qCDebug(YubiKeyDaemonLog) << "CredentialService: Credential added successfully";
+                qCDebug(OathDaemonLog) << "CredentialService: Credential added successfully";
 
                 // Trigger credential refresh (no password needed for refresh after adding)
                 device->updateCredentialCacheAsync();
@@ -612,7 +612,7 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
                 // Emit signal to notify that credentials changed
                 Q_EMIT credentialsUpdated(device->deviceId());
             } else {
-                qCWarning(YubiKeyDaemonLog) << "CredentialService: Failed to add credential:" << result.error();
+                qCWarning(OathDaemonLog) << "CredentialService: Failed to add credential:" << result.error();
 
                 // Show error in dialog
                 dialog->showSaveResult(false, result.error());
@@ -634,7 +634,7 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
 QList<DeviceInfo> CredentialService::getAvailableDevices()
 {
     // Get all devices from database (includes firmware/model info)
-    const QList<YubiKeyDatabase::DeviceRecord> allDeviceRecords = m_database->getAllDevices();
+    const QList<OathDatabase::DeviceRecord> allDeviceRecords = m_database->getAllDevices();
 
     // Get currently connected device IDs
     const QList<QString> connectedIds = m_deviceManager->getConnectedDeviceIds();
@@ -655,7 +655,7 @@ QList<DeviceInfo> CredentialService::getAvailableDevices()
 
         availableDevices.append(deviceInfo);
 
-        qCDebug(YubiKeyDaemonLog) << "CredentialService: Available device -"
+        qCDebug(OathDaemonLog) << "CredentialService: Available device -"
                                   << "id:" << deviceInfo._internalDeviceId
                                   << "name:" << deviceInfo.deviceName
                                   << "connected:" << deviceInfo.isConnected()
@@ -663,7 +663,7 @@ QList<DeviceInfo> CredentialService::getAvailableDevices()
                                   << "model:" << deviceInfo.deviceModel;
     }
 
-    qCDebug(YubiKeyDaemonLog) << "CredentialService: Total available devices:" << availableDevices.size();
+    qCDebug(OathDaemonLog) << "CredentialService: Total available devices:" << availableDevices.size();
     return availableDevices;
 }
 
@@ -673,14 +673,14 @@ OathDevice* CredentialService::validateCredentialBeforeSave(const OathCredential
 {
     // Check device exists
     if (selectedDeviceId.isEmpty()) {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: No device selected";
+        qCWarning(OathDaemonLog) << "CredentialService: No device selected";
         errorMessage = i18n("No device selected");
         return nullptr;
     }
 
     auto *device = m_deviceManager->getDevice(selectedDeviceId);
     if (!device) {
-        qCWarning(YubiKeyDaemonLog) << "CredentialService: Device" << selectedDeviceId << "not found";
+        qCWarning(OathDaemonLog) << "CredentialService: Device" << selectedDeviceId << "not found";
         errorMessage = i18n("Device not found");
         return nullptr;
     }
@@ -689,7 +689,7 @@ OathDevice* CredentialService::validateCredentialBeforeSave(const OathCredential
     auto existingCredentials = device->credentials();
     for (const auto &cred : existingCredentials) {
         if (cred.originalName == data.name) {
-            qCWarning(YubiKeyDaemonLog) << "CredentialService: Credential already exists:" << data.name;
+            qCWarning(OathDaemonLog) << "CredentialService: Credential already exists:" << data.name;
             errorMessage = i18n("Credential with this name already exists on the YubiKey");
             return nullptr;
         }

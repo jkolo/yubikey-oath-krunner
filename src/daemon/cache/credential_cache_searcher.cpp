@@ -4,16 +4,16 @@
  */
 
 #include "credential_cache_searcher.h"
-#include "../oath/yubikey_device_manager.h"
-#include "../storage/yubikey_database.h"
+#include "../oath/oath_device_manager.h"
+#include "../storage/oath_database.h"
 #include "../config/daemon_configuration.h"
 #include "../logging_categories.h"
 
 namespace YubiKeyOath {
 namespace Daemon {
 
-CredentialCacheSearcher::CredentialCacheSearcher(YubiKeyDeviceManager *deviceManager,
-                                                 YubiKeyDatabase *database,
+CredentialCacheSearcher::CredentialCacheSearcher(OathDeviceManager *deviceManager,
+                                                 OathDatabase *database,
                                                  DaemonConfiguration *config)
     : m_deviceManager(deviceManager)
     , m_database(database)
@@ -29,7 +29,7 @@ std::optional<QString> CredentialCacheSearcher::findCachedCredentialDevice(
         return std::nullopt;
     }
 
-    qCDebug(YubiKeyDaemonLog) << "CredentialCacheSearcher: Searching for cached credential"
+    qCDebug(OathDaemonLog) << "CredentialCacheSearcher: Searching for cached credential"
                               << credentialName;
 
     // If deviceId hint provided, check that device first
@@ -37,12 +37,12 @@ std::optional<QString> CredentialCacheSearcher::findCachedCredentialDevice(
         // Skip if device is currently connected
         if (!m_deviceManager->getDevice(deviceIdHint)) {
             auto cachedCreds = m_database->getCredentials(deviceIdHint);
-            qCDebug(YubiKeyDaemonLog) << "CredentialCacheSearcher: Found" << cachedCreds.size()
+            qCDebug(OathDaemonLog) << "CredentialCacheSearcher: Found" << cachedCreds.size()
                                       << "cached credentials for device:" << deviceIdHint;
 
             for (const auto &cred : cachedCreds) {
                 if (cred.originalName == credentialName) {
-                    qCDebug(YubiKeyDaemonLog) << "CredentialCacheSearcher: Found in hinted device";
+                    qCDebug(OathDaemonLog) << "CredentialCacheSearcher: Found in hinted device";
                     return deviceIdHint;
                 }
             }
@@ -63,7 +63,7 @@ std::optional<QString> CredentialCacheSearcher::findCachedCredentialDevice(
         auto cachedCreds = m_database->getCredentials(deviceRecord.deviceId);
         for (const auto &cred : cachedCreds) {
             if (cred.originalName == credentialName) {
-                qCDebug(YubiKeyDaemonLog)
+                qCDebug(OathDaemonLog)
                     << "CredentialCacheSearcher: Found cached credential in offline device:"
                     << deviceRecord.deviceId;
                 return deviceRecord.deviceId;
@@ -72,7 +72,7 @@ std::optional<QString> CredentialCacheSearcher::findCachedCredentialDevice(
     }
 
     // Not found
-    qCDebug(YubiKeyDaemonLog) << "CredentialCacheSearcher: Credential not found in cache";
+    qCDebug(OathDaemonLog) << "CredentialCacheSearcher: Credential not found in cache";
     return std::nullopt;
 }
 

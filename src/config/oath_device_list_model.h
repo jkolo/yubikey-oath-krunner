@@ -29,12 +29,12 @@ class PasswordDialog;
  * @brief Model for displaying YubiKey devices in configuration UI
  *
  * This model manages the list of known YubiKey devices, combining:
- * - Currently connected devices (from YubiKeyDeviceManager)
+ * - Currently connected devices (from OathDeviceManager)
  * - Previously seen devices (from SecretStorage/KWallet)
  *
  * Provides real-time updates when devices are connected/disconnected.
  */
-class YubiKeyDeviceModel : public QAbstractListModel
+class OathDeviceListModel : public QAbstractListModel
 {
     Q_OBJECT
 
@@ -62,7 +62,7 @@ public:
      * @param manager YubiKeyManagerProxy instance for D-Bus communication with daemon
      * @param parent Parent QObject
      */
-    explicit YubiKeyDeviceModel(OathManagerProxy *manager, QObject *parent = nullptr);
+    explicit OathDeviceListModel(OathManagerProxy *manager, QObject *parent = nullptr);
 
     // QAbstractListModel interface
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;

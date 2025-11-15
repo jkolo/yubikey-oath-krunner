@@ -18,9 +18,9 @@ namespace Daemon {
 using Shared::ConfigurationProvider;
 
 // Forward declarations
-class YubiKeyDeviceManager;
-class YubiKeyDatabase;
-class YubiKeyActionCoordinator;
+class OathDeviceManager;
+class OathDatabase;
+class OathActionCoordinator;
 class TouchHandler;
 class NotificationOrchestrator;
 
@@ -92,9 +92,9 @@ public:
      * @note Automatically connects to signals from all dependencies.
      * @note Uses actionCoordinator->executeActionWithNotification() for unified action execution policy
      */
-    explicit TouchWorkflowCoordinator(YubiKeyDeviceManager *deviceManager,
-                                      YubiKeyDatabase *database,
-                                      YubiKeyActionCoordinator *actionCoordinator,
+    explicit TouchWorkflowCoordinator(OathDeviceManager *deviceManager,
+                                      OathDatabase *database,
+                                      OathActionCoordinator *actionCoordinator,
                                       TouchHandler *touchHandler,
                                       NotificationOrchestrator *notificationOrchestrator,
                                       const ConfigurationProvider *config,
@@ -168,9 +168,9 @@ private:
      */
     void cleanupTouchWorkflow();
 
-    YubiKeyDeviceManager *m_deviceManager;
-    YubiKeyDatabase *m_database;
-    YubiKeyActionCoordinator *m_actionCoordinator;
+    OathDeviceManager *m_deviceManager;
+    OathDatabase *m_database;
+    OathActionCoordinator *m_actionCoordinator;
     TouchHandler *m_touchHandler;
     NotificationOrchestrator *m_notificationOrchestrator;
     const ConfigurationProvider *m_config;

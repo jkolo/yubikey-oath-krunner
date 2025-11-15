@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "mock_yubikey_device_manager.h"
+#include "mock_oath_device_manager.h"
 
 namespace YubiKeyOath {
 namespace Daemon {

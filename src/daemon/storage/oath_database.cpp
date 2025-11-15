@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "yubikey_database.h"
+#include "oath_database.h"
 #include "transaction_guard.h"
 #include "../logging_categories.h"
 
@@ -17,33 +17,33 @@
 namespace YubiKeyOath {
 namespace Daemon {
 
-YubiKeyDatabase::YubiKeyDatabase(QObject *parent)
+OathDatabase::OathDatabase(QObject *parent)
     : QObject(parent)
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Constructor called";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Constructor called";
 }
 
-YubiKeyDatabase::~YubiKeyDatabase()
+OathDatabase::~OathDatabase()
 {
     const QString connectionName = m_db.connectionName();
     if (m_db.isOpen()) {
-        qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Closing database connection";
+        qCDebug(OathDatabaseLog) << "OathDatabase: Closing database connection";
         m_db.close();
     }
 
     // IMPORTANT: Release the database reference BEFORE removing the connection
     // Assign a null database to m_db to release the reference to the connection
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Releasing database reference";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Releasing database reference";
     m_db = QSqlDatabase();  // Release reference by assigning null database
 
     // Now remove the database connection
     if (!connectionName.isEmpty()) {
-        qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Removing database connection:" << connectionName;
+        qCDebug(OathDatabaseLog) << "OathDatabase: Removing database connection:" << connectionName;
         QSqlDatabase::removeDatabase(connectionName);
     }
 }
 
-bool YubiKeyDatabase::isValidDeviceId(const QString &deviceId)
+bool OathDatabase::isValidDeviceId(const QString &deviceId)
 {
     // Trim whitespace defensively to handle any formatting inconsistencies
     const QString trimmed = deviceId.trimmed();
@@ -54,7 +54,7 @@ bool YubiKeyDatabase::isValidDeviceId(const QString &deviceId)
     const bool isValid = hexPattern.match(trimmed).hasMatch();
 
     if (!isValid) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Invalid device ID format:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Invalid device ID format:"
                                       << "original:'" << deviceId << "'"
                                       << "trimmed:'" << trimmed << "'"
                                       << "original length:" << deviceId.length()
@@ -64,22 +64,22 @@ bool YubiKeyDatabase::isValidDeviceId(const QString &deviceId)
     return isValid;
 }
 
-QString YubiKeyDatabase::getDatabasePath() const
+QString OathDatabase::getDatabasePath() const
 {
     QString dataPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
     return dataPath + QStringLiteral("/krunner-yubikey/devices.db");
 }
 
-bool YubiKeyDatabase::ensureDirectoryExists() const
+bool OathDatabase::ensureDirectoryExists() const
 {
     const QString dataPath = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
     const QString dbDir = dataPath + QStringLiteral("/krunner-yubikey");
 
     const QDir dir;
     if (!dir.exists(dbDir)) {
-        qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Creating directory:" << dbDir;
+        qCDebug(OathDatabaseLog) << "OathDatabase: Creating directory:" << dbDir;
         if (!dir.mkpath(dbDir)) {
-            qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to create directory:" << dbDir;
+            qCWarning(OathDatabaseLog) << "OathDatabase: Failed to create directory:" << dbDir;
             return false;
         }
     }
@@ -87,9 +87,9 @@ bool YubiKeyDatabase::ensureDirectoryExists() const
     return true;
 }
 
-bool YubiKeyDatabase::initialize()
+bool OathDatabase::initialize()
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Initializing database";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Initializing database";
 
     // Ensure directory exists
     if (!ensureDirectoryExists()) {
@@ -98,48 +98,48 @@ bool YubiKeyDatabase::initialize()
 
     // Get database path
     QString const dbPath = getDatabasePath();
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Database path:" << dbPath;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Database path:" << dbPath;
 
     // Open SQLite database
     m_db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), QStringLiteral("yubikey_devices"));
     m_db.setDatabaseName(dbPath);
 
     if (!m_db.open()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to open database:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to open database:"
                                       << m_db.lastError().text();
         return false;
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Database opened successfully";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Database opened successfully";
 
     // Enable foreign key constraints (required for CASCADE DELETE)
     QSqlQuery pragmaQuery(m_db);
     if (!pragmaQuery.exec(QStringLiteral("PRAGMA foreign_keys = ON"))) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to enable foreign keys:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to enable foreign keys:"
                                       << pragmaQuery.lastError().text();
         return false;
     }
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Foreign key constraints enabled";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Foreign key constraints enabled";
 
     // Create tables
     if (!createTables()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to create tables";
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to create tables";
         return false;
     }
 
     // Migrate schema if needed (add new columns to existing tables)
     if (!checkAndMigrateSchema()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to migrate schema";
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to migrate schema";
         return false;
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Initialization complete";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Initialization complete";
     return true;
 }
 
-bool YubiKeyDatabase::createTables()
+bool OathDatabase::createTables()
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Creating tables if they don't exist";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Creating tables if they don't exist";
 
     QSqlQuery query(m_db);
 
@@ -159,7 +159,7 @@ bool YubiKeyDatabase::createTables()
     );
 
     if (!query.exec(createDevicesTableSql)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to create devices table:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to create devices table:"
                                       << query.lastError().text();
         return false;
     }
@@ -183,16 +183,16 @@ bool YubiKeyDatabase::createTables()
     );
 
     if (!query.exec(createCredentialsTableSql)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to create credentials table:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to create credentials table:"
                                       << query.lastError().text();
         return false;
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Tables created/verified successfully";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Tables created/verified successfully";
     return true;
 }
 
-bool YubiKeyDatabase::addColumnIfNotExists(const QString &columnName, const QString &columnType)
+bool OathDatabase::addColumnIfNotExists(const QString &columnName, const QString &columnType)
 {
     // Whitelist validation for column names and types (security: prevent SQL injection)
     // Even though this function is only called with hardcoded literals, we validate
@@ -209,19 +209,19 @@ bool YubiKeyDatabase::addColumnIfNotExists(const QString &columnName, const QStr
     };
 
     if (!allowedColumns.contains(columnName)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Rejected attempt to add non-whitelisted column:" << columnName;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Rejected attempt to add non-whitelisted column:" << columnName;
         return false;
     }
 
     if (!allowedTypes.contains(columnType)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Rejected attempt to use non-whitelisted column type:" << columnType;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Rejected attempt to use non-whitelisted column type:" << columnType;
         return false;
     }
 
     // Get current columns in devices table
     QSqlQuery query(m_db);
     if (!query.exec(QStringLiteral("PRAGMA table_info(devices)"))) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to get table info:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to get table info:"
                                       << query.lastError().text();
         return false;
     }
@@ -237,12 +237,12 @@ bool YubiKeyDatabase::addColumnIfNotExists(const QString &columnName, const QStr
 
     // Column already exists - success
     if (columnExists) {
-        qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Column already exists:" << columnName;
+        qCDebug(OathDatabaseLog) << "OathDatabase: Column already exists:" << columnName;
         return true;
     }
 
     // Add missing column
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Adding missing column:" << columnName;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Adding missing column:" << columnName;
 
     // Note: Cannot use prepared statements for DDL operations (ALTER TABLE, CREATE TABLE, etc.)
     // SQLite and most databases don't support parameter binding for schema modification.
@@ -252,18 +252,18 @@ bool YubiKeyDatabase::addColumnIfNotExists(const QString &columnName, const QStr
 
     QSqlQuery alterQuery(m_db);
     if (!alterQuery.exec(alterSql)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to add column"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to add column"
                                       << columnName << ":" << alterQuery.lastError().text();
         return false;
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Column added successfully:" << columnName;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Column added successfully:" << columnName;
     return true;
 }
 
-bool YubiKeyDatabase::checkAndMigrateSchema()
+bool OathDatabase::checkAndMigrateSchema()
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Checking and migrating schema if needed";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Checking and migrating schema if needed";
 
     // Add columns if missing (delegates to helper)
     if (!addColumnIfNotExists(QStringLiteral("firmware_version"), QStringLiteral("TEXT"))) {
@@ -284,28 +284,28 @@ bool YubiKeyDatabase::checkAndMigrateSchema()
     if (!updateQuery.exec(QStringLiteral(
         "UPDATE devices SET last_seen = created_at WHERE last_seen IS NULL OR last_seen = ''"
     ))) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to migrate NULL last_seen values:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to migrate NULL last_seen values:"
                                       << updateQuery.lastError().text();
         return false;
     }
 
     int const rowsUpdated = updateQuery.numRowsAffected();
     if (rowsUpdated > 0) {
-        qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Migrated" << rowsUpdated
+        qCDebug(OathDatabaseLog) << "OathDatabase: Migrated" << rowsUpdated
                                     << "devices with NULL last_seen to use created_at";
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Schema migration complete";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Schema migration complete";
     return true;
 }
 
-bool YubiKeyDatabase::addDevice(const QString &deviceId, const QString &name, bool requiresPassword)
+bool OathDatabase::addDevice(const QString &deviceId, const QString &name, bool requiresPassword)
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Adding device:" << deviceId
+    qCDebug(OathDatabaseLog) << "OathDatabase: Adding device:" << deviceId
                                 << "name:" << name << "requiresPassword:" << requiresPassword;
 
     if (!isValidDeviceId(deviceId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot add device - invalid device ID format:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Cannot add device - invalid device ID format:" << deviceId;
         return false;
     }
 
@@ -323,21 +323,21 @@ bool YubiKeyDatabase::addDevice(const QString &deviceId, const QString &name, bo
     query.bindValue(QStringLiteral(":last_seen"), currentTime);
 
     if (!query.exec()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to add device:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to add device:"
                                       << query.lastError().text();
         return false;
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device added successfully";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Device added successfully";
     return true;
 }
 
-bool YubiKeyDatabase::updateDeviceName(const QString &deviceId, const QString &name)
+bool OathDatabase::updateDeviceName(const QString &deviceId, const QString &name)
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Updating device name:" << deviceId << "to:" << name;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Updating device name:" << deviceId << "to:" << name;
 
     if (!isValidDeviceId(deviceId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot update device name - invalid device ID format:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Cannot update device name - invalid device ID format:" << deviceId;
         return false;
     }
 
@@ -347,21 +347,21 @@ bool YubiKeyDatabase::updateDeviceName(const QString &deviceId, const QString &n
     query.bindValue(QStringLiteral(":device_id"), deviceId);
 
     if (!query.exec()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to update device name:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to update device name:"
                                       << query.lastError().text();
         return false;
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device name updated successfully";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Device name updated successfully";
     return true;
 }
 
-bool YubiKeyDatabase::updateLastSeen(const QString &deviceId)
+bool OathDatabase::updateLastSeen(const QString &deviceId)
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Updating last seen for device:" << deviceId;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Updating last seen for device:" << deviceId;
 
     if (!isValidDeviceId(deviceId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot update last seen - invalid device ID format:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Cannot update last seen - invalid device ID format:" << deviceId;
         return false;
     }
 
@@ -371,29 +371,29 @@ bool YubiKeyDatabase::updateLastSeen(const QString &deviceId)
     query.bindValue(QStringLiteral(":device_id"), deviceId);
 
     if (!query.exec()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to update last seen:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to update last seen:"
                                       << query.lastError().text();
         return false;
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Last seen updated successfully";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Last seen updated successfully";
     return true;
 }
 
-bool YubiKeyDatabase::removeDevice(const QString &deviceId)
+bool OathDatabase::removeDevice(const QString &deviceId)
 {
     // Trim whitespace defensively to match validation
     const QString trimmedId = deviceId.trimmed();
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Removing device:" << trimmedId;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Removing device:" << trimmedId;
 
     if (!isValidDeviceId(trimmedId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot remove device - invalid device ID format:" << trimmedId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Cannot remove device - invalid device ID format:" << trimmedId;
         return false;
     }
 
     // Defensive delete: Clear credentials first (belt + suspenders with CASCADE DELETE)
     if (!clearDeviceCredentials(trimmedId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to clear credentials before device removal";
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to clear credentials before device removal";
         // Continue anyway - CASCADE DELETE should handle this
     }
 
@@ -402,21 +402,21 @@ bool YubiKeyDatabase::removeDevice(const QString &deviceId)
     query.bindValue(QStringLiteral(":device_id"), trimmedId);
 
     if (!query.exec()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to remove device:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to remove device:"
                                       << query.lastError().text();
         return false;
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device removed successfully";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Device removed successfully";
     return true;
 }
 
-std::optional<YubiKeyDatabase::DeviceRecord> YubiKeyDatabase::getDevice(const QString &deviceId)
+std::optional<OathDatabase::DeviceRecord> OathDatabase::getDevice(const QString &deviceId)
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Getting device:" << deviceId;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Getting device:" << deviceId;
 
     if (!isValidDeviceId(deviceId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot get device - invalid device ID format:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Cannot get device - invalid device ID format:" << deviceId;
         return std::nullopt;
     }
 
@@ -429,13 +429,13 @@ std::optional<YubiKeyDatabase::DeviceRecord> YubiKeyDatabase::getDevice(const QS
     query.bindValue(QStringLiteral(":device_id"), deviceId);
 
     if (!query.exec()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to query device:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to query device:"
                                       << query.lastError().text();
         return std::nullopt;
     }
 
     if (!query.next()) {
-        qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device not found:" << deviceId;
+        qCDebug(OathDatabaseLog) << "OathDatabase: Device not found:" << deviceId;
         return std::nullopt;
     }
 
@@ -464,13 +464,13 @@ std::optional<YubiKeyDatabase::DeviceRecord> YubiKeyDatabase::getDevice(const QS
     record.serialNumber = query.value(7).toUInt();
     record.formFactor = static_cast<quint8>(query.value(8).toUInt());
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device found:" << record.deviceName;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Device found:" << record.deviceName;
     return record;
 }
 
-QList<YubiKeyDatabase::DeviceRecord> YubiKeyDatabase::getAllDevices()
+QList<OathDatabase::DeviceRecord> OathDatabase::getAllDevices()
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Getting all devices";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Getting all devices";
 
     QList<DeviceRecord> devices;
 
@@ -479,7 +479,7 @@ QList<YubiKeyDatabase::DeviceRecord> YubiKeyDatabase::getAllDevices()
         "SELECT device_id, device_name, requires_password, last_seen, created_at, "
         "firmware_version, device_model, serial_number, form_factor FROM devices"
     ))) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to query devices:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to query devices:"
                                       << query.lastError().text();
         return devices;
     }
@@ -513,17 +513,17 @@ QList<YubiKeyDatabase::DeviceRecord> YubiKeyDatabase::getAllDevices()
         devices.append(record);
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Found" << devices.size() << "devices";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Found" << devices.size() << "devices";
     return devices;
 }
 
-bool YubiKeyDatabase::setRequiresPassword(const QString &deviceId, bool requiresPassword)
+bool OathDatabase::setRequiresPassword(const QString &deviceId, bool requiresPassword)
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Setting requires_password for device:"
+    qCDebug(OathDatabaseLog) << "OathDatabase: Setting requires_password for device:"
                                 << deviceId << "to:" << requiresPassword;
 
     if (!isValidDeviceId(deviceId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot set requires_password - invalid device ID format:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Cannot set requires_password - invalid device ID format:" << deviceId;
         return false;
     }
 
@@ -535,21 +535,21 @@ bool YubiKeyDatabase::setRequiresPassword(const QString &deviceId, bool requires
     query.bindValue(QStringLiteral(":device_id"), deviceId);
 
     if (!query.exec()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to update requires_password:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to update requires_password:"
                                       << query.lastError().text();
         return false;
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: requires_password updated successfully";
+    qCDebug(OathDatabaseLog) << "OathDatabase: requires_password updated successfully";
     return true;
 }
 
-bool YubiKeyDatabase::requiresPassword(const QString &deviceId)
+bool OathDatabase::requiresPassword(const QString &deviceId)
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Checking if device requires password:" << deviceId;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Checking if device requires password:" << deviceId;
 
     if (!isValidDeviceId(deviceId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot check requires_password - invalid device ID format:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Cannot check requires_password - invalid device ID format:" << deviceId;
         return false;
     }
 
@@ -558,27 +558,27 @@ bool YubiKeyDatabase::requiresPassword(const QString &deviceId)
     query.bindValue(QStringLiteral(":device_id"), deviceId);
 
     if (!query.exec()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to query requires_password:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to query requires_password:"
                                       << query.lastError().text();
         return false;
     }
 
     if (!query.next()) {
-        qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device not found, returning false";
+        qCDebug(OathDatabaseLog) << "OathDatabase: Device not found, returning false";
         return false;
     }
 
     bool const requiresPass = query.value(0).toInt() != 0;
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device requires password:" << requiresPass;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Device requires password:" << requiresPass;
     return requiresPass;
 }
 
-bool YubiKeyDatabase::hasDevice(const QString &deviceId)
+bool OathDatabase::hasDevice(const QString &deviceId)
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Checking if device exists:" << deviceId;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Checking if device exists:" << deviceId;
 
     if (!isValidDeviceId(deviceId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot check device existence - invalid device ID format:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Cannot check device existence - invalid device ID format:" << deviceId;
         return false;
     }
 
@@ -587,7 +587,7 @@ bool YubiKeyDatabase::hasDevice(const QString &deviceId)
     query.bindValue(QStringLiteral(":device_id"), deviceId);
 
     if (!query.exec()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to check device existence:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to check device existence:"
                                       << query.lastError().text();
         return false;
     }
@@ -597,20 +597,20 @@ bool YubiKeyDatabase::hasDevice(const QString &deviceId)
     }
 
     bool const exists = query.value(0).toInt() > 0;
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device exists:" << exists;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Device exists:" << exists;
     return exists;
 }
 
-int YubiKeyDatabase::countDevicesWithNamePrefix(const QString &prefix)
+int OathDatabase::countDevicesWithNamePrefix(const QString &prefix)
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Counting devices with name prefix:" << prefix;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Counting devices with name prefix:" << prefix;
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral("SELECT COUNT(*) FROM devices WHERE device_name LIKE :prefix || '%'"));
     query.bindValue(QStringLiteral(":prefix"), prefix);
 
     if (!query.exec()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to count devices with prefix:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to count devices with prefix:"
                                       << query.lastError().text();
         return 0;
     }
@@ -620,24 +620,24 @@ int YubiKeyDatabase::countDevicesWithNamePrefix(const QString &prefix)
     }
 
     int const count = query.value(0).toInt();
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Devices with prefix count:" << count;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Devices with prefix count:" << count;
     return count;
 }
 
-bool YubiKeyDatabase::updateDeviceInfo(const QString &deviceId,
+bool OathDatabase::updateDeviceInfo(const QString &deviceId,
                                         const Version &firmwareVersion,
                                         YubiKeyModel deviceModel,
                                         quint32 serialNumber,
                                         quint8 formFactor)
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Updating device info for:" << deviceId
+    qCDebug(OathDatabaseLog) << "OathDatabase: Updating device info for:" << deviceId
                                 << "firmware:" << firmwareVersion.toString()
                                 << "model:" << deviceModel
                                 << "serial:" << serialNumber
                                 << "formFactor:" << formFactor;
 
     if (!isValidDeviceId(deviceId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot update device info - invalid device ID format:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Cannot update device info - invalid device ID format:" << deviceId;
         return false;
     }
 
@@ -650,13 +650,13 @@ bool YubiKeyDatabase::updateDeviceInfo(const QString &deviceId,
     checkQuery.bindValue(QStringLiteral(":device_id"), deviceId);
 
     if (!checkQuery.exec()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to check current device info:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to check current device info:"
                                       << checkQuery.lastError().text();
         return false;
     }
 
     if (!checkQuery.next()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device not found:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Device not found:" << deviceId;
         return false;
     }
 
@@ -672,11 +672,11 @@ bool YubiKeyDatabase::updateDeviceInfo(const QString &deviceId,
         dbModel == deviceModel &&
         dbSerial == serialNumber &&
         dbFormFactor == formFactor) {
-        qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device info unchanged, skipping update";
+        qCDebug(OathDatabaseLog) << "OathDatabase: Device info unchanged, skipping update";
         return true;  // No update needed
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device info changed, updating database";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Device info changed, updating database";
 
     // Update device info
     QSqlQuery updateQuery(m_db);
@@ -696,20 +696,20 @@ bool YubiKeyDatabase::updateDeviceInfo(const QString &deviceId,
     updateQuery.bindValue(QStringLiteral(":device_id"), deviceId);
 
     if (!updateQuery.exec()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to update device info:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to update device info:"
                                       << updateQuery.lastError().text();
         return false;
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Device info updated successfully";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Device info updated successfully";
     return true;
 }
 
-bool YubiKeyDatabase::deleteOldCredentials(const QString &deviceId)
+bool OathDatabase::deleteOldCredentials(const QString &deviceId)
 {
     // Belt-and-suspenders validation (caller should validate, but double-check)
     if (!isValidDeviceId(deviceId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot delete credentials - invalid device ID format:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Cannot delete credentials - invalid device ID format:" << deviceId;
         return false;
     }
 
@@ -718,14 +718,14 @@ bool YubiKeyDatabase::deleteOldCredentials(const QString &deviceId)
     deleteQuery.bindValue(QStringLiteral(":device_id"), deviceId);
 
     if (!deleteQuery.exec()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to delete old credentials:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to delete old credentials:"
                                       << deleteQuery.lastError().text();
         return false;
     }
     return true;
 }
 
-bool YubiKeyDatabase::insertNewCredentials(const QString &deviceId, const QList<OathCredential> &credentials)
+bool OathDatabase::insertNewCredentials(const QString &deviceId, const QList<OathCredential> &credentials)
 {
     QSqlQuery insertQuery(m_db);
     insertQuery.prepare(QStringLiteral(
@@ -747,7 +747,7 @@ bool YubiKeyDatabase::insertNewCredentials(const QString &deviceId, const QList<
         insertQuery.bindValue(QStringLiteral(":requires_touch"), cred.requiresTouch ? 1 : 0);
 
         if (!insertQuery.exec()) {
-            qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to insert credential:"
+            qCWarning(OathDatabaseLog) << "OathDatabase: Failed to insert credential:"
                                           << cred.originalName << insertQuery.lastError().text();
             return false;
         }
@@ -755,13 +755,13 @@ bool YubiKeyDatabase::insertNewCredentials(const QString &deviceId, const QList<
     return true;
 }
 
-bool YubiKeyDatabase::saveCredentials(const QString &deviceId, const QList<OathCredential> &credentials)
+bool OathDatabase::saveCredentials(const QString &deviceId, const QList<OathCredential> &credentials)
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Saving" << credentials.size()
+    qCDebug(OathDatabaseLog) << "OathDatabase: Saving" << credentials.size()
                                 << "credentials for device:" << deviceId;
 
     if (!isValidDeviceId(deviceId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot save credentials - invalid device ID format:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Cannot save credentials - invalid device ID format:" << deviceId;
         return false;
     }
 
@@ -773,13 +773,13 @@ bool YubiKeyDatabase::saveCredentials(const QString &deviceId, const QList<OathC
 
     // Delete old credentials
     if (!deleteOldCredentials(deviceId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to delete old credentials for device:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to delete old credentials for device:" << deviceId;
         return false; // Guard auto-rollbacks in destructor
     }
 
     // Insert new credentials
     if (!insertNewCredentials(deviceId, credentials)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to insert new credentials for device:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to insert new credentials for device:" << deviceId;
         return false; // Guard auto-rollbacks in destructor
     }
 
@@ -788,19 +788,19 @@ bool YubiKeyDatabase::saveCredentials(const QString &deviceId, const QList<OathC
         return false; // Commit failed, guard already rolled back
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Successfully saved" << credentials.size()
+    qCDebug(OathDatabaseLog) << "OathDatabase: Successfully saved" << credentials.size()
                                 << "credentials for device:" << deviceId;
     return true;
 }
 
-QList<OathCredential> YubiKeyDatabase::getCredentials(const QString &deviceId)
+QList<OathCredential> OathDatabase::getCredentials(const QString &deviceId)
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Getting credentials for device:" << deviceId;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Getting credentials for device:" << deviceId;
 
     QList<OathCredential> credentials;
 
     if (!isValidDeviceId(deviceId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot get credentials - invalid device ID format:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Cannot get credentials - invalid device ID format:" << deviceId;
         return credentials;  // Return empty list
     }
 
@@ -812,7 +812,7 @@ QList<OathCredential> YubiKeyDatabase::getCredentials(const QString &deviceId)
     query.bindValue(QStringLiteral(":device_id"), deviceId);
 
     if (!query.exec()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to query credentials:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to query credentials:"
                                       << query.lastError().text();
         return credentials;
     }
@@ -834,32 +834,32 @@ QList<OathCredential> YubiKeyDatabase::getCredentials(const QString &deviceId)
         credentials.append(cred);
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Found" << credentials.size()
+    qCDebug(OathDatabaseLog) << "OathDatabase: Found" << credentials.size()
                                 << "credentials for device:" << deviceId;
     return credentials;
 }
 
-bool YubiKeyDatabase::clearAllCredentials()
+bool OathDatabase::clearAllCredentials()
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Clearing all credentials";
+    qCDebug(OathDatabaseLog) << "OathDatabase: Clearing all credentials";
 
     QSqlQuery query(m_db);
     if (!query.exec(QStringLiteral("DELETE FROM credentials"))) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to clear credentials:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to clear credentials:"
                                       << query.lastError().text();
         return false;
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: All credentials cleared";
+    qCDebug(OathDatabaseLog) << "OathDatabase: All credentials cleared";
     return true;
 }
 
-bool YubiKeyDatabase::clearDeviceCredentials(const QString &deviceId)
+bool OathDatabase::clearDeviceCredentials(const QString &deviceId)
 {
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Clearing credentials for device:" << deviceId;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Clearing credentials for device:" << deviceId;
 
     if (!isValidDeviceId(deviceId)) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Cannot clear credentials - invalid device ID format:" << deviceId;
+        qCWarning(OathDatabaseLog) << "OathDatabase: Cannot clear credentials - invalid device ID format:" << deviceId;
         return false;
     }
 
@@ -868,12 +868,12 @@ bool YubiKeyDatabase::clearDeviceCredentials(const QString &deviceId)
     query.bindValue(QStringLiteral(":device_id"), deviceId);
 
     if (!query.exec()) {
-        qCWarning(YubiKeyDatabaseLog) << "YubiKeyDatabase: Failed to clear device credentials:"
+        qCWarning(OathDatabaseLog) << "OathDatabase: Failed to clear device credentials:"
                                       << query.lastError().text();
         return false;
     }
 
-    qCDebug(YubiKeyDatabaseLog) << "YubiKeyDatabase: Credentials cleared for device:" << deviceId;
+    qCDebug(OathDatabaseLog) << "OathDatabase: Credentials cleared for device:" << deviceId;
     return true;
 }
 

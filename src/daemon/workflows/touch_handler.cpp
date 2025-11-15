@@ -17,12 +17,12 @@ TouchHandler::TouchHandler(QObject *parent)
     m_touchTimer->setSingleShot(true);
     connect(m_touchTimer, &QTimer::timeout, this, &TouchHandler::onTimeout);
 
-    qCDebug(YubiKeyDaemonLog) << "TouchHandler: Initialized";
+    qCDebug(OathDaemonLog) << "TouchHandler: Initialized";
 }
 
 void TouchHandler::startTouchOperation(const QString &credentialName, int timeoutSeconds)
 {
-    qCDebug(YubiKeyDaemonLog) << "TouchHandler: Starting touch operation for:" << credentialName
+    qCDebug(OathDaemonLog) << "TouchHandler: Starting touch operation for:" << credentialName
              << "timeout:" << timeoutSeconds;
 
     m_waitingForTouch = credentialName;
@@ -34,7 +34,7 @@ void TouchHandler::startTouchOperation(const QString &credentialName, int timeou
 
 void TouchHandler::cancelTouchOperation()
 {
-    qCDebug(YubiKeyDaemonLog) << "TouchHandler: Cancelling touch operation for:" << m_waitingForTouch;
+    qCDebug(OathDaemonLog) << "TouchHandler: Cancelling touch operation for:" << m_waitingForTouch;
 
     m_touchTimer->stop();
     m_waitingForTouch.clear();
@@ -52,7 +52,7 @@ QString TouchHandler::waitingCredential() const
 
 void TouchHandler::onTimeout()
 {
-    qCDebug(YubiKeyDaemonLog) << "TouchHandler: Touch timeout for:" << m_waitingForTouch;
+    qCDebug(OathDaemonLog) << "TouchHandler: Touch timeout for:" << m_waitingForTouch;
 
     QString const credentialName = m_waitingForTouch;
     cancelTouchOperation();

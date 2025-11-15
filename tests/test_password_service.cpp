@@ -7,9 +7,9 @@
 #include <QSignalSpy>
 
 #include "daemon/services/password_service.h"
-#include "mocks/mock_yubikey_device_manager.h"
-#include "mocks/mock_yubikey_oath_device.h"
-#include "mocks/mock_yubikey_database.h"
+#include "mocks/mock_oath_device_manager.h"
+#include "mocks/mock_oath_device.h"
+#include "mocks/mock_oath_database.h"
 #include "mocks/mock_secret_storage.h"
 #include "fixtures/test_device_fixture.h"
 #include "shared/utils/version.h"
@@ -24,8 +24,8 @@ using namespace YubiKeyOath::Shared;
  * Target coverage: 100% (security-critical component)
  *
  * Test infrastructure:
- * - MockYubiKeyDeviceManager - Mock device manager with addDevice() injection
- * - MockYubiKeyOathDevice - Mock device with password authentication methods
+ * - MockOathDeviceManager - Mock device manager with addDevice() injection
+ * - MockOathDevice - Mock device with password authentication methods
  * - MockSecretStorage - KWallet mock with configurable save/load behavior
  * - TestDeviceFixture - Factory for creating device records
  *
@@ -55,9 +55,9 @@ private Q_SLOTS:
     void init()
     {
         // Create fresh mocks for each test
-        m_database = new MockYubiKeyDatabase(this);
+        m_database = new MockOathDatabase(this);
         m_secretStorage = new MockSecretStorage(this);
-        m_deviceManager = new MockYubiKeyDeviceManager(this);
+        m_deviceManager = new MockOathDeviceManager(this);
 
         m_service = new PasswordService(m_deviceManager, m_database,
                                        m_secretStorage, this);
@@ -92,12 +92,12 @@ private Q_SLOTS:
         const QString deviceId = QStringLiteral("1234567890ABCDEF");  // Valid 16-char hex ID
         const QString correctPassword = QStringLiteral("mypassword123");
 
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
         mockDevice->setRequiresPassword(true);
         mockDevice->setCorrectPassword(correctPassword);
 
         // Add device to manager
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         QVERIFY(mockManager != nullptr);
         mockManager->addDevice(mockDevice);
 
@@ -130,12 +130,12 @@ private Q_SLOTS:
         const QString correctPassword = QStringLiteral("mypassword123");
         const QString wrongPassword = QStringLiteral("wrongpassword");
 
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
         mockDevice->setRequiresPassword(true);
         mockDevice->setCorrectPassword(correctPassword);
 
         // Add device to manager
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         QVERIFY(mockManager != nullptr);
         mockManager->addDevice(mockDevice);
 
@@ -180,11 +180,11 @@ private Q_SLOTS:
         const QString deviceId = QStringLiteral("FEDCBA0987654321");  // Valid 16-char hex ID
         const QString password = QStringLiteral("anypassword");
 
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
         mockDevice->setRequiresPassword(false);  // No password required
 
         // Add device to manager
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         QVERIFY(mockManager != nullptr);
         mockManager->addDevice(mockDevice);
 
@@ -212,12 +212,12 @@ private Q_SLOTS:
         const QString oldPassword = QStringLiteral("oldpass123");
         const QString newPassword = QStringLiteral("newpass456");
 
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
         mockDevice->setRequiresPassword(true);
         mockDevice->setCorrectPassword(oldPassword);
 
         // Add device to manager
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         QVERIFY(mockManager != nullptr);
         mockManager->addDevice(mockDevice);
 
@@ -250,12 +250,12 @@ private Q_SLOTS:
         const QString wrongOldPassword = QStringLiteral("wrongpass");
         const QString newPassword = QStringLiteral("newpass456");
 
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
         mockDevice->setRequiresPassword(true);
         mockDevice->setCorrectPassword(correctOldPassword);
 
         // Add device to manager
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         QVERIFY(mockManager != nullptr);
         mockManager->addDevice(mockDevice);
 
@@ -303,12 +303,12 @@ private Q_SLOTS:
         const QString deviceId = QStringLiteral("1234567890ABCDEF");  // Valid 16-char hex ID
         const QString password = QStringLiteral("mypassword123");
 
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
         mockDevice->setRequiresPassword(true);
         mockDevice->setCorrectPassword(password);
 
         // Add device to manager
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         QVERIFY(mockManager != nullptr);
         mockManager->addDevice(mockDevice);
 
@@ -344,12 +344,12 @@ private Q_SLOTS:
         const QString deviceId = QStringLiteral("1234567890ABCDEF");  // Valid 16-char hex ID
         const QString password = QStringLiteral("mypassword");
 
-        auto *mockDevice = new MockYubiKeyOathDevice(deviceId, this);
+        auto *mockDevice = new MockOathDevice(deviceId, this);
         mockDevice->setRequiresPassword(true);
         mockDevice->setCorrectPassword(password);
 
         // Add device to manager
-        auto *mockManager = qobject_cast<MockYubiKeyDeviceManager*>(m_deviceManager);
+        auto *mockManager = qobject_cast<MockOathDeviceManager*>(m_deviceManager);
         QVERIFY(mockManager != nullptr);
         mockManager->addDevice(mockDevice);
 
@@ -375,7 +375,7 @@ private Q_SLOTS:
         qDebug() << "========================================";
         qDebug() << "";
         qDebug() << "✓ All test cases implemented and passing";
-        qDebug() << "✓ Mock infrastructure: MockYubiKeyDeviceManager, MockYubiKeyOathDevice";
+        qDebug() << "✓ Mock infrastructure: MockOathDeviceManager, MockOathDevice";
         qDebug() << "✓ Test coverage: password save, validation, change, persistence, error handling";
         qDebug() << "";
         qDebug() << "Test cases executed:";
@@ -395,8 +395,8 @@ private Q_SLOTS:
 
 private:
     PasswordService *m_service = nullptr;
-    MockYubiKeyDeviceManager *m_deviceManager = nullptr;
-    MockYubiKeyDatabase *m_database = nullptr;
+    MockOathDeviceManager *m_deviceManager = nullptr;
+    MockOathDatabase *m_database = nullptr;
     MockSecretStorage *m_secretStorage = nullptr;
 };
 

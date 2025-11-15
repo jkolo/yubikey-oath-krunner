@@ -12,8 +12,8 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 // Forward declarations
-class YubiKeyDeviceManager;
-class YubiKeyDatabase;
+class OathDeviceManager;
+class OathDatabase;
 class DaemonConfiguration;
 
 /**
@@ -27,7 +27,7 @@ class DaemonConfiguration;
  * - Device connection status (only searches offline devices)
  * - Optional device hints (searches specific device first)
  *
- * Extracted from YubiKeyActionCoordinator to follow Single Responsibility Principle.
+ * Extracted from OathActionCoordinator to follow Single Responsibility Principle.
  */
 class CredentialCacheSearcher
 {
@@ -38,8 +38,8 @@ public:
      * @param database Database to search for cached credentials
      * @param config Configuration provider
      */
-    explicit CredentialCacheSearcher(YubiKeyDeviceManager *deviceManager,
-                                     YubiKeyDatabase *database,
+    explicit CredentialCacheSearcher(OathDeviceManager *deviceManager,
+                                     OathDatabase *database,
                                      DaemonConfiguration *config);
 
     /**
@@ -61,8 +61,8 @@ public:
                                                       const QString &deviceIdHint = QString());
 
 private:
-    YubiKeyDeviceManager *m_deviceManager;
-    YubiKeyDatabase *m_database;
+    OathDeviceManager *m_deviceManager;
+    OathDatabase *m_database;
     DaemonConfiguration *m_config;
 };
 

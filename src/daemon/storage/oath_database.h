@@ -32,7 +32,7 @@ using namespace YubiKeyOath::Shared;
  *
  * Single Responsibility: Handle device metadata persistence in SQLite
  */
-class YubiKeyDatabase : public QObject
+class OathDatabase : public QObject
 {
     Q_OBJECT
 
@@ -53,15 +53,15 @@ public:
     };
 
     /**
-     * @brief Constructs YubiKeyDatabase instance
+     * @brief Constructs OathDatabase instance
      * @param parent Parent QObject
      */
-    explicit YubiKeyDatabase(QObject *parent = nullptr);
+    explicit OathDatabase(QObject *parent = nullptr);
 
     /**
      * @brief Destructor - closes database connection
      */
-    ~YubiKeyDatabase() override;
+    ~OathDatabase() override;
 
     /**
      * @brief Initializes database (creates directory, tables if needed)

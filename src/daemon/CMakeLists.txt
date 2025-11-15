@@ -22,6 +22,12 @@ qt6_add_dbus_adaptor(DBUS_ADAPTOR_SRCS
 )
 
 qt6_add_dbus_adaptor(DBUS_ADAPTOR_SRCS
+    dbus/pl.jkolo.yubikey.oath.DeviceSession.xml
+    dbus/oath_device_object.h
+    YubiKeyOath::Daemon::OathDeviceObject
+)
+
+qt6_add_dbus_adaptor(DBUS_ADAPTOR_SRCS
     dbus/pl.jkolo.yubikey.oath.Credential.xml
     dbus/oath_credential_object.h
     YubiKeyOath::Daemon::OathCredentialObject
@@ -31,14 +37,19 @@ qt6_add_dbus_adaptor(DBUS_ADAPTOR_SRCS
 add_executable(yubikey-oath-daemon
     # Main daemon files
     main.cpp
-    yubikey_dbus_service.cpp
+    oath_dbus_service.cpp
     ../shared/types/yubikey_value_types.cpp
+    ../shared/types/yubikey_model.cpp
+    ../shared/types/device_model.cpp
     ../shared/types/device_brand.cpp
     ../shared/types/device_capabilities.cpp
+    ../shared/types/device_state.cpp
+    ../shared/types/oath_credential.cpp
     ../shared/utils/credential_finder.cpp
     ../shared/utils/device_name_formatter.cpp
     ../shared/utils/version.cpp
     ../shared/utils/yubikey_icon_resolver.cpp
+    ../shared/formatting/credential_formatter.cpp
     ${DBUS_ADAPTOR_SRCS}
 
     # New D-Bus object hierarchy
@@ -48,7 +59,7 @@ add_executable(yubikey-oath-daemon
 
     # OATH components (PC/SC communication)
     oath/oath_device.cpp
-    oath/yubikey_device_manager.cpp
+    oath/oath_device_manager.cpp
     oath/yubikey_oath_device.cpp
     oath/nitrokey_oath_device.cpp
     oath/oath_protocol.cpp
@@ -60,7 +71,7 @@ add_executable(yubikey-oath-daemon
     oath/nitrokey_model_detector.cpp
 
     # Storage components
-    storage/yubikey_database.cpp
+    storage/oath_database.cpp
     storage/secret_storage.cpp
     storage/transaction_guard.cpp
 
@@ -72,14 +83,14 @@ add_executable(yubikey-oath-daemon
     config/daemon_configuration.cpp
 
     # Services (business logic layer)
-    services/yubikey_service.cpp
+    services/oath_service.cpp
     services/password_service.cpp
     services/device_lifecycle_service.cpp
     services/credential_service.cpp
 
     # Actions
     actions/action_executor.cpp
-    actions/yubikey_action_coordinator.cpp
+    actions/oath_action_coordinator.cpp
 
     # Cache
     cache/credential_cache_searcher.cpp

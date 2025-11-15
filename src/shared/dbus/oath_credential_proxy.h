@@ -58,6 +58,24 @@ public:
 
     ~OathCredentialProxy() override;
 
+    // ========== Static Helpers ==========
+
+    /**
+     * @brief Extracts parent device ID from credential object path
+     * @param credentialPath D-Bus object path of credential
+     * @return Device ID (serial number or "dev_<hex>"), or empty string if invalid path
+     *
+     * Path format: /pl/jkolo/yubikey/oath/devices/<deviceId>/credentials/<credentialId>
+     * Segments:     0   1     2       3    4       5          6            7
+     *
+     * Returns segment 6 (0-indexed from root).
+     *
+     * @note This extracts the public device ID from D-Bus path, matching the device's
+     * "ID" property. This is different from the credential's DeviceId property
+     * (internal hex hash used by daemon).
+     */
+    [[nodiscard]] static QString deviceIdFromPath(const QString &credentialPath);
+
     // ========== Cached Properties (read-only) ==========
 
     [[nodiscard]] QString objectPath() const { return m_objectPath; }

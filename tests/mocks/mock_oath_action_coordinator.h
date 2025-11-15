@@ -18,17 +18,17 @@ namespace Daemon {
  *
  * Tracks action execution calls without actual YubiKey operations
  */
-class MockYubiKeyActionCoordinator : public QObject
+class MockOathActionCoordinator : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit MockYubiKeyActionCoordinator(QObject *parent = nullptr)
+    explicit MockOathActionCoordinator(QObject *parent = nullptr)
         : QObject(parent)
         , m_executeActionResult(ActionExecutor::ActionResult::Success)
     {}
 
-    ~MockYubiKeyActionCoordinator() override = default;
+    ~MockOathActionCoordinator() override = default;
 
     /**
      * @brief Mock executeActionWithNotification

@@ -12,8 +12,8 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 // Forward declarations
-class YubiKeyDeviceManager;
-class YubiKeyDatabase;
+class OathDeviceManager;
+class OathDatabase;
 class SecretStorage;
 
 /**
@@ -22,7 +22,7 @@ class SecretStorage;
  * Handles password validation, storage, and modification for YubiKey devices.
  * Coordinates between device authentication, KWallet storage, and database state.
  *
- * Extracted from YubiKeyService to follow Single Responsibility Principle.
+ * Extracted from OathService to follow Single Responsibility Principle.
  */
 class PasswordService : public QObject
 {
@@ -36,8 +36,8 @@ public:
      * @param secretStorage KWallet storage for secure password persistence
      * @param parent Parent QObject
      */
-    explicit PasswordService(YubiKeyDeviceManager *deviceManager,
-                            YubiKeyDatabase *database,
+    explicit PasswordService(OathDeviceManager *deviceManager,
+                            OathDatabase *database,
                             SecretStorage *secretStorage,
                             QObject *parent = nullptr);
 
@@ -71,8 +71,8 @@ public:
                        const QString &newPassword);
 
 private:
-    YubiKeyDeviceManager *m_deviceManager;  // Not owned
-    YubiKeyDatabase *m_database;            // Not owned
+    OathDeviceManager *m_deviceManager;  // Not owned
+    OathDatabase *m_database;            // Not owned
     SecretStorage *m_secretStorage;         // Not owned
 };
 

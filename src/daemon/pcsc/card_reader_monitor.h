@@ -50,7 +50,7 @@ public:
     /**
      * @brief Resets PC/SC service availability flag
      *
-     * Called by YubiKeyDeviceManager after successful context recreation.
+     * Called by OathDeviceManager after successful context recreation.
      * Allows monitor to resume normal operation and re-detect future service losses.
      */
     void resetPcscServiceState();
@@ -88,7 +88,7 @@ Q_SIGNALS:
     /**
      * @brief Emitted when PC/SC service becomes unavailable (e.g., pcscd restart)
      *
-     * This signal triggers automatic context recreation in YubiKeyDeviceManager.
+     * This signal triggers automatic context recreation in OathDeviceManager.
      * Emitted once when SCARD_E_NO_SERVICE is detected, not on every retry.
      */
     void pcscServiceLost();

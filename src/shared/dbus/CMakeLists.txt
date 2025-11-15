@@ -6,6 +6,7 @@
 add_library(yubikey_dbus_client STATIC
     oath_credential_proxy.cpp
     oath_device_proxy.cpp
+    oath_device_session_proxy.cpp
     oath_manager_proxy.cpp
     ../types/oath_credential.cpp
     ../types/yubikey_value_types.cpp
@@ -19,8 +20,10 @@ add_library(yubikey_dbus_client STATIC
 )
 
 # Enable PIC for static library to allow linking with shared libraries
+# Enable AUTOMOC for Qt signal/slot meta-object generation
 set_target_properties(yubikey_dbus_client PROPERTIES
     POSITION_INDEPENDENT_CODE ON
+    AUTOMOC ON
 )
 
 target_link_libraries(yubikey_dbus_client

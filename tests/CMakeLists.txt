@@ -292,7 +292,7 @@ endif()
 add_yubikey_test(test_touch_workflow_coordinator
     SOURCES test_touch_workflow_coordinator.cpp
             mocks/mock_touch_handler.cpp
-            mocks/mock_yubikey_action_coordinator.cpp
+            mocks/mock_oath_action_coordinator.cpp
             mocks/mock_configuration_provider.cpp
             mocks/mock_dbus_notification_manager.cpp
             mocks/mock_notification_orchestrator.cpp
@@ -362,7 +362,7 @@ add_yubikey_test(test_device_card_layout
 
 # Test: DeviceDelegate - SKIPPED (too complex for unit testing without refactoring)
 # DeviceDelegate requires YubiKeyConfig* which pulls in entire KCModule UI dependencies
-# (including generated ui_yubikey_config.h from .ui files).
+# (including generated ui_oath_config.h from .ui files).
 # Will be testable after Phase 5 refactoring splits DeviceDelegate into smaller components.
 # TODO: Add tests after refactoring DeviceDelegate → DeviceCardRenderer, DeviceActionHandler, DeviceNameEditor
 
@@ -380,16 +380,16 @@ if(KF6_Wallet_FOUND AND PKG_CONFIG_FOUND)
     if(PCSCLITE_FOUND)
         add_yubikey_test(test_password_service
             SOURCES test_password_service.cpp
-                    mocks/mock_yubikey_database.cpp
-                    mocks/mock_yubikey_device_manager.cpp
-                    mocks/mock_yubikey_oath_device.cpp
+                    mocks/mock_oath_database.cpp
+                    mocks/mock_oath_device_manager.cpp
+                    mocks/mock_oath_device.cpp
                     mocks/mock_secret_storage.cpp
                     ../src/daemon/services/password_service.cpp
-                    ../src/daemon/storage/yubikey_database.cpp
+                    ../src/daemon/storage/oath_database.cpp
                     ../src/daemon/storage/secret_storage.cpp
                     ../src/daemon/storage/transaction_guard.cpp
                     ../src/daemon/oath/oath_device.cpp
-                    ../src/daemon/oath/yubikey_device_manager.cpp
+                    ../src/daemon/oath/oath_device_manager.cpp
                     ../src/daemon/oath/yk_oath_session.cpp
                     ../src/daemon/pcsc/card_transaction.cpp
                     ../src/daemon/oath/oath_protocol.cpp
@@ -418,16 +418,16 @@ if(KF6_Wallet_FOUND AND PKG_CONFIG_FOUND)
         # Phase 1.4: DeviceLifecycleService tests
         add_yubikey_test(test_device_lifecycle_service
             SOURCES test_device_lifecycle_service.cpp
-                    mocks/mock_yubikey_database.cpp
-                    mocks/mock_yubikey_device_manager.cpp
-                    mocks/mock_yubikey_oath_device.cpp
+                    mocks/mock_oath_database.cpp
+                    mocks/mock_oath_device_manager.cpp
+                    mocks/mock_oath_device.cpp
                     mocks/mock_secret_storage.cpp
                     ../src/daemon/services/device_lifecycle_service.cpp
-                    ../src/daemon/storage/yubikey_database.cpp
+                    ../src/daemon/storage/oath_database.cpp
                     ../src/daemon/storage/secret_storage.cpp
                     ../src/daemon/storage/transaction_guard.cpp
                     ../src/daemon/oath/oath_device.cpp
-                    ../src/daemon/oath/yubikey_device_manager.cpp
+                    ../src/daemon/oath/oath_device_manager.cpp
                     ../src/daemon/oath/yk_oath_session.cpp
                     ../src/daemon/pcsc/card_transaction.cpp
                     ../src/daemon/oath/oath_protocol.cpp
@@ -457,15 +457,15 @@ if(KF6_Wallet_FOUND AND PKG_CONFIG_FOUND)
         # Phase 1.5: CredentialService tests
         add_yubikey_test(test_credential_service
             SOURCES test_credential_service.cpp
-                    mocks/mock_yubikey_database.cpp
-                    mocks/mock_yubikey_device_manager.cpp
-                    mocks/mock_yubikey_oath_device.cpp
+                    mocks/mock_oath_database.cpp
+                    mocks/mock_oath_device_manager.cpp
+                    mocks/mock_oath_device.cpp
                     mocks/mock_daemon_configuration.cpp
                     ../src/daemon/services/credential_service.cpp
-                    ../src/daemon/storage/yubikey_database.cpp
+                    ../src/daemon/storage/oath_database.cpp
                     ../src/daemon/storage/transaction_guard.cpp
                     ../src/daemon/oath/oath_device.cpp
-                    ../src/daemon/oath/yubikey_device_manager.cpp
+                    ../src/daemon/oath/oath_device_manager.cpp
                     ../src/daemon/oath/yk_oath_session.cpp
                     ../src/daemon/pcsc/card_transaction.cpp
                     ../src/daemon/oath/oath_protocol.cpp
@@ -509,10 +509,10 @@ endif()
 # Storage Layer Tests (Phase 2)
 # ============================================================================
 
-# test_yubikey_database - YubiKeyDatabase SQLite operations test
-add_executable(test_yubikey_database
-    test_yubikey_database.cpp
-    ../src/daemon/storage/yubikey_database.cpp
+# test_oath_database - YubiKeyDatabase SQLite operations test
+add_executable(test_oath_database
+    test_oath_database.cpp
+    ../src/daemon/storage/oath_database.cpp
     ../src/daemon/storage/transaction_guard.cpp
     ../src/daemon/logging_categories.cpp
     ../src/shared/types/oath_credential.cpp
@@ -520,7 +520,7 @@ add_executable(test_yubikey_database
     ../src/shared/utils/version.cpp
 )
 
-target_link_libraries(test_yubikey_database
+target_link_libraries(test_oath_database
     Qt6::Test
     Qt6::Core
     Qt6::Sql
@@ -528,17 +528,17 @@ target_link_libraries(test_yubikey_database
     KF6::I18n
 )
 
-target_include_directories(test_yubikey_database PRIVATE
+target_include_directories(test_oath_database PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 # Disable strict ASCII casting for tests
-target_compile_options(test_yubikey_database PRIVATE
+target_compile_options(test_oath_database PRIVATE
     -UQT_NO_CAST_FROM_ASCII
 )
 
-add_test(NAME test_yubikey_database COMMAND test_yubikey_database)
+add_test(NAME test_oath_database COMMAND test_oath_database)
 
 # test_secret_storage - SecretStorage API test (using mock)
 add_executable(test_secret_storage
@@ -577,11 +577,11 @@ add_test(NAME test_secret_storage COMMAND test_secret_storage)
 #[[
 add_executable(test_oath_manager_object
     test_oath_manager_object.cpp
-    mocks/mock_yubikey_service.cpp
+    mocks/mock_oath_service.cpp
     ../src/daemon/dbus/oath_manager_object.cpp
     ../src/daemon/dbus/oath_device_object.cpp
     ../src/daemon/dbus/oath_credential_object.cpp
-    ../src/daemon/services/yubikey_service.cpp
+    ../src/daemon/services/oath_service.cpp
     ../src/daemon/services/password_service.cpp
     ../src/daemon/services/device_lifecycle_service.cpp
     ../src/daemon/services/credential_service.cpp
@@ -589,9 +589,9 @@ add_executable(test_oath_manager_object
     ../src/daemon/workflows/touch_workflow_coordinator.cpp
     ../src/daemon/workflows/touch_handler.cpp
     ../src/daemon/actions/action_executor.cpp
-    ../src/daemon/actions/yubikey_action_coordinator.cpp
+    ../src/daemon/actions/oath_action_coordinator.cpp
     ../src/daemon/clipboard/clipboard_manager.cpp
-    ../src/daemon/oath/yubikey_device_manager.cpp
+    ../src/daemon/oath/oath_device_manager.cpp
     ../src/daemon/oath/yubikey_oath_device.cpp
     ../src/daemon/oath/nitrokey_oath_device.cpp
     ../src/daemon/oath/oath_device.cpp
@@ -600,7 +600,7 @@ add_executable(test_oath_manager_object
     ../src/daemon/oath/oath_protocol.cpp
     ../src/daemon/oath/management_protocol.cpp
     ../src/daemon/oath/nitrokey_model_detector.cpp
-    ../src/daemon/storage/yubikey_database.cpp
+    ../src/daemon/storage/oath_database.cpp
     ../src/daemon/storage/secret_storage.cpp
     ../src/daemon/utils/secure_memory.cpp
     ../src/daemon/logging_categories.cpp

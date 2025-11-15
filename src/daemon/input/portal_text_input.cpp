@@ -9,6 +9,7 @@
 
 #include <QDebug>
 #include <QDateTime>
+#include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QThread>
 #include <QEventLoop>
@@ -43,7 +44,10 @@ PortalTextInput::~PortalTextInput()
 
 bool PortalTextInput::typeText(const QString &text)
 {
-    qCDebug(TextInputLog) << "PortalTextInput: typeText() called with" << text.length() << "characters";
+    QElapsedTimer totalTimer;
+    totalTimer.start();
+
+    qCDebug(TextInputLog) << "PortalTextInput: [SESSION-PER-OPERATION] typeText() called with" << text.length() << "characters";
 
     if (text.isEmpty()) {
         qCWarning(TextInputLog) << "PortalTextInput: Empty text provided";
@@ -54,24 +58,63 @@ bool PortalTextInput::typeText(const QString &text)
     m_waitingForPermission = false;
     m_permissionRejected = false;
 
-    // Initialize portal if needed
+    // Initialize portal if needed (portal handle is reused across operations)
     if (!m_portal) {
+        QElapsedTimer portalTimer;
+        portalTimer.start();
+
         if (!initializePortal()) {
             qCWarning(TextInputLog) << "PortalTextInput: Failed to initialize portal";
             return false;
         }
+
+        qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Portal initialization took"
+                               << portalTimer.elapsed() << "ms";
     }
 
-    // Create session if needed
-    if (!m_sessionReady) {
-        if (!createSession()) {
-            qCWarning(TextInputLog) << "PortalTextInput: Failed to create portal session";
-            return false;
-        }
+    // ALWAYS create new session for this operation (session-per-operation lifecycle)
+    QElapsedTimer sessionTimer;
+    sessionTimer.start();
+
+    // Close any existing session first (defensive cleanup)
+    if (m_sessionReady) {
+        qCDebug(TextInputLog) << "PortalTextInput: Closing stale session before creating new one";
+        closeSession();
     }
+
+    if (!createSession()) {
+        qCWarning(TextInputLog) << "PortalTextInput: Failed to create portal session";
+        const qint64 failedTime = totalTimer.elapsed();
+        qCWarning(TextInputLog) << "PortalTextInput: [TIMING] Operation failed after" << failedTime << "ms";
+        return false;
+    }
+
+    qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Session creation took"
+                           << sessionTimer.elapsed() << "ms";
 
     // Send key events
-    return sendKeyEvents(text);
+    QElapsedTimer typingTimer;
+    typingTimer.start();
+
+    const bool success = sendKeyEvents(text);
+
+    qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Key events sending took"
+                           << typingTimer.elapsed() << "ms";
+
+    // ALWAYS close session after operation (session-per-operation lifecycle)
+    QElapsedTimer closeTimer;
+    closeTimer.start();
+
+    closeSession();
+
+    qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Session close took"
+                           << closeTimer.elapsed() << "ms";
+
+    const qint64 totalTime = totalTimer.elapsed();
+    qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Total operation time:"
+                           << totalTime << "ms (success:" << success << ")";
+
+    return success;
 }
 
 bool PortalTextInput::isCompatible() const
@@ -498,12 +541,12 @@ bool PortalTextInput::convertCharToKeycode(QChar ch, uint32_t &keycode, bool &ne
 }
 
 // =============================================================================
-// Cleanup
+// Session Lifecycle Management
 // =============================================================================
 
-void PortalTextInput::cleanup()
+void PortalTextInput::closeSession()
 {
-    qCDebug(TextInputLog) << "PortalTextInput: Cleanup";
+    qCDebug(TextInputLog) << "PortalTextInput: Closing session (keeping portal handle for reuse)";
 
     m_sessionReady = false;
 
@@ -511,11 +554,24 @@ void PortalTextInput::cleanup()
         // Close session via portal
         xdp_session_close(m_session);
         m_session = nullptr;
+        qCDebug(TextInputLog) << "PortalTextInput: Session closed successfully";
     }
 
+    // Keep m_portal alive for fast session recreation
+}
+
+void PortalTextInput::cleanup()
+{
+    qCDebug(TextInputLog) << "PortalTextInput: Full cleanup (session + portal)";
+
+    // Close session first
+    closeSession();
+
+    // Then close portal
     if (m_portal) {
         g_object_unref(m_portal);
         m_portal = nullptr;
+        qCDebug(TextInputLog) << "PortalTextInput: Portal handle released";
     }
 }
 

@@ -4,6 +4,7 @@
  */
 
 #include "oath_device_proxy.h"
+#include "oath_device_session_proxy.h"
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QDBusConnection>
@@ -13,7 +14,7 @@
 #include <QLoggingCategory>
 #include <KLocalizedString>
 
-Q_LOGGING_CATEGORY(OathDeviceProxyLog, "pl.jkolo.yubikey.oath.daemon.device.proxy")
+Q_LOGGING_CATEGORY(OathDeviceProxyLog, "pl.jkolo.yubikey.oath.client.device.proxy")
 
 namespace YubiKeyOath {
 namespace Shared {
@@ -26,7 +27,6 @@ OathDeviceProxy::OathDeviceProxy(const QString &objectPath,
     , m_objectPath(objectPath)
     , m_interface(nullptr)
     , m_requiresPassword(false)
-    , m_hasValidPassword(false)
 {
     // Create D-Bus interface for method calls
     m_interface = new QDBusInterface(QLatin1String(SERVICE_NAME),
@@ -41,10 +41,9 @@ OathDeviceProxy::OathDeviceProxy(const QString &objectPath,
                                           << "Error:" << m_interface->lastError().message();
     }
 
-    // Extract and cache device properties
+    // Extract and cache device properties (Device interface only)
     m_name = deviceProperties.value(QStringLiteral("Name")).toString();
     m_requiresPassword = deviceProperties.value(QStringLiteral("RequiresPassword")).toBool();
-    m_hasValidPassword = deviceProperties.value(QStringLiteral("HasValidPassword")).toBool();
 
     // Extract firmware version (FirmwareVersion property is QString)
     QString const firmwareVersionStr = deviceProperties.value(QStringLiteral("FirmwareVersion")).toString();
@@ -61,15 +60,7 @@ OathDeviceProxy::OathDeviceProxy(const QString &objectPath,
     m_deviceModelCode = deviceProperties.value(QStringLiteral("DeviceModelCode")).toUInt();
     m_formFactor = deviceProperties.value(QStringLiteral("FormFactor")).toString();
     m_capabilities = deviceProperties.value(QStringLiteral("Capabilities")).toStringList();
-
-    // Extract last seen timestamp
-    const qint64 lastSeenMsecs = deviceProperties.value(QStringLiteral("LastSeen")).toLongLong();
-    m_lastSeen = QDateTime::fromMSecsSinceEpoch(lastSeenMsecs);
-
-    // Extract device state properties
-    const auto stateValue = deviceProperties.value(QStringLiteral("State")).value<quint8>();
-    m_state = static_cast<DeviceState>(stateValue);
-    m_stateMessage = deviceProperties.value(QStringLiteral("StateMessage")).toString();
+    // Note: Session properties (HasValidPassword, LastSeen, State, StateMessage) handled by OathDeviceSessionProxy
 
     qCDebug(OathDeviceProxyLog) << "Created device proxy for" << m_name
                                     << "SerialNumber:" << m_serialNumber
@@ -135,25 +126,7 @@ OathCredentialProxy* OathDeviceProxy::getCredential(const QString &credentialNam
     return m_credentials.value(credentialName, nullptr);
 }
 
-bool OathDeviceProxy::savePassword(const QString &password)
-{
-    if (!m_interface || !m_interface->isValid()) {
-        qCWarning(OathDeviceProxyLog) << "Cannot save password: D-Bus interface invalid";
-        return false;
-    }
-
-    QDBusReply<bool> reply = m_interface->call(QStringLiteral("SavePassword"), password);
-
-    if (!reply.isValid()) {
-        qCWarning(OathDeviceProxyLog) << "SavePassword failed for" << m_name
-                                          << "Error:" << reply.error().message();
-        return false;
-    }
-
-    bool const success = reply.value();
-    qCDebug(OathDeviceProxyLog) << "SavePassword for" << m_name << "Result:" << success;
-    return success;
-}
+// Note: SavePassword() moved to OathDeviceSessionProxy
 
 bool OathDeviceProxy::changePassword(const QString &oldPassword, const QString &newPassword)
 {
@@ -274,9 +247,11 @@ bool OathDeviceProxy::setName(const QString &newName)
     return true;
 }
 
-DeviceInfo OathDeviceProxy::toDeviceInfo() const
+DeviceInfo OathDeviceProxy::toDeviceInfo(const OathDeviceSessionProxy *session) const
 {
     DeviceInfo info;
+
+    // Device interface properties (from this proxy)
     info._internalDeviceId = m_deviceId;
     info.deviceName = m_name;
     info.firmwareVersion = m_firmwareVersion;
@@ -285,10 +260,20 @@ DeviceInfo OathDeviceProxy::toDeviceInfo() const
     info.deviceModelCode = m_deviceModelCode;
     info.capabilities = m_capabilities;
     info.formFactor = m_formFactor;
-    info.state = m_state;
     info.requiresPassword = m_requiresPassword;
-    info.hasValidPassword = m_hasValidPassword;
-    info.lastSeen = m_lastSeen;
+
+    // DeviceSession interface properties (from session proxy)
+    if (session) {
+        info.state = session->state();
+        info.hasValidPassword = session->hasValidPassword();
+        info.lastSeen = session->lastSeen();
+    } else {
+        // Fallback values if session not provided (offline device)
+        info.state = DeviceState::Disconnected;
+        info.hasValidPassword = false;
+        info.lastSeen = QDateTime(); // Null/invalid datetime
+    }
+
     return info;
 }
 
@@ -337,7 +322,7 @@ void OathDeviceProxy::onPropertiesChanged(const QString &interfaceName,
     qCDebug(OathDeviceProxyLog) << "PropertiesChanged for" << m_name
                                     << "Changed properties:" << changedProperties.keys();
 
-    // Update cached properties
+    // Update cached properties (Device interface only)
     if (changedProperties.contains(QStringLiteral("Name"))) {
         m_name = changedProperties.value(QStringLiteral("Name")).toString();
         Q_EMIT nameChanged(m_name);
@@ -348,21 +333,7 @@ void OathDeviceProxy::onPropertiesChanged(const QString &interfaceName,
         Q_EMIT requiresPasswordChanged(m_requiresPassword);
     }
 
-    if (changedProperties.contains(QStringLiteral("HasValidPassword"))) {
-        m_hasValidPassword = changedProperties.value(QStringLiteral("HasValidPassword")).toBool();
-        Q_EMIT hasValidPasswordChanged(m_hasValidPassword);
-    }
-
-    if (changedProperties.contains(QStringLiteral("State"))) {
-        const auto stateValue = changedProperties.value(QStringLiteral("State")).value<quint8>();
-        m_state = static_cast<DeviceState>(stateValue);
-        Q_EMIT stateChanged(m_state);
-    }
-
-    if (changedProperties.contains(QStringLiteral("StateMessage"))) {
-        m_stateMessage = changedProperties.value(QStringLiteral("StateMessage")).toString();
-        Q_EMIT stateMessageChanged(m_stateMessage);
-    }
+    // Note: Session properties (HasValidPassword, State, StateMessage) handled by OathDeviceSessionProxy
 }
 
 void OathDeviceProxy::addCredentialProxy(const QString &objectPath,

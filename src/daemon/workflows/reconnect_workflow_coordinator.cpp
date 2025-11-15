@@ -4,12 +4,12 @@
  */
 
 #include "reconnect_workflow_coordinator.h"
-#include "../actions/yubikey_action_coordinator.h"
-#include "../services/yubikey_service.h"
+#include "../actions/oath_action_coordinator.h"
+#include "../services/oath_service.h"
 #include "notification_orchestrator.h"
 #include "config/configuration_provider.h"
 #include "../logging_categories.h"
-#include "../storage/yubikey_database.h"
+#include "../storage/oath_database.h"
 #include "utils/device_name_formatter.h"
 #include "shared/types/device_brand.h"
 #include "shared/types/yubikey_model.h"
@@ -21,9 +21,9 @@ namespace YubiKeyOath {
 namespace Daemon {
 using namespace YubiKeyOath::Shared;
 
-ReconnectWorkflowCoordinator::ReconnectWorkflowCoordinator(YubiKeyService *service,
-                                                           YubiKeyDatabase *database,
-                                                           YubiKeyActionCoordinator *actionCoordinator,
+ReconnectWorkflowCoordinator::ReconnectWorkflowCoordinator(OathService *service,
+                                                           OathDatabase *database,
+                                                           OathActionCoordinator *actionCoordinator,
                                                            NotificationOrchestrator *notificationOrchestrator,
                                                            const ConfigurationProvider *config,
                                                            QObject *parent)
@@ -42,11 +42,11 @@ void ReconnectWorkflowCoordinator::init()
 {
     // Connect authentication success signal - emitted when device connected and authenticated successfully
     // This is the definitive "ready" signal - device is connected with valid credentials
-    connect(m_service, &YubiKeyService::deviceConnectedAndAuthenticated,
+    connect(m_service, &OathService::deviceConnectedAndAuthenticated,
             this, &ReconnectWorkflowCoordinator::onDeviceAuthenticationSuccess);
 
     // NOTE: We DO NOT connect to deviceConnectedAuthenticationFailed for reconnect workflow!
-    // Reason: During reconnect, YubiKeyService may emit this signal during first attempt
+    // Reason: During reconnect, OathService may emit this signal during first attempt
     // before it retries with password from KWallet. If we react too early, we show
     // "Wrong password" error when authentication is still in progress.
     // Instead, we rely on:
@@ -79,24 +79,24 @@ void ReconnectWorkflowCoordinator::init()
 Shared::DeviceModel ReconnectWorkflowCoordinator::deviceModelFromDatabase(const QString &deviceId)
 {
     // Try to get device from database
-    std::optional<YubiKeyDatabase::DeviceRecord> const record = m_database->getDevice(deviceId);
+    std::optional<OathDatabase::DeviceRecord> const record = m_database->getDevice(deviceId);
 
     if (!record.has_value()) {
-        qCWarning(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Device not found in database:" << deviceId;
+        qCWarning(OathDaemonLog) << "ReconnectWorkflowCoordinator: Device not found in database:" << deviceId;
         return Shared::DeviceModel{}; // Return empty model
     }
 
     // Detect brand from device name (user-friendly name like "YubiKey 5C NFC" or "Nitrokey 3C")
     Shared::DeviceBrand const brand = Shared::detectBrandFromModelString(record->deviceName);
 
-    qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Reconstructing DeviceModel from database"
+    qCDebug(OathDaemonLog) << "ReconnectWorkflowCoordinator: Reconstructing DeviceModel from database"
                               << "deviceName:" << record->deviceName
                               << "brand:" << Shared::brandName(brand)
                               << "modelCode:" << QString(QStringLiteral("0x%1")).arg(record->deviceModel, 8, 16, QLatin1Char('0'));
 
     // Validate brand detection - warn if we have modelCode but couldn't detect brand
     if (brand == Shared::DeviceBrand::Unknown && record->deviceModel != 0) {
-        qCWarning(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Could not detect brand from device name"
+        qCWarning(OathDaemonLog) << "ReconnectWorkflowCoordinator: Could not detect brand from device name"
                                     << record->deviceName
                                     << "but have valid modelCode"
                                     << QString(QStringLiteral("0x%1")).arg(record->deviceModel, 8, 16, QLatin1Char('0'))
@@ -107,7 +107,7 @@ Shared::DeviceModel ReconnectWorkflowCoordinator::deviceModelFromDatabase(const 
     if (brand == Shared::DeviceBrand::YubiKey) {
         // Use built-in YubiKey conversion function
         Shared::DeviceModel model = Shared::toDeviceModel(record->deviceModel);
-        qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: YubiKey model:" << model.modelString;
+        qCDebug(OathDaemonLog) << "ReconnectWorkflowCoordinator: YubiKey model:" << model.modelString;
         return model;
     }
 
@@ -132,7 +132,7 @@ Shared::DeviceModel ReconnectWorkflowCoordinator::deviceModelFromDatabase(const 
         };
     }
 
-    qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Reconstructed model:" << model.modelString;
+    qCDebug(OathDaemonLog) << "ReconnectWorkflowCoordinator: Reconstructed model:" << model.modelString;
     return model;
 }
 
@@ -140,14 +140,14 @@ void ReconnectWorkflowCoordinator::startReconnectWorkflow(const QString &deviceI
                                                           const QString &credentialName,
                                                           const QString &actionId)
 {
-    qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Starting reconnect workflow"
+    qCDebug(OathDaemonLog) << "ReconnectWorkflowCoordinator: Starting reconnect workflow"
                               << "device:" << deviceId
                               << "credential:" << credentialName
                               << "action:" << actionId;
 
     // Cancel previous workflow if any
     if (m_waitingForReconnect) {
-        qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Cancelling previous workflow";
+        qCDebug(OathDaemonLog) << "ReconnectWorkflowCoordinator: Cancelling previous workflow";
         cleanupReconnectWorkflow();
     }
 
@@ -162,7 +162,7 @@ void ReconnectWorkflowCoordinator::startReconnectWorkflow(const QString &deviceI
 
     // Get timeout from configuration
     int const timeoutSeconds = m_config->deviceReconnectTimeout();
-    qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Reconnect timeout:" << timeoutSeconds << "seconds";
+    qCDebug(OathDaemonLog) << "ReconnectWorkflowCoordinator: Reconnect timeout:" << timeoutSeconds << "seconds";
 
     // Reconstruct DeviceModel from database to show device-specific icon even when offline
     // This uses cached device information (name, model code) to display the correct icon
@@ -176,12 +176,12 @@ void ReconnectWorkflowCoordinator::startReconnectWorkflow(const QString &deviceI
     // Start timeout timer
     m_timeoutTimer->start(timeoutSeconds * 1000);
 
-    qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Waiting for device reconnection";
+    qCDebug(OathDaemonLog) << "ReconnectWorkflowCoordinator: Waiting for device reconnection";
 }
 
 void ReconnectWorkflowCoordinator::onDeviceAuthenticationSuccess(const QString &deviceId)
 {
-    qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Device authentication success"
+    qCDebug(OathDaemonLog) << "ReconnectWorkflowCoordinator: Device authentication success"
                               << "deviceId:" << deviceId
                               << "waiting for:" << m_pendingDeviceId;
 
@@ -190,7 +190,7 @@ void ReconnectWorkflowCoordinator::onDeviceAuthenticationSuccess(const QString &
         return;
     }
 
-    qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Processing reconnect for device:" << deviceId;
+    qCDebug(OathDaemonLog) << "ReconnectWorkflowCoordinator: Processing reconnect for device:" << deviceId;
 
     // Emit signal for D-Bus clients
     Q_EMIT reconnectCompleted(true);
@@ -207,7 +207,7 @@ void ReconnectWorkflowCoordinator::onDeviceAuthenticationSuccess(const QString &
     // - Credential lookup
     // - Touch workflow coordination (async) OR direct code generation
     // - Action execution with notifications
-    qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Delegating to ActionCoordinator for device:"
+    qCDebug(OathDaemonLog) << "ReconnectWorkflowCoordinator: Delegating to ActionCoordinator for device:"
                               << deviceId << "credential:" << m_pendingCredentialName << "action:" << actionId;
 
     bool const success = m_actionCoordinator->executeActionInternal(
@@ -217,23 +217,23 @@ void ReconnectWorkflowCoordinator::onDeviceAuthenticationSuccess(const QString &
     );
 
     if (!success) {
-        qCWarning(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: ActionCoordinator failed to execute action";
+        qCWarning(OathDaemonLog) << "ReconnectWorkflowCoordinator: ActionCoordinator failed to execute action";
         m_notificationOrchestrator->showSimpleNotification(
             i18n("Error"),
             i18n("Failed to execute action after reconnect"),
             0);
     } else {
-        qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: ActionCoordinator executing action (may be async for touch)";
+        qCDebug(OathDaemonLog) << "ReconnectWorkflowCoordinator: ActionCoordinator executing action (may be async for touch)";
     }
 
     // Cleanup workflow state
     cleanupReconnectWorkflow();
-    qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Workflow completed";
+    qCDebug(OathDaemonLog) << "ReconnectWorkflowCoordinator: Workflow completed";
 }
 
 void ReconnectWorkflowCoordinator::onReconnectTimeout()
 {
-    qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Reconnect timeout"
+    qCDebug(OathDaemonLog) << "ReconnectWorkflowCoordinator: Reconnect timeout"
                               << "device:" << m_pendingDeviceId
                               << "credential:" << m_pendingCredentialName;
 
@@ -256,7 +256,7 @@ void ReconnectWorkflowCoordinator::onReconnectTimeout()
 
 void ReconnectWorkflowCoordinator::onReconnectCancelled()
 {
-    qCDebug(YubiKeyDaemonLog) << "ReconnectWorkflowCoordinator: Reconnect cancelled by user";
+    qCDebug(OathDaemonLog) << "ReconnectWorkflowCoordinator: Reconnect cancelled by user";
 
     // Emit signal for D-Bus clients
     Q_EMIT reconnectCompleted(false);

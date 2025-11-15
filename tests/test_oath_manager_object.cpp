@@ -8,7 +8,7 @@
 #include <QDBusConnection>
 #include <QDBusObjectPath>
 #include "daemon/dbus/oath_manager_object.h"
-#include "mocks/mock_yubikey_service.h"
+#include "mocks/mock_oath_service.h"
 #include "types/device_state.h"
 #include "utils/version.h"
 #include "types/yubikey_model.h"
@@ -20,7 +20,7 @@ using namespace YubiKeyOath::Shared;
  * @brief Test OathManagerObject D-Bus interface
  *
  * Tests the Manager D-Bus object which implements ObjectManager pattern.
- * Uses MockYubiKeyService to avoid requiring real PC/SC hardware.
+ * Uses MockService to avoid requiring real PC/SC hardware.
  *
  * Test coverage:
  * - GetManagedObjects() method

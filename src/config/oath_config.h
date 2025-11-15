@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ui_yubikey_config.h"
+#include "ui_oath_config.h"
 #include "../shared/types/yubikey_model.h"
 #include <KCModule>
 #include <KConfigGroup>
@@ -16,25 +16,25 @@ class OathManagerProxy;
 namespace Config {
 using Shared::OathManagerProxy;
 
-class YubiKeyDeviceModel;
+class OathDeviceListModel;
 
-class YubiKeyConfigForm : public QWidget, public Ui::YubiKeyConfigForm
+class OathConfigForm : public QWidget, public Ui::OathConfigForm
 {
     Q_OBJECT
 
 public:
-    explicit YubiKeyConfigForm(QWidget *parent) : QWidget(parent) {
+    explicit OathConfigForm(QWidget *parent) : QWidget(parent) {
         setupUi(this);
     }
 };
 
-class YubiKeyConfig : public KCModule
+class OathConfig : public KCModule
 {
     Q_OBJECT
 
 public:
-    explicit YubiKeyConfig(QObject *parent, const QVariantList &args);
-    ~YubiKeyConfig() override;
+    explicit OathConfig(QObject *parent, const QVariantList &args);
+    ~OathConfig() override;
 
     /**
      * @brief Resolves model-specific icon path for QML
@@ -56,10 +56,10 @@ private Q_SLOTS:
     void validateOptions();
 
 private:
-    YubiKeyConfigForm *m_ui;
+    OathConfigForm *m_ui;
     KConfigGroup m_config;
     OathManagerProxy *m_manager;  // Singleton - not owned
-    std::unique_ptr<YubiKeyDeviceModel> m_deviceModel;
+    std::unique_ptr<OathDeviceListModel> m_deviceModel;
 };
 } // namespace Config
 } // namespace YubiKeyOath

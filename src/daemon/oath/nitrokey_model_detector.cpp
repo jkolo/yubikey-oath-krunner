@@ -57,16 +57,16 @@ static NitrokeyGeneration detectUSBVariant(const Version &firmware, [[maybe_unus
     // Nitrokey 3C typically has firmware 1.6.0+
     // This is a heuristic - may need adjustment based on real data
     if (firmware.major() >= 1 && firmware.minor() >= 6) {
-        qCDebug(YubiKeyDeviceManagerLog) << "Nitrokey variant detection: firmware" << firmware.toString()
+        qCDebug(OathDeviceManagerLog) << "Nitrokey variant detection: firmware" << firmware.toString()
                                          << "-> assuming 3C (heuristic: >=1.6.0)";
         return NitrokeyGeneration::NK3C;
     }
 
     // Fallback to 3A for older firmware
-    qCDebug(YubiKeyDeviceManagerLog) << "Nitrokey variant detection: firmware" << firmware.toString()
+    qCDebug(OathDeviceManagerLog) << "Nitrokey variant detection: firmware" << firmware.toString()
                                      << "-> assuming 3A (heuristic: <1.6.0)";
     if (serialNumber == 0) {
-        qCWarning(YubiKeyDeviceManagerLog) << "Nitrokey variant detection uncertain: no serial number available";
+        qCWarning(OathDeviceManagerLog) << "Nitrokey variant detection uncertain: no serial number available";
     }
     return NitrokeyGeneration::NK3A;
 }
@@ -148,7 +148,7 @@ DeviceModel detectNitrokeyModel(const QString &readerName,
                                 const Version &firmware,
                                 quint32 serialNumber)
 {
-    qCInfo(YubiKeyDeviceManagerLog) << "Detecting Nitrokey model - Reader:" << readerName
+    qCInfo(OathDeviceManagerLog) << "Detecting Nitrokey model - Reader:" << readerName
                                     << "Firmware:" << firmware.toString()
                                     << "Serial:" << (serialNumber > 0 ? QString::number(serialNumber) : QStringLiteral("N/A"));
 
@@ -156,7 +156,7 @@ DeviceModel detectNitrokeyModel(const QString &readerName,
 
     // Verify this is a Nitrokey 3 device
     if (!isNitrokey3Reader(readerName)) {
-        qCWarning(YubiKeyDeviceManagerLog) << "Reader name does not match Nitrokey 3 pattern:" << readerName;
+        qCWarning(OathDeviceManagerLog) << "Reader name does not match Nitrokey 3 pattern:" << readerName;
         model.brand = DeviceBrand::Unknown;
         model.modelString = QStringLiteral("Unknown Device");
         return model;
@@ -195,7 +195,7 @@ DeviceModel detectNitrokeyModel(const QString &readerName,
     model.formFactor = 0;  // Not detected via reader name
     model.capabilities = getCapabilities();
 
-    qCInfo(YubiKeyDeviceManagerLog) << "Nitrokey model detected:" << model.modelString
+    qCInfo(OathDeviceManagerLog) << "Nitrokey model detected:" << model.modelString
                                     << "Code:" << QString(QStringLiteral("0x%1")).arg(model.modelCode, 8, 16, QLatin1Char('0'))
                                     << "NFC:" << (nfcCapable ? "Yes" : "No");
 

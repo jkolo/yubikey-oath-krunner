@@ -17,7 +17,7 @@ namespace Config {
  *   QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.config=true"
  */
 
-Q_DECLARE_LOGGING_CATEGORY(YubiKeyConfigLog)
+Q_DECLARE_LOGGING_CATEGORY(OathConfigLog)
 
 } // namespace Config
 } // namespace YubiKeyOath

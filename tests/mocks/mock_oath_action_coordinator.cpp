@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "mock_yubikey_oath_device.h"
+#include "mock_oath_action_coordinator.h"
 
 namespace YubiKeyOath {
 namespace Daemon {
 
-// Vtable anchor - ensures vtable is emitted in this translation unit
+// Vtable anchor (no virtual methods currently, but good practice)
 
 } // namespace Daemon
 } // namespace YubiKeyOath

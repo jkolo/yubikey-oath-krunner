@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include "yubikey_dbus_service.h"
+#include "oath_dbus_service.h"
 #include "types/yubikey_value_types.h"
 #include "types/device_state.h"
 
@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
     qDBusRegisterMetaType<YubiKeyOath::Shared::DeviceState>();
 
     // Create service
-    const YubiKeyOath::Daemon::YubiKeyDBusService service;
+    const YubiKeyOath::Daemon::OathDBusService service;
 
     // Register on session bus
     QDBusConnection connection = QDBusConnection::sessionBus();
@@ -64,11 +64,6 @@ int main(int argc, char *argv[])
                     << connection.lastError().message();
         return 1;
     }
-
-    // Legacy /Device interface removed - use hierarchical architecture instead:
-    // Manager: /pl/jkolo/yubikey/oath
-    // Devices: /pl/jkolo/yubikey/oath/devices/<deviceId>
-    // Credentials: /pl/jkolo/yubikey/oath/devices/<deviceId>/credentials/<credentialId>
 
     qInfo() << "YubiKey OATH daemon started successfully";
     qInfo() << "D-Bus service: pl.jkolo.yubikey.oath.daemon";

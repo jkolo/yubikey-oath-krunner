@@ -39,7 +39,7 @@ using namespace YubiKeyOath::Shared;
  * This mock service registers on D-Bus and responds to method calls
  * without requiring a real YubiKey or daemon.
  */
-class MockYubiKeyService : public QObject
+class MockOathService : public QObject
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "pl.jkolo.yubikey.oath.Manager")
@@ -50,7 +50,7 @@ class MockYubiKeyService : public QObject
     Q_PROPERTY(QString Version READ version CONSTANT)
 
 public:
-    explicit MockYubiKeyService(QObject *parent = nullptr)
+    explicit MockOathService(QObject *parent = nullptr)
         : QObject(parent)
     {
     }
@@ -61,7 +61,7 @@ public Q_SLOTS:
     // ObjectManager methods
     ManagedObjectMap GetManagedObjects()
     {
-        qDebug() << "MockYubiKeyService::GetManagedObjects() called";
+        qDebug() << "MockOathService::GetManagedObjects() called";
         ManagedObjectMap result;
 
         // Device 1
@@ -108,7 +108,7 @@ public Q_SLOTS:
         credInterfaces2[QStringLiteral("pl.jkolo.yubikey.oath.Credential")] = credProps2;
         result[credPath2] = credInterfaces2;
 
-        qDebug() << "MockYubiKeyService: Returning" << result.size() << "objects";
+        qDebug() << "MockOathService: Returning" << result.size() << "objects";
         return result;
     }
 
@@ -212,9 +212,9 @@ private Q_SLOTS:
     void testManagerProxySignals();
 
 private:
-    std::unique_ptr<MockYubiKeyService> m_mockService;
-    bool registerMockService();
-    void unregisterMockService();
+    std::unique_ptr<MockOathService> m_mockService;
+    bool registerMockOathService();
+    void unregisterMockOathService();
 };
 
 void TestProxyUnit::initTestCase()
@@ -235,7 +235,7 @@ void TestProxyUnit::initTestCase()
     }
 
     // Register mock D-Bus service
-    if (!registerMockService()) {
+    if (!registerMockOathService()) {
         QFAIL("Failed to register mock D-Bus service");
     }
 
@@ -245,7 +245,7 @@ void TestProxyUnit::initTestCase()
 
 void TestProxyUnit::cleanupTestCase()
 {
-    unregisterMockService();
+    unregisterMockOathService();
     qDebug() << "=== TestProxyUnit: Test suite finished ===";
 }
 
@@ -259,9 +259,9 @@ void TestProxyUnit::cleanup()
     // Cleanup after each test
 }
 
-bool TestProxyUnit::registerMockService()
+bool TestProxyUnit::registerMockOathService()
 {
-    m_mockService = std::make_unique<MockYubiKeyService>();
+    m_mockService = std::make_unique<MockOathService>();
 
     QDBusConnection bus = QDBusConnection::sessionBus();
 
@@ -308,7 +308,7 @@ bool TestProxyUnit::registerMockService()
     return true;
 }
 
-void TestProxyUnit::unregisterMockService()
+void TestProxyUnit::unregisterMockOathService()
 {
     QDBusConnection bus = QDBusConnection::sessionBus();
     bus.unregisterObject(QStringLiteral("/pl/jkolo/yubikey/oath"));

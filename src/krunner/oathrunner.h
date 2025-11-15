@@ -45,13 +45,13 @@ class PasswordDialog;
  * - Interface Segregation: ConfigurationProvider interface
  * - Dependency Inversion: Depends on abstractions (ConfigurationProvider)
  */
-class YubiKeyRunner : public KRunner::AbstractRunner
+class OathRunner : public KRunner::AbstractRunner
 {
     Q_OBJECT
 
 public:
-    explicit YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData);
-    ~YubiKeyRunner() override;
+    explicit OathRunner(QObject *parent, const KPluginMetaData &metaData);
+    ~OathRunner() override;
 
     void match(KRunner::RunnerContext &context) override;
     void run(const KRunner::RunnerContext &context, const KRunner::QueryMatch &match) override;

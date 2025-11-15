@@ -9,7 +9,7 @@ namespace YubiKeyOath {
 namespace Runner {
 
 // Main runner component
-Q_LOGGING_CATEGORY(YubiKeyRunnerLog, "pl.jkolo.yubikey.oath.daemon.runner", QtWarningMsg)
+Q_LOGGING_CATEGORY(OathRunnerLog, "pl.jkolo.yubikey.oath.daemon.runner", QtWarningMsg)
 
 // Orchestration layer
 Q_LOGGING_CATEGORY(NotificationOrchestratorLog, "pl.jkolo.yubikey.oath.daemon.notification", QtWarningMsg)

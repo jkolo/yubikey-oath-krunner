@@ -9,7 +9,7 @@
 
 namespace YubiKeyOath {
 namespace Config {
-class YubiKeyConfig;
+class OathConfig;
 }
 }
 
@@ -22,7 +22,7 @@ class YubiKeyConfig;
  * The adapter reconstructs DeviceModel from available data and delegates to
  * YubiKeyIconResolver::getIconPath() static method.
  */
-class YubiKeyConfigIconResolver : public IDeviceIconResolver
+class OathConfigIconResolver : public IDeviceIconResolver
 {
 public:
     /**
@@ -30,7 +30,7 @@ public:
      *
      * No configuration needed - uses static YubiKeyIconResolver methods.
      */
-    YubiKeyConfigIconResolver() = default;
+    OathConfigIconResolver() = default;
 
     // IDeviceIconResolver interface
     QString getModelIcon(const QString& modelString,

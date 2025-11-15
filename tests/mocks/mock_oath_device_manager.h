@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "mock_yubikey_oath_device.h"
-#include "daemon/oath/yubikey_device_manager.h"
+#include "mock_oath_device.h"
+#include "daemon/oath/oath_device_manager.h"
 #include "types/oath_credential.h"
 #include <QObject>
 #include <QString>
@@ -17,22 +17,22 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 /**
- * @brief Mock implementation of YubiKeyDeviceManager for testing
+ * @brief Mock implementation of OathDeviceManager for testing
  *
  * Manages mock YubiKey devices for workflow tests.
- * Inherits from YubiKeyDeviceManager to be compatible with services
- * that expect YubiKeyDeviceManager*, but uses mock devices internally.
+ * Inherits from OathDeviceManager to be compatible with services
+ * that expect OathDeviceManager*, but uses mock devices internally.
  */
-class MockYubiKeyDeviceManager : public YubiKeyDeviceManager
+class MockOathDeviceManager : public OathDeviceManager
 {
     Q_OBJECT
 
 public:
-    explicit MockYubiKeyDeviceManager(QObject *parent = nullptr)
-        : YubiKeyDeviceManager(parent)
+    explicit MockOathDeviceManager(QObject *parent = nullptr)
+        : OathDeviceManager(parent)
     {}
 
-    ~MockYubiKeyDeviceManager() override = default;
+    ~MockOathDeviceManager() override = default;
 
     // ========== Device Management ==========
 
@@ -54,7 +54,7 @@ public:
      * @param deviceId Device identifier
      * @return Mock device pointer or nullptr if not found
      */
-    MockYubiKeyOathDevice* getMockDevice(const QString &deviceId)
+    MockOathDevice* getMockDevice(const QString &deviceId)
     {
         if (m_devices.contains(deviceId)) {
             return m_devices[deviceId];
@@ -65,7 +65,7 @@ public:
     /**
      * @brief Gets mock device by ID or first available
      */
-    MockYubiKeyOathDevice* getMockDeviceOrFirst(const QString &deviceId = QString())
+    MockOathDevice* getMockDeviceOrFirst(const QString &deviceId = QString())
     {
         if (!deviceId.isEmpty() && m_devices.contains(deviceId)) {
             return m_devices[deviceId];
@@ -103,7 +103,7 @@ public:
     /**
      * @brief Adds mock device
      */
-    void addDevice(MockYubiKeyOathDevice *device)
+    void addDevice(MockOathDevice *device)
     {
         m_devices[device->deviceId()] = device;
         device->setParent(this);
@@ -134,12 +134,12 @@ public:
     /**
      * @brief Creates and adds test device with credentials
      */
-    MockYubiKeyOathDevice* createTestDevice(
+    MockOathDevice* createTestDevice(
         const QString &deviceId,
         const QList<Shared::OathCredential> &credentials = QList<Shared::OathCredential>()
     )
     {
-        auto *device = new MockYubiKeyOathDevice(deviceId, this);
+        auto *device = new MockOathDevice(deviceId, this);
         device->setCredentials(credentials);
         addDevice(device);
         return device;
@@ -191,7 +191,7 @@ Q_SIGNALS:
     void codeGenerationFailed(const QString &credentialName, const QString &error);
 
 private:
-    QMap<QString, MockYubiKeyOathDevice*> m_devices;
+    QMap<QString, MockOathDevice*> m_devices;
 };
 
 } // namespace Daemon

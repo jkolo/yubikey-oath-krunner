@@ -8,7 +8,7 @@
 namespace YubiKeyOath {
 namespace Config {
 
-Q_LOGGING_CATEGORY(YubiKeyConfigLog, "pl.jkolo.yubikey.oath.daemon.config", QtWarningMsg)
+Q_LOGGING_CATEGORY(OathConfigLog, "pl.jkolo.yubikey.oath.daemon.config", QtWarningMsg)
 
 } // namespace Config
 } // namespace YubiKeyOath

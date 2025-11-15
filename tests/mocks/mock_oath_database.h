@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "daemon/storage/yubikey_database.h"
+#include "daemon/storage/oath_database.h"
 #include "types/oath_credential.h"
 #include <QObject>
 #include <QString>
@@ -20,18 +20,18 @@ namespace YubiKeyOath {
 namespace Daemon {
 
 /**
- * @brief Mock implementation of YubiKeyDatabase for testing
+ * @brief Mock implementation of OathDatabase for testing
  *
  * In-memory implementation without actual SQL database.
- * Inherits from YubiKeyDatabase to be compatible with services.
+ * Inherits from OathDatabase to be compatible with services.
  */
-class MockYubiKeyDatabase : public YubiKeyDatabase
+class MockOathDatabase : public OathDatabase
 {
     Q_OBJECT
 
 public:
-    explicit MockYubiKeyDatabase(QObject *parent = nullptr)
-        : YubiKeyDatabase(parent)
+    explicit MockOathDatabase(QObject *parent = nullptr)
+        : OathDatabase(parent)
         , m_testDbPath(QDir::temp().filePath(
               QStringLiteral("test_yubikey_") +
               QString::number(QDateTime::currentMSecsSinceEpoch()) +
@@ -42,7 +42,7 @@ public:
         initialize();
     }
 
-    ~MockYubiKeyDatabase() override
+    ~MockOathDatabase() override
     {
         // Clean up test database file
         // Base class destructor will close the database
@@ -58,7 +58,7 @@ public:
     }
 
     // ========== Test Helper Methods ==========
-    // All YubiKeyDatabase methods are inherited and use SQLite database
+    // All OathDatabase methods are inherited and use SQLite database
 
     /**
      * @brief Clears all stored data (for test isolation)

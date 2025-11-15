@@ -19,11 +19,11 @@
 // Forward declarations
 namespace YubiKeyOath {
 namespace Daemon {
-    class YubiKeyDeviceManager;
-    class YubiKeyDatabase;
+    class OathDeviceManager;
+    class OathDatabase;
     class SecretStorage;
     class DaemonConfiguration;
-    class YubiKeyActionCoordinator;
+    class OathActionCoordinator;
     class OathDevice;
     class PasswordService;
     class DeviceLifecycleService;
@@ -45,18 +45,18 @@ using namespace YubiKeyOath::Shared;
  * - Component lifecycle management
  *
  * This is the business logic layer, separate from D-Bus marshaling.
- * YubiKeyDBusService delegates to this class for all actual operations.
+ * OathDBusService delegates to this class for all actual operations.
  *
  * @par Architecture
  * ```
- * YubiKeyDBusService (D-Bus layer)
+ * OathDBusService (D-Bus layer)
  *     ↓ delegates
- * YubiKeyService (business logic) ← YOU ARE HERE
+ * OathService (business logic) ← YOU ARE HERE
  *     ↓ uses
  * Components (DeviceManager, Database, SecretStorage...)
  * ```
  */
-class YubiKeyService : public QObject
+class OathService : public QObject
 {
     Q_OBJECT
 
@@ -65,8 +65,8 @@ public:
      * @brief Constructs YubiKey service with all components
      * @param parent Parent QObject
      */
-    explicit YubiKeyService(QObject *parent = nullptr);
-    ~YubiKeyService() override;
+    explicit OathService(QObject *parent = nullptr);
+    ~OathService() override;
 
     /**
      * @brief Lists all known YubiKey devices (connected + database)
@@ -99,11 +99,11 @@ public:
 
     /**
      * @brief Gets device manager instance
-     * @return Pointer to YubiKeyDeviceManager (not owned)
+     * @return Pointer to OathDeviceManager (not owned)
      *
      * Used to access device manager for starting monitoring after D-Bus initialization.
      */
-    YubiKeyDeviceManager* getDeviceManager() const { return m_deviceManager.get(); }
+    OathDeviceManager* getDeviceManager() const { return m_deviceManager.get(); }
 
     /**
      * @brief Gets credential service for async operations
@@ -363,11 +363,11 @@ private:
     QHash<QString, qint64> m_lastCredentialSave;
     mutable QMutex m_lastCredentialSaveMutex;
 
-    std::unique_ptr<YubiKeyDeviceManager> m_deviceManager;
-    std::unique_ptr<YubiKeyDatabase> m_database;
+    std::unique_ptr<OathDeviceManager> m_deviceManager;
+    std::unique_ptr<OathDatabase> m_database;
     std::unique_ptr<SecretStorage> m_secretStorage;
     std::unique_ptr<DaemonConfiguration> m_config;
-    std::unique_ptr<YubiKeyActionCoordinator> m_actionCoordinator;
+    std::unique_ptr<OathActionCoordinator> m_actionCoordinator;
     std::unique_ptr<PasswordService> m_passwordService;
     std::unique_ptr<DeviceLifecycleService> m_deviceLifecycleService;
     std::unique_ptr<CredentialService> m_credentialService;
