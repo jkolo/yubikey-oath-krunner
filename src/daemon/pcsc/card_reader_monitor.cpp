@@ -32,6 +32,9 @@ namespace Daemon {
 #ifndef SCARD_E_UNKNOWN_READER
 #define SCARD_E_UNKNOWN_READER ((LONG)0x80100009)
 #endif
+#ifndef SCARD_E_NO_SERVICE
+#define SCARD_E_NO_SERVICE ((LONG)0x8010001D)
+#endif
 
 CardReaderMonitor::CardReaderMonitor(QObject *parent)
     : QThread(parent)
@@ -262,8 +265,11 @@ bool CardReaderMonitor::monitorAllReadersForCardChanges()
     }
 
     if (result != SCARD_S_SUCCESS) {
-        qCWarning(CardReaderMonitorLog) << "SCardListReaders failed (get length):"
-                   << QString::number(result, 16);
+        // Check for PC/SC service unavailable (e.g., pcscd restart)
+        if (!checkAndHandlePcscServiceLoss(result)) {
+            qCWarning(CardReaderMonitorLog) << "SCardListReaders failed (get length):"
+                       << QStringLiteral("0x%1").arg(result, 0, 16);
+        }
         msleep(1000);
         return true;
     }
@@ -279,8 +285,11 @@ bool CardReaderMonitor::monitorAllReadersForCardChanges()
     result = SCardListReaders(m_context, nullptr, readersBuffer.data(), &readersLen);
 
     if (result != SCARD_S_SUCCESS) {
-        qCWarning(CardReaderMonitorLog) << "SCardListReaders failed (get data):"
-                   << QString::number(result, 16);
+        // Check for PC/SC service unavailable (e.g., pcscd restart)
+        if (!checkAndHandlePcscServiceLoss(result)) {
+            qCWarning(CardReaderMonitorLog) << "SCardListReaders failed (get data):"
+                       << QStringLiteral("0x%1").arg(result, 0, 16);
+        }
         msleep(1000);
         return true;
     }
@@ -344,8 +353,11 @@ bool CardReaderMonitor::monitorAllReadersForCardChanges()
     }
 
     if (result != SCARD_S_SUCCESS) {
-        qCWarning(CardReaderMonitorLog) << "SCardGetStatusChange failed (all readers):"
-                   << QString::number(result, 16);
+        // Check for PC/SC service unavailable (e.g., pcscd restart)
+        if (!checkAndHandlePcscServiceLoss(result)) {
+            qCWarning(CardReaderMonitorLog) << "SCardGetStatusChange failed (all readers):"
+                       << QStringLiteral("0x%1").arg(result, 0, 16);
+        }
         msleep(1000);
         return true;
     }
@@ -392,6 +404,24 @@ bool CardReaderMonitor::monitorAllReadersForCardChanges()
     }
 
     return true;
+}
+
+bool CardReaderMonitor::checkAndHandlePcscServiceLoss(LONG result)
+{
+    if (result == SCARD_E_NO_SERVICE && m_pcscServiceAvailable) {
+        qCCritical(CardReaderMonitorLog) << "PC/SC service lost (SCARD_E_NO_SERVICE) - "
+                                         << "emitting pcscServiceLost() for context recreation";
+        m_pcscServiceAvailable = false;
+        Q_EMIT pcscServiceLost();
+        return true;
+    }
+    return false;
+}
+
+void CardReaderMonitor::resetPcscServiceState()
+{
+    qCDebug(CardReaderMonitorLog) << "Resetting PC/SC service availability flag";
+    m_pcscServiceAvailable = true;
 }
 
 } // namespace Daemon

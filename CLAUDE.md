@@ -305,6 +305,18 @@ return result;
 
 **PC/SC Reliability:**
 - **Rate Limiting** (YkOathSession): 50ms minimum interval between PC/SC operations prevents communication errors with slower readers or during high-frequency operations (TOTP auto-refresh)
+- **Automatic PC/SC Service Recovery** (v2.4.0+): Daemon automatically recovers from pcscd.service restarts without manual intervention
+  - **Detection**: CardReaderMonitor detects SCARD_E_NO_SERVICE (0x8010001D) errors in monitoring loops
+  - **Signal**: Emits `pcscServiceLost()` signal once when service unavailability is detected (guarded by flag to prevent spam)
+  - **Recovery Process** (6 steps in `YubiKeyDeviceManager::handlePcscServiceLost()`):
+    1. Stop card reader monitoring
+    2. Disconnect all devices (card handles become invalid after pcscd restart)
+    3. Release old PC/SC context (SCardReleaseContext)
+    4. Wait 2 seconds for pcscd stabilization
+    5. Re-establish PC/SC context (SCardEstablishContext)
+    6. Reset monitor state and restart monitoring
+  - **Device Re-enumeration**: After recovery, devices are automatically re-detected via explicit enumeration (critical for devices that remained connected during pcscd restart)
+  - **Implementation**: card_reader_monitor.cpp:267-378 (detection), yubikey_device_manager.cpp:832-899 (recovery + re-enumeration)
 
 ### Input System
 

@@ -57,6 +57,8 @@ YubiKeyDeviceManager::YubiKeyDeviceManager(QObject* parent)
             this, &YubiKeyDeviceManager::onCardInserted);
     connect(m_readerMonitor, &CardReaderMonitor::cardRemoved,
             this, &YubiKeyDeviceManager::onCardRemoved);
+    connect(m_readerMonitor, &CardReaderMonitor::pcscServiceLost,
+            this, &YubiKeyDeviceManager::handlePcscServiceLost);
 
     // Connect async credential cache fetching
     connect(this, &YubiKeyDeviceManager::credentialCacheFetchedForDevice,
@@ -825,6 +827,75 @@ void YubiKeyDeviceManager::connectToDeviceAsync(const QString &readerName)
     );
 
     qCDebug(YubiKeyDeviceManagerLog) << "connectToDeviceAsync() - task queued for" << readerName;
+}
+
+void YubiKeyDeviceManager::handlePcscServiceLost()
+{
+    qCCritical(YubiKeyDeviceManagerLog) << "PC/SC service lost (pcscd restart detected) - recreating context";
+
+    // Step 1: Stop monitoring
+    qCDebug(YubiKeyDeviceManagerLog) << "Step 1/6: Stopping card reader monitor";
+    m_readerMonitor->stopMonitoring();
+
+    // Step 2: Disconnect all devices (card handles become invalid after pcscd restart)
+    {
+        const QMutexLocker locker(&m_devicesMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
+        qCDebug(YubiKeyDeviceManagerLog) << "Step 2/6: Disconnecting" << m_devices.size() << "devices (invalid handles)";
+
+        for (auto &device : m_devices) {
+            const QString &deviceId = device.first;
+            qCDebug(YubiKeyDeviceManagerLog) << "Disconnecting device:" << deviceId;
+            device.second->disconnect();
+        }
+
+        m_devices.clear();
+        m_readerToDeviceMap.clear();
+        qCDebug(YubiKeyDeviceManagerLog) << "All devices disconnected and cleared from memory";
+    }
+
+    // Step 3: Release old PC/SC context
+    if (m_context) {
+        qCDebug(YubiKeyDeviceManagerLog) << "Step 3/6: Releasing old PC/SC context";
+        const LONG result = SCardReleaseContext(m_context);
+        if (result != SCARD_S_SUCCESS) {
+            qCWarning(YubiKeyDeviceManagerLog) << "SCardReleaseContext failed:"
+                                               << QStringLiteral("0x%1").arg(result, 0, 16)
+                                               << "(continuing anyway)";
+        }
+        m_context = 0;
+    }
+
+    // Step 4: Wait for pcscd stabilization (PC/SC service needs time to fully restart)
+    qCDebug(YubiKeyDeviceManagerLog) << "Step 4/6: Waiting 2 seconds for pcscd stabilization";
+    QThread::sleep(2);
+
+    // Step 5: Re-establish PC/SC context
+    qCDebug(YubiKeyDeviceManagerLog) << "Step 5/6: Re-establishing PC/SC context";
+    const LONG result = SCardEstablishContext(SCARD_SCOPE_SYSTEM, nullptr, nullptr, &m_context);
+
+    if (result != SCARD_S_SUCCESS) {
+        qCCritical(YubiKeyDeviceManagerLog) << "Failed to re-establish PC/SC context:"
+                                            << QStringLiteral("0x%1").arg(result, 0, 16);
+        const QString error = tr("Failed to re-establish PC/SC context after pcscd restart: %1")
+                                  .arg(QStringLiteral("0x%1").arg(result, 0, 16));
+        Q_EMIT errorOccurred(error);
+        return;
+    }
+
+    qCInfo(YubiKeyDeviceManagerLog) << "PC/SC context re-established successfully";
+
+    // Step 6: Reset monitor state and restart monitoring
+    qCDebug(YubiKeyDeviceManagerLog) << "Step 6/6: Resetting monitor state and restarting monitoring";
+    m_readerMonitor->resetPcscServiceState();
+    m_readerMonitor->startMonitoring(m_context);
+
+    qCInfo(YubiKeyDeviceManagerLog) << "PC/SC service recovery completed - monitoring restarted";
+
+    // Re-enumerate devices after PC/SC recovery
+    // Cannot rely on reader change events - if YubiKey was inserted the whole time,
+    // no insertion event will fire. Must actively scan for existing readers.
+    qCDebug(YubiKeyDeviceManagerLog) << "Scheduling async device re-enumeration after PC/SC recovery";
+    QTimer::singleShot(0, this, &YubiKeyDeviceManager::enumerateAndConnectDevicesAsync);
 }
 
 } // namespace Daemon

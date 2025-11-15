@@ -292,6 +292,22 @@ private Q_SLOTS:
      */
     void onReconnectTimer();
 
+    /**
+     * @brief Handles PC/SC service loss (pcscd restart)
+     *
+     * Triggered by CardReaderMonitor::pcscServiceLost() signal when SCARD_E_NO_SERVICE detected.
+     * Performs automatic PC/SC context recreation:
+     * 1. Stop monitoring
+     * 2. Disconnect all devices (card handles become invalid)
+     * 3. Release old context
+     * 4. Wait 2 seconds for pcscd stabilization
+     * 5. Re-establish context
+     * 6. Reset monitor state and restart monitoring
+     *
+     * This ensures daemon continues operating after pcscd restart without manual intervention.
+     */
+    void handlePcscServiceLost();
+
 private:
     // Core PC/SC operations
     /**

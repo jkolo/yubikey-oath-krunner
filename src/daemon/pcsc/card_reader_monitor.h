@@ -47,6 +47,14 @@ public:
      */
     void stopMonitoring();
 
+    /**
+     * @brief Resets PC/SC service availability flag
+     *
+     * Called by YubiKeyDeviceManager after successful context recreation.
+     * Allows monitor to resume normal operation and re-detect future service losses.
+     */
+    void resetPcscServiceState();
+
 Q_SIGNALS:
     /**
      * @brief Emitted when the list of readers changes (device added/removed)
@@ -77,6 +85,14 @@ Q_SIGNALS:
      */
     void cardRemoved(const QString &readerName);
 
+    /**
+     * @brief Emitted when PC/SC service becomes unavailable (e.g., pcscd restart)
+     *
+     * This signal triggers automatic context recreation in YubiKeyDeviceManager.
+     * Emitted once when SCARD_E_NO_SERVICE is detected, not on every retry.
+     */
+    void pcscServiceLost();
+
 protected:
     /**
      * @brief Thread main loop - monitors using SCardGetStatusChange()
@@ -102,11 +118,22 @@ private:
      */
     bool monitorAllReadersForCardChanges();
 
+    /**
+     * @brief Checks if PC/SC error indicates service loss and handles it
+     * @param result PC/SC operation result code
+     * @return true if service loss detected and signal emitted, false otherwise
+     *
+     * If SCARD_E_NO_SERVICE is detected and service was previously available,
+     * emits pcscServiceLost() signal and updates internal state.
+     */
+    bool checkAndHandlePcscServiceLoss(LONG result);
+
     SCARDCONTEXT m_context = 0;
     QString m_readerName;
     QMutex m_mutex;
     std::atomic<bool> m_running{false};
     std::atomic<bool> m_hasReader{false};
+    bool m_pcscServiceAvailable = true;  // Tracks PC/SC service availability for single pcscServiceLost() emission
 
     // Reader state tracking
     DWORD m_lastReaderState = SCARD_STATE_UNAWARE;      // For specific reader monitoring
