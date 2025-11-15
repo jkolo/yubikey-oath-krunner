@@ -9,6 +9,7 @@
 #include "config/configuration_provider.h"
 #include "../logging_categories.h"
 #include "../oath/yubikey_device_manager.h"
+#include "../oath/oath_device.h"
 #include "../storage/yubikey_database.h"
 #include "touch_handler.h"
 #include "formatting/credential_formatter.h"
@@ -63,7 +64,9 @@ void TouchWorkflowCoordinator::startTouchWorkflow(const QString &credentialName,
     m_pendingOperationType = operationType;
     m_pendingDeviceId = deviceId;
     m_pendingDeviceModel = deviceModel;
+    m_pendingCredentialName = credentialName;
     int const timeout = m_config->touchTimeout();
+    m_pendingTouchTimeout = timeout;
     qCDebug(TouchWorkflowCoordinatorLog) << "Touch timeout from config:" << timeout << "seconds";
 
     // Emit signal for D-Bus clients (can show custom notification)
@@ -72,8 +75,26 @@ void TouchWorkflowCoordinator::startTouchWorkflow(const QString &credentialName,
     // Start touch operation
     m_touchHandler->startTouchOperation(credentialName, timeout);
 
-    // Show touch notification with device model
-    m_notificationOrchestrator->showTouchNotification(credentialName, timeout, deviceModel);
+    // NOTE: Notification will be shown when device emits touchRequired() signal
+    // (after CALCULATE APDU is sent and device LED starts flashing)
+
+    // Get device and connect to its touchRequired signal for delayed notification
+    auto *device = m_deviceManager->getDeviceOrFirst(deviceId);
+    if (device) {
+        // Disconnect any previous connection
+        if (m_deviceConnection) {
+            QObject::disconnect(m_deviceConnection);
+        }
+
+        // Connect to device touchRequired signal (will be emitted when CALCULATE APDU sent)
+        m_deviceConnection = connect(device, &OathDevice::touchRequired,
+                                     this, &TouchWorkflowCoordinator::onDeviceTouchDetected,
+                                     Qt::UniqueConnection);
+
+        qCDebug(TouchWorkflowCoordinatorLog) << "Connected to device touchRequired signal for delayed notification";
+    } else {
+        qCWarning(TouchWorkflowCoordinatorLog) << "Device not found for touch signal connection:" << deviceId;
+    }
 
     // Start asynchronous code generation via DeviceManager
     qCDebug(TouchWorkflowCoordinatorLog) << "Starting async code generation for:" << credentialName << "device:" << deviceId;
@@ -248,6 +269,41 @@ void TouchWorkflowCoordinator::onTouchCancelled()
         0);
 }
 
+void TouchWorkflowCoordinator::onDeviceTouchDetected()
+{
+    qCDebug(TouchWorkflowCoordinatorLog) << "Device touchRequired signal detected - LED is now flashing"
+             << "credential:" << m_pendingCredentialName
+             << "timeout:" << m_pendingTouchTimeout
+             << "device:" << m_pendingDeviceModel.modelString;
+
+    // Verify touch operation is still active (not timed out or cancelled)
+    QString const waitingFor = m_touchHandler->waitingCredential();
+    if (waitingFor.isEmpty()) {
+        qCDebug(TouchWorkflowCoordinatorLog) << "Touch operation no longer active - ignoring signal";
+        return;
+    }
+
+    if (waitingFor != m_pendingCredentialName) {
+        qCDebug(TouchWorkflowCoordinatorLog) << "Touch signal for different credential - ignoring"
+                 << "waiting for:" << waitingFor << "signal for:" << m_pendingCredentialName;
+        return;
+    }
+
+    // NOW show the notification - device LED is actually flashing
+    m_notificationOrchestrator->showTouchNotification(
+        m_pendingCredentialName,
+        m_pendingTouchTimeout,
+        m_pendingDeviceModel);
+
+    qCDebug(TouchWorkflowCoordinatorLog) << "Touch notification shown (synchronized with LED)";
+
+    // Disconnect signal - we only need it once per workflow
+    if (m_deviceConnection) {
+        QObject::disconnect(m_deviceConnection);
+        m_deviceConnection = {};
+    }
+}
+
 void TouchWorkflowCoordinator::cleanupTouchWorkflow()
 {
     m_touchHandler->cancelTouchOperation();
@@ -255,6 +311,13 @@ void TouchWorkflowCoordinator::cleanupTouchWorkflow()
     m_pendingOperationType = OperationType::Copy; // Reset to default
     m_pendingDeviceId.clear();
     m_pendingDeviceModel = Shared::DeviceModel{};
+    m_pendingCredentialName.clear();
+
+    // Disconnect device touchRequired signal if still connected
+    if (m_deviceConnection) {
+        QObject::disconnect(m_deviceConnection);
+        m_deviceConnection = {};
+    }
 }
 
 } // namespace Daemon

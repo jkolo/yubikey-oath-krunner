@@ -153,9 +153,9 @@ ActionExecutor::ActionResult ActionExecutor::checkAndWaitForModifiers(const QStr
     qCDebug(ActionExecutorLog) << "Modifier keys detected:" << pressedModifiers
                                << "- waiting for release";
 
-    // Phase 1: Wait 250ms silently for user to release modifiers
-    constexpr int INITIAL_WAIT_MS = 250;
-    constexpr int POLL_INTERVAL_MS = 50;
+    // Phase 1: Wait 50ms silently for user to release modifiers (optimized)
+    constexpr int INITIAL_WAIT_MS = 50;
+    constexpr int POLL_INTERVAL_MS = 30;  // Poll every 30ms for faster response
 
     if (ModifierKeyChecker::waitForModifierRelease(INITIAL_WAIT_MS, POLL_INTERVAL_MS)) {
         qCDebug(ActionExecutorLog) << "Modifiers released within initial" << INITIAL_WAIT_MS

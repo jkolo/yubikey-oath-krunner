@@ -54,6 +54,17 @@ public:
      * @return true if permission was rejected (not just timeout)
      */
     virtual bool wasPermissionRejected() const { return false; }
+
+    /**
+     * @brief Pre-initialize provider (e.g., create session in advance)
+     *
+     * This method can be called during daemon startup to pre-create
+     * resources (like Portal RemoteDesktop session) before they're needed.
+     * Reduces latency on first use.
+     *
+     * Default implementation: no-op (providers that don't need pre-init)
+     */
+    virtual void preInitialize() {}
 };
 
 } // namespace Daemon

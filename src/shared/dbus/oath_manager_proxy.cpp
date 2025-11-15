@@ -13,6 +13,9 @@
 #include <QDBusMessage>
 #include <QDBusArgument>
 #include <QDBusMetaType>
+#include <QDBusPendingCall>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
 #include <QLatin1String>
 #include <QLoggingCategory>
 
@@ -142,18 +145,29 @@ void OathManagerProxy::refreshManagedObjects()
         return;
     }
 
-    qCDebug(OathManagerProxyLog) << "Calling GetManagedObjects()";
+    qCDebug(OathManagerProxyLog) << "Calling GetManagedObjects() asynchronously";
 
-    // Call GetManagedObjects()
+    // Call GetManagedObjects() asynchronously (non-blocking)
     // Returns: a{oa{sa{sv}}} - ObjectManager signature
-    // Qt returns this as QDBusArgument which needs manual demarshalling
-    QDBusMessage const reply = m_objectManagerInterface->call(QStringLiteral("GetManagedObjects"));
+    QDBusPendingCall const pendingCall = m_objectManagerInterface->asyncCall(QStringLiteral("GetManagedObjects"));
+    auto *watcher = new QDBusPendingCallWatcher(pendingCall, this);
 
-    if (reply.type() == QDBusMessage::ErrorMessage) {
-        qCWarning(OathManagerProxyLog) << "GetManagedObjects failed:"
-                                           << reply.errorMessage();
+    connect(watcher, &QDBusPendingCallWatcher::finished,
+            this, &OathManagerProxy::onGetManagedObjectsFinished);
+}
+
+void OathManagerProxy::onGetManagedObjectsFinished(QDBusPendingCallWatcher *watcher)
+{
+    watcher->deleteLater();  // Clean up watcher
+
+    QDBusPendingReply<> const reply = *watcher;
+    if (reply.isError()) {
+        qCWarning(OathManagerProxyLog) << "GetManagedObjects async call failed:"
+                                       << reply.error().message();
         return;
     }
+
+    qCDebug(OathManagerProxyLog) << "GetManagedObjects async reply received";
 
     // Use qdbus_cast to handle complex nested D-Bus structure
     // Signature: a{oa{sa{sv}}}
@@ -162,7 +176,8 @@ void OathManagerProxy::refreshManagedObjects()
     //   Level 2: interface name → properties map
     //   Level 3: property name → value
 
-    auto const arg = reply.arguments().at(0).value<QDBusArgument>();
+    QDBusMessage const message = reply.reply();
+    auto const arg = message.arguments().at(0).value<QDBusArgument>();
 
     // Use qdbus_cast with correct 3-level nested type
     using InterfacePropertiesMap = QMap<QString, QVariantMap>;
@@ -235,7 +250,7 @@ void OathManagerProxy::refreshManagedObjects()
         addDeviceProxy(devicePath, deviceProps, credentials);
     }
 
-    qCDebug(OathManagerProxyLog) << "Refresh complete:"
+    qCDebug(OathManagerProxyLog) << "Async refresh complete:"
                                      << m_devices.size() << "devices,"
                                      << totalCredentials() << "credentials";
 }

@@ -64,10 +64,12 @@ private Q_SLOTS:
     void onDeviceDisconnected(const QString &deviceId);
     void onCredentialsUpdated();
     void onDaemonUnavailable();
+    void onDevicePropertyChanged(Shared::OathDeviceProxy *device);
 
 private:
     void setupActions();
     void reloadConfiguration() override;
+    void updateDeviceStateCache();
 
     /**
      * @brief Shows password dialog for device authorization
@@ -94,6 +96,10 @@ private:
 
     // Translated keywords for "Add OATH" matching
     QStringList m_addOathKeywords;
+
+    // Device state cache (updated on device property changes)
+    int m_cachedReadyDevices{0};
+    int m_cachedInitializingDevices{0};
 };
 
 } // namespace Runner

@@ -48,6 +48,7 @@ public:
     bool typeText(const QString &text) override;
     bool isCompatible() const override;
     QString providerName() const override;
+    void preInitialize() override;
 
     /**
      * @brief Check if last typeText() failure was due to waiting for permission
@@ -80,8 +81,8 @@ private:
     bool m_waitingForPermission = false;
     bool m_permissionRejected = false;
 
-    // Keystroke timing (ms delay between key press/release)
-    static constexpr int KEY_DELAY_MS = 5;
+    // Keystroke timing (ms delay between key press/release) - optimized for speed
+    static constexpr int KEY_DELAY_MS = 2;
 };
 
 } // namespace Daemon

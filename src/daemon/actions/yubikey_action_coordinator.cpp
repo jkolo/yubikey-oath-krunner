@@ -95,6 +95,13 @@ YubiKeyActionCoordinator::YubiKeyActionCoordinator(YubiKeyService *service,
         config))
 {
     qCDebug(YubiKeyDaemonLog) << "YubiKeyActionCoordinator: Initialized with touch and reconnect workflow support";
+
+    // Pre-initialize text input provider (e.g., create Portal session in advance)
+    // This reduces latency on first use by avoiding lazy initialization delay
+    if (m_textInput) {
+        qCDebug(YubiKeyActionCoordinatorLog) << "Pre-initializing text input provider:" << m_textInput->providerName();
+        m_textInput->preInitialize();
+    }
 }
 
 YubiKeyActionCoordinator::~YubiKeyActionCoordinator() = default;

@@ -64,6 +64,8 @@ YubiKeyRunner::YubiKeyRunner(QObject *parent, const KPluginMetaData &metaData)
             this, &YubiKeyRunner::onCredentialsUpdated);
     connect(m_manager, &OathManagerProxy::daemonUnavailable,
             this, &YubiKeyRunner::onDaemonUnavailable);
+    connect(m_manager, &OathManagerProxy::devicePropertyChanged,
+            this, &YubiKeyRunner::onDevicePropertyChanged);
 
     // Connect configuration change signal - setupActions only, no reload
     // (reload is called automatically by QFileSystemWatcher in config)
@@ -83,6 +85,8 @@ void YubiKeyRunner::init()
     // Check if daemon is available
     if (m_manager->isDaemonAvailable()) {
         qCDebug(YubiKeyRunnerLog) << "YubiKey D-Bus daemon is available";
+        // Initialize device state cache
+        updateDeviceStateCache();
     } else {
         qCDebug(YubiKeyRunnerLog) << "YubiKey D-Bus daemon not available - will auto-start on first use";
     }
@@ -185,28 +189,25 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
         }
     }
 
-    // Get all devices to check their password status and state
+    // Use cached device state counts (updated on device property changes)
+    qCDebug(YubiKeyRunnerLog) << "Device state cache:"
+                              << m_cachedReadyDevices << "ready,"
+                              << m_cachedInitializingDevices << "initializing";
+
+    // Get all devices to check their password status
     const QList<OathDeviceProxy*> devices = m_manager->devices();
     qCDebug(YubiKeyRunnerLog) << "Found" << devices.size() << "known devices";
-
-    int readyDevices = 0;
-    int initializingDevices = 0;
 
     // For each CONNECTED device that needs password, show password error match
     // Skip devices that are still initializing
     for (const auto *device : devices) {
         const DeviceState state = device->state();
 
-        // Count devices by state
+        // Skip non-ready devices (counted in cache)
         if (isDeviceStateTransitional(state)) {
-            initializingDevices++;
             qCDebug(YubiKeyRunnerLog) << "Device" << device->name()
                                       << "is initializing (state:" << deviceStateToString(state) << ")";
             continue; // Skip non-ready devices
-        }
-
-        if (state == DeviceState::Ready) {
-            readyDevices++;
         }
 
         if (device->isConnected() &&
@@ -222,8 +223,8 @@ void YubiKeyRunner::match(KRunner::RunnerContext &context)
     }
 
     // If all devices are still initializing, wait for them to become ready
-    if (readyDevices == 0 && initializingDevices > 0) {
-        qCDebug(YubiKeyRunnerLog) << initializingDevices << "device(s) still initializing - no credentials available yet";
+    if (m_cachedReadyDevices == 0 && m_cachedInitializingDevices > 0) {
+        qCDebug(YubiKeyRunnerLog) << m_cachedInitializingDevices << "device(s) still initializing - no credentials available yet";
         return;
     }
 
@@ -427,9 +428,9 @@ void YubiKeyRunner::run(const KRunner::RunnerContext &context, const KRunner::Qu
         // Use QTimer to delay execution until window closes
         qCDebug(YubiKeyRunnerLog) << "Scheduling type action (async) for KRunner to close";
 
-        // Schedule execution: wait for KRunner to close (500ms delay)
+        // Schedule execution: wait for KRunner to close (100ms delay - optimized)
         // Capture by value (QString is copy-on-write, safe for async execution)
-        QTimer::singleShot(500, this, [this, credentialName, deviceId]() {
+        QTimer::singleShot(100, this, [this, credentialName, deviceId]() {
             qCDebug(YubiKeyRunnerLog) << "Executing type action (async) after KRunner close:" << credentialName;
 
             // Re-find credential (proxy might have changed during delay)
@@ -535,6 +536,41 @@ void YubiKeyRunner::onCredentialsUpdated()
 void YubiKeyRunner::onDaemonUnavailable()
 {
     qCWarning(YubiKeyRunnerLog) << "Daemon became unavailable";
+    // Clear cache when daemon unavailable
+    m_cachedReadyDevices = 0;
+    m_cachedInitializingDevices = 0;
+}
+
+void YubiKeyRunner::onDevicePropertyChanged(OathDeviceProxy *device)
+{
+    Q_UNUSED(device)
+    // Device property changed (could be state, password, etc.) - update cache
+    updateDeviceStateCache();
+}
+
+void YubiKeyRunner::updateDeviceStateCache()
+{
+    const QList<OathDeviceProxy*> devices = m_manager->devices();
+
+    int readyDevices = 0;
+    int initializingDevices = 0;
+
+    for (const auto *device : devices) {
+        const DeviceState state = device->state();
+
+        if (isDeviceStateTransitional(state)) {
+            initializingDevices++;
+        } else if (state == DeviceState::Ready) {
+            readyDevices++;
+        }
+    }
+
+    m_cachedReadyDevices = readyDevices;
+    m_cachedInitializingDevices = initializingDevices;
+
+    qCDebug(YubiKeyRunnerLog) << "Device state cache updated:"
+                              << m_cachedReadyDevices << "ready,"
+                              << m_cachedInitializingDevices << "initializing";
 }
 
 K_PLUGIN_CLASS_WITH_JSON(YubiKeyRunner, "yubikeyrunner.json")

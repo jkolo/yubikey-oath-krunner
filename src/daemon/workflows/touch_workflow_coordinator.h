@@ -146,6 +146,7 @@ private Q_SLOTS:
     void onCodeGenerationFailed(const QString &credentialName, const QString &error);
     void onTouchTimeout(const QString &credentialName);
     void onTouchCancelled();
+    void onDeviceTouchDetected();
 
 private:
     /**
@@ -177,6 +178,9 @@ private:
     OperationType m_pendingOperationType; // Operation type to execute after touch
     QString m_pendingDeviceId; // Device ID for pending touch operation
     Shared::DeviceModel m_pendingDeviceModel; // Device model for notifications
+    QString m_pendingCredentialName; // Credential name for delayed notification
+    int m_pendingTouchTimeout{15}; // Touch timeout in seconds for delayed notification
+    QMetaObject::Connection m_deviceConnection; // Connection to device touchRequired signal
 };
 
 } // namespace Daemon

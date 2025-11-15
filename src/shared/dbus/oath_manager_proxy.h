@@ -17,6 +17,7 @@
 class QDBusInterface;
 class QDBusServiceWatcher;
 class QDBusMessage;
+class QDBusPendingCallWatcher;
 
 namespace YubiKeyOath {
 namespace Shared {
@@ -159,6 +160,7 @@ private Q_SLOTS:
                                    const QStringList &invalidatedProperties);
     void onDBusServiceRegistered(const QString &serviceName);
     void onDBusServiceUnregistered(const QString &serviceName);
+    void onGetManagedObjectsFinished(QDBusPendingCallWatcher *watcher);
 
 private:  // NOLINT(readability-redundant-access-specifiers) - Required to close Q_SLOTS section for moc
     explicit OathManagerProxy(QObject *parent = nullptr);

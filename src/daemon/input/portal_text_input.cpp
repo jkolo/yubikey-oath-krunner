@@ -91,6 +91,29 @@ QString PortalTextInput::providerName() const
     return QStringLiteral("Portal (libportal RemoteDesktop)");
 }
 
+void PortalTextInput::preInitialize()
+{
+    qCDebug(TextInputLog) << "PortalTextInput: Pre-initializing Portal session";
+
+    // Initialize portal if needed
+    if (!m_portal) {
+        if (!initializePortal()) {
+            qCWarning(TextInputLog) << "PortalTextInput: Pre-init failed - portal initialization failed";
+            return;
+        }
+    }
+
+    // Create session if needed
+    if (!m_sessionReady) {
+        if (!createSession()) {
+            qCWarning(TextInputLog) << "PortalTextInput: Pre-init failed - session creation failed";
+            return;
+        }
+    }
+
+    qCDebug(TextInputLog) << "PortalTextInput: Pre-initialization complete - session ready";
+}
+
 // =============================================================================
 // Portal Initialization
 // =============================================================================
