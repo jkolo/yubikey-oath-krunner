@@ -125,6 +125,12 @@ YkOathSession (base protocol)
 2. **Atomic operations**: Each D-Bus call is fully isolated transaction (SELECT + auth + operation)
 3. **Automatic cleanup**: RAII ensures EndTransaction even on exceptions/early returns
 4. **Simplified error handling**: Transaction/SELECT errors caught before operation starts
+5. **Touch notification timing**: Preemptive signal emission allows UI updates before blocking operations
+
+**Touch-Required Credentials:**
+- **Challenge**: CardTransaction's BEGIN→SELECT→AUTH→CALCULATE flow blocks thread during CALCULATE (waiting for user touch, status word 0x6985/0x6982)
+- **Solution**: OathDevice::generateCode() emits touchRequired() signal BEFORE calling session's calculateCode() method (oath_device.cpp:201-206)
+- **Benefit**: Notification appears immediately instead of being queued behind blocked operation, improving UX
 
 **Example Flow (generateCode):**
 ```cpp

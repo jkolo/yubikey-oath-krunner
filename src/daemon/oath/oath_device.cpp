@@ -159,14 +159,16 @@ Result<QString> OathDevice::generateCode(const QString& name)
     // Serialize card access to prevent race conditions between threads
     QMutexLocker locker(&m_cardMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
 
-    // Find credential to get its period
+    // Find credential to get its period and touch requirement
     int period = 30; // Default period
+    bool requiresTouch = false;
     bool found = false;
     for (const auto &cred : m_credentials) {
         if (cred.originalName == name) {
             period = cred.period;
+            requiresTouch = cred.requiresTouch;
             found = true;
-            qCDebug(YubiKeyOathDeviceLog) << "Found credential period:" << period << "for" << name;
+            qCDebug(YubiKeyOathDeviceLog) << "Found credential period:" << period << "requiresTouch:" << requiresTouch << "for" << name;
             break;
         }
     }
@@ -194,6 +196,13 @@ Result<QString> OathDevice::generateCode(const QString& name)
             qCWarning(YubiKeyOathDeviceLog) << "Authentication failed:" << authResult.error();
             return Result<QString>::error(i18n("Authentication failed"));
         }
+    }
+
+    // Emit touchRequired signal BEFORE calculateCode for touch-required credentials
+    // This allows notification to appear before CALCULATE blocks waiting for user touch
+    if (requiresTouch) {
+        qCDebug(YubiKeyOathDeviceLog) << "Emitting touchRequired signal before CALCULATE (preemptive notification)";
+        Q_EMIT touchRequired();
     }
 
     // Calculate code (session no longer does its own transaction/SELECT/auth)
