@@ -517,6 +517,15 @@ AFTER:  CardTransaction → IOathSelector ← YkOathSession implements (CORRECT:
 - **Host testing:** Fast iteration, direct debugging, but can affect production daemon
 - **Container testing:** Full isolation, reproducible, CI/CD friendly, rootless option (Podman)
 
+**CI/CD Integration:**
+- **GitHub Actions** - 4 automated workflows in `.github/workflows/`
+  - `test.yml` - Continuous testing (Debug + Release)
+  - `coverage.yml` - Coverage reports → Codecov
+  - `pr-checks.yml` - Fast PR validation (lint, syntax, tests)
+  - `release.yml` - Release validation (≥85% coverage threshold)
+- **Documentation:** `.github/workflows/README.md`
+- **Status badges:** In README.md
+
 ### Test Strategy (v2.1.0+)
 
 **Framework:** Qt Test + Virtual Device Emulators + dbus-run-session isolation

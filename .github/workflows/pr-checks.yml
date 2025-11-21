@@ -1,0 +1,170 @@
+name: PR Checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  quick-test:
+    name: Quick Test (Debug Build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Build test container
+        run: |
+          docker-compose -f docker-compose.test.yml build \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            tests
+
+      - name: Run tests
+        id: tests
+        run: |
+          docker-compose -f docker-compose.test.yml run --rm tests 2>&1 | tee test-output.log
+        continue-on-error: true
+
+      - name: Parse test results
+        if: always()
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if grep -q "All tests passed" test-output.log; then
+            echo "✅ **All tests passed!**" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          elif grep -q "Some tests failed" test-output.log; then
+            echo "❌ **Some tests failed**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Check the logs below for details:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            grep -A 20 "The following tests FAILED" test-output.log | head -30 >> $GITHUB_STEP_SUMMARY || true
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "⚠️ **Test status unknown**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: test-output.log
+          retention-days: 7
+
+  lint-check:
+    name: File Structure Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check required files
+        run: |
+          echo "## File Structure Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          MISSING=0
+
+          # Check required files
+          FILES=(
+            "Dockerfile.test"
+            "docker-compose.test.yml"
+            ".dockerignore"
+            "CMakeLists.txt"
+            "CLAUDE.md"
+            "CONTAINERIZED_TESTING.md"
+            "scripts/test-in-container.sh"
+            "scripts/run-tests-container.sh"
+          )
+
+          for file in "${FILES[@]}"; do
+            if [ -f "$file" ]; then
+              echo "✅ $file" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ $file (missing)" >> $GITHUB_STEP_SUMMARY
+              MISSING=1
+            fi
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ $MISSING -eq 0 ]; then
+            echo "**Status:** All required files present ✅" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          else
+            echo "**Status:** Some files are missing ❌" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: Check script permissions
+        run: |
+          echo "## Script Permissions" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          SCRIPTS=(
+            "scripts/test-in-container.sh"
+            "scripts/run-tests-container.sh"
+          )
+
+          ERRORS=0
+          for script in "${SCRIPTS[@]}"; do
+            if [ -x "$script" ]; then
+              echo "✅ $script (executable)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "❌ $script (not executable)" >> $GITHUB_STEP_SUMMARY
+              ERRORS=1
+            fi
+          done
+
+          exit $ERRORS
+
+      - name: Validate bash syntax
+        run: |
+          echo "## Bash Syntax Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          ERRORS=0
+
+          for script in scripts/*.sh; do
+            if [ -f "$script" ]; then
+              if bash -n "$script"; then
+                echo "✅ $script" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "❌ $script (syntax error)" >> $GITHUB_STEP_SUMMARY
+                ERRORS=1
+              fi
+            fi
+          done
+
+          if [ $ERRORS -eq 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Status:** All scripts have valid syntax ✅" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Status:** Some scripts have syntax errors ❌" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          exit $ERRORS

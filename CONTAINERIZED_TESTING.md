@@ -322,46 +322,51 @@ docker system prune -a --volumes
 
 ## CI/CD Integration
 
-### GitHub Actions Example
+### GitHub Actions (Built-in)
 
-```yaml
-name: Tests
+This repository includes **production-ready GitHub Actions workflows** in `.github/workflows/`:
 
-on: [push, pull_request]
+**Available Workflows:**
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+1. **`test.yml`** - Continuous testing on push/PR
+   - Runs Debug and Release builds
+   - Automatic on every push to main/master/claude branches
+   - Artifacts: test results (7 days)
 
-      - name: Build test image
-        run: docker-compose -f docker-compose.test.yml build tests
+2. **`coverage.yml`** - Code coverage reports
+   - Generates HTML and LCOV reports
+   - Uploads to Codecov (requires `CODECOV_TOKEN` secret)
+   - Shows summary in GitHub UI
+   - Artifacts: coverage reports (30 days)
 
-      - name: Run tests
-        run: docker-compose -f docker-compose.test.yml run --rm tests
+3. **`pr-checks.yml`** - Fast PR validation
+   - Quick tests with Docker caching
+   - File structure validation
+   - Bash syntax checks
+   - Early failure detection
 
-  coverage:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+4. **`release.yml`** - Release validation
+   - Matrix build (Debug + Release)
+   - Coverage threshold check (≥85%)
+   - Release readiness gate
+   - 90-day artifact retention
 
-      - name: Build test image
-        run: docker-compose -f docker-compose.test.yml build tests-coverage
+**Quick Setup:**
 
-      - name: Run tests with coverage
-        run: docker-compose -f docker-compose.test.yml run --rm tests-coverage
+1. **Enable Actions** (if not already enabled):
+   - Go to repository **Settings → Actions → General**
+   - Enable "Allow all actions and reusable workflows"
 
-      - name: Extract coverage report
-        run: |
-          CONTAINER_ID=$(docker ps -a -q -f name=yubikey-oath-tests-coverage | head -1)
-          docker cp "${CONTAINER_ID}:/home/testuser/yubikey-oath-krunner/build-container-coverage/coverage_html" ./coverage-report/
+2. **Add Codecov Token** (optional, for coverage uploads):
+   - Get token from [codecov.io](https://codecov.io)
+   - Add as secret: **Settings → Secrets → New repository secret**
+   - Name: `CODECOV_TOKEN`
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./coverage-report/coverage.info
-```
+3. **Push code** - Workflows run automatically!
+
+**Documentation:** See [`.github/workflows/README.md`](.github/workflows/README.md) for detailed configuration and troubleshooting.
+
+**Example:** View workflow runs in **Actions** tab after pushing.
 
 ### GitLab CI Example
 

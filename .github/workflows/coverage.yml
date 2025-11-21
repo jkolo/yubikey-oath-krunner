@@ -1,0 +1,90 @@
+name: Code Coverage
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  coverage:
+    name: Generate Coverage Report
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test container image
+        run: |
+          docker-compose -f docker-compose.test.yml build tests-coverage
+
+      - name: Run tests with coverage
+        run: |
+          docker-compose -f docker-compose.test.yml run --rm tests-coverage
+
+      - name: Extract coverage report from container
+        if: always()
+        run: |
+          # Get the container ID (may be stopped)
+          CONTAINER_ID=$(docker ps -a -q -f name=yubikey-oath-tests-coverage | head -1)
+
+          if [ -n "$CONTAINER_ID" ]; then
+            # Create output directory
+            mkdir -p coverage-report
+
+            # Copy coverage data from container
+            docker cp "${CONTAINER_ID}:/home/testuser/yubikey-oath-krunner/build-container-coverage/coverage_html" ./coverage-report/ || true
+            docker cp "${CONTAINER_ID}:/home/testuser/yubikey-oath-krunner/build-container-coverage/coverage.info" ./coverage-report/ || true
+            docker cp "${CONTAINER_ID}:/home/testuser/yubikey-oath-krunner/build-container-coverage/coverage_filtered.info" ./coverage-report/ || true
+
+            # List what we got
+            ls -la coverage-report/ || true
+          fi
+
+      - name: Upload coverage report (HTML)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-html
+          path: coverage-report/coverage_html/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload coverage to Codecov
+        if: always()
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage-report/coverage_filtered.info
+          flags: unittests
+          name: codecov-yubikey-oath
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f coverage-report/coverage_filtered.info ]; then
+            echo "## Coverage Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+            # Generate summary using lcov
+            if command -v lcov &> /dev/null; then
+              lcov --summary coverage-report/coverage_filtered.info 2>&1 | tee -a $GITHUB_STEP_SUMMARY || true
+            else
+              echo "Coverage report generated successfully" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "📊 Full HTML report available in artifacts" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Coverage report not found" >> $GITHUB_STEP_SUMMARY
+          fi

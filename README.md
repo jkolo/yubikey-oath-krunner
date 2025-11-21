@@ -5,6 +5,8 @@ A KDE Plasma 6 plugin that integrates YubiKey OATH (TOTP/HOTP) two-factor authen
 ![KDE Plasma](https://img.shields.io/badge/KDE%20Plasma-6.0+-blue)
 ![Qt](https://img.shields.io/badge/Qt-6.7+-green)
 ![License](https://img.shields.io/badge/license-GPL--3.0-blue)
+![Tests](https://github.com/jkolo/yubikey-oath-krunner/workflows/Tests/badge.svg)
+![Coverage](https://codecov.io/gh/jkolo/yubikey-oath-krunner/branch/main/graph/badge.svg)
 
 ## Features
 
@@ -229,6 +231,50 @@ lcov --list coverage.info
 # HTML report
 genhtml coverage.info --output-directory coverage_html
 ```
+
+### Containerized Testing
+
+Run tests in isolated containers (recommended for CI/CD and safe testing):
+
+```bash
+# Quick start (3 steps)
+sudo pacman -S podman podman-compose  # or docker docker-compose
+./scripts/test-in-container.sh build
+./scripts/test-in-container.sh test
+
+# With coverage report
+./scripts/test-in-container.sh coverage
+
+# Interactive debugging
+./scripts/test-in-container.sh shell
+
+# Or using Makefile
+make -f Makefile.container test
+make -f Makefile.container coverage
+```
+
+**Benefits:**
+- ✅ Full isolation from host system (D-Bus, KWallet, SQLite)
+- ✅ Reproducible builds across machines
+- ✅ Safe to run on production systems
+- ✅ Rootless support with Podman
+
+**Documentation:**
+- Quick Start: [QUICKSTART_CONTAINERS.md](QUICKSTART_CONTAINERS.md)
+- Full Guide: [CONTAINERIZED_TESTING.md](CONTAINERIZED_TESTING.md)
+
+### Continuous Integration
+
+This repository includes automated testing via GitHub Actions:
+
+- **Tests** - Runs on every push/PR (Debug + Release builds)
+- **Coverage** - Generates coverage reports and uploads to Codecov
+- **PR Checks** - Fast validation with file structure and syntax checks
+- **Release Validation** - Full test suite with coverage threshold (≥85%)
+
+View workflow status: [![Tests](https://github.com/jkolo/yubikey-oath-krunner/workflows/Tests/badge.svg)](https://github.com/jkolo/yubikey-oath-krunner/actions)
+
+**Workflow Documentation:** [.github/workflows/README.md](.github/workflows/README.md)
 
 ### Debugging
 

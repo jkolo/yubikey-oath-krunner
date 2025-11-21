@@ -1,0 +1,69 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, master, 'claude/**' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Run Tests in Container
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test container image
+        run: |
+          docker-compose -f docker-compose.test.yml build tests
+
+      - name: Run tests
+        run: |
+          docker-compose -f docker-compose.test.yml run --rm tests
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            build-container-test/Testing/
+            build-container-test/test-*.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+  test-release:
+    name: Run Tests (Release Build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test container image
+        run: |
+          docker-compose -f docker-compose.test.yml build tests-release
+
+      - name: Run release tests
+        run: |
+          docker-compose -f docker-compose.test.yml run --rm tests-release
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-release
+          path: |
+            build-container-release/Testing/
+            build-container-release/test-*.log
+          retention-days: 7
+          if-no-files-found: ignore
