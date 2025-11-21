@@ -459,9 +459,29 @@ AFTER:  CardTransaction → IOathSelector ← YkOathSession implements (CORRECT:
 
 ## i18n & Logging
 
-**i18n:** KDE i18n() NOT Qt tr() - `i18n("text")`, `i18n("Device %1", name)`, `i18np("1 item", "%1 items", n)` - Polish 144 messages 100%, `src/shared/po/`
+**i18n (Internationalization):**
+- **CRITICAL:** Use KDE `i18n()` NOT Qt `tr()` for all user-facing strings
+- **Include:** `#include <KLocalizedString>` in all files using i18n()
+- **Format:**
+  - Simple: `i18n("Text")`
+  - With placeholder: `i18n("Device %1", name)` (NOT `.arg()`)
+  - Plurals: `i18np("1 item", "%1 items", count)`
+- **Common mistake:** Using `.arg()` with i18n() - parameters go INSIDE i18n() call
+  - ❌ Wrong: `i18n("Error: %1").arg(error)`
+  - ✅ Correct: `i18n("Error: %1", error)`
+- **Translation status:** Polish 144 messages 100% complete (`src/shared/po/`)
+- **User-facing contexts:** D-Bus error returns, notifications, dialogs, UI text
 
-**Logging:** Qt categories per-module (YubiKeyDaemonLog, YubiKeyRunnerLog, etc.) with "Log" suffix to avoid conflicts
+**Logging:**
+- **CRITICAL:** Always use categorized logging, NEVER raw qWarning()/qDebug()
+- **Categories:** Per-module with "Log" suffix (YubiKeyDaemonLog, YubiKeyRunnerLog, OathProtocolLog, etc.)
+- **Format:**
+  - Debug: `qCDebug(CategoryLog) << "message";`
+  - Warning: `qCWarning(CategoryLog) << "message";`
+  - Critical: `qCCritical(CategoryLog) << "message";`
+- **Common mistake:** Using bare `qWarning()` or `qDebug()` without category
+  - ❌ Wrong: `qWarning() << "Failed";`
+  - ✅ Correct: `qCWarning(OathDaemonLog) << "Failed";`
 
 ## Testing
 
