@@ -259,8 +259,8 @@ void OathService::onReconnectStarted(const QString &deviceId)
     // Show persistent notification that reconnect is in progress
     if (m_config->showNotifications() && m_actionCoordinator) {
         const QString deviceName = m_deviceLifecycleService->getDeviceName(deviceId);
-        const QString title = tr("Reconnecting to YubiKey");
-        const QString message = tr("Restoring connection to %1...").arg(deviceName);
+        const QString title = i18n("Reconnecting to YubiKey");
+        const QString message = i18n("Restoring connection to %1...").arg(deviceName);
 
         // Show persistent notification (no timeout) - will be closed when reconnect completes
         m_reconnectNotificationId = m_actionCoordinator->showPersistentNotification(title, message, 0);
@@ -291,8 +291,8 @@ void OathService::onReconnectCompleted(const QString &deviceId, bool success)
         m_actionCoordinator->closeNotification(m_reconnectNotificationId);
         m_reconnectNotificationId = 0;
 
-        const QString title = tr("Reconnect Failed");
-        const QString message = tr("Could not restore connection to %1. Please remove and reinsert the YubiKey.").arg(deviceName);
+        const QString title = i18n("Reconnect Failed");
+        const QString message = i18n("Could not restore connection to %1. Please remove and reinsert the YubiKey.").arg(deviceName);
 
         m_actionCoordinator->showSimpleNotification(title, message, 1);
     }
@@ -346,10 +346,10 @@ void OathService::checkAuthenticationState(const QString &deviceId,
 
         if (device->hasPassword()) {
             qCWarning(OathDaemonLog) << "OathService: MARKING AS WRONG PASSWORD - device has password but returned empty credentials";
-            authError = tr("Wrong password");
+            authError = i18n("Wrong password");
         } else {
             qCWarning(OathDaemonLog) << "OathService: MARKING AS NO PASSWORD - device requires password but none available";
-            authError = tr("Password required but not available");
+            authError = i18n("Password required but not available");
         }
     } else {
         qCDebug(OathDaemonLog) << "OathService: Authentication check passed - proceeding";

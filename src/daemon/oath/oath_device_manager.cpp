@@ -8,6 +8,8 @@
 #include "../infrastructure/pcsc_worker_pool.h"
 #include "../../shared/types/device_brand.h"
 
+#include <KLocalizedString>
+
 #include <QDebug>
 #include <QMetaObject>
 #include <QDateTime>
@@ -79,7 +81,7 @@ Result<void> OathDeviceManager::initialize() {
     const LONG result = SCardEstablishContext(SCARD_SCOPE_SYSTEM, nullptr, nullptr, &m_context);
     if (result != SCARD_S_SUCCESS) {
         qCDebug(OathDeviceManagerLog) << "Failed to establish PC/SC context:" << result;
-        const QString error = tr("Failed to establish PC/SC context: %1").arg(result);
+        const QString error = i18n("Failed to establish PC/SC context: %1", result);
         Q_EMIT errorOccurred(error);
         return Result<void>::error(error);
     }
@@ -876,8 +878,7 @@ void OathDeviceManager::handlePcscServiceLost()
     if (result != SCARD_S_SUCCESS) {
         qCCritical(OathDeviceManagerLog) << "Failed to re-establish PC/SC context:"
                                             << QStringLiteral("0x%1").arg(result, 0, 16);
-        const QString error = tr("Failed to re-establish PC/SC context after pcscd restart: %1")
-                                  .arg(QStringLiteral("0x%1").arg(result, 0, 16));
+        const QString error = i18n("Failed to re-establish PC/SC context after pcscd restart: 0x%1", QString::number(result, 16));
         Q_EMIT errorOccurred(error);
         return;
     }

@@ -7,6 +7,8 @@
 #include "oath_error_codes.h"
 #include "../logging_categories.h"
 
+#include <KLocalizedString>
+
 #include <QCryptographicHash>
 #include <QMessageAuthenticationCode>
 #include <QRandomGenerator>
@@ -144,7 +146,7 @@ QByteArray YkOathSession::sendApdu(const QByteArray &command, int retryCount)
                 return sendApdu(command, retryCount + 1);
             } else {
                 qCWarning(YubiKeyOathDeviceLog) << "Reconnect failed or timeout, cannot retry APDU";
-                Q_EMIT errorOccurred(tr("Card reset and reconnect failed"));
+                Q_EMIT errorOccurred(i18n("Card reset and reconnect failed"));
                 return {};
             }
         }
@@ -156,7 +158,7 @@ QByteArray YkOathSession::sendApdu(const QByteArray &command, int retryCount)
             qCDebug(YubiKeyOathDeviceLog) << "Device" << m_deviceId << "was removed, disconnected, or reset (after retry)";
         }
 
-        Q_EMIT errorOccurred(tr("Failed to send APDU: 0x%1").arg(result, 0, 16));
+        Q_EMIT errorOccurred(i18n("Failed to send APDU: 0x%1", QString::number(result, 16)));
         return {};
     }
 
@@ -226,7 +228,7 @@ Result<void> YkOathSession::selectOathApplication(QByteArray &outChallenge, Vers
 
     if (response.isEmpty()) {
         qCDebug(YubiKeyOathDeviceLog) << "Empty response from SELECT";
-        return Result<void>::error(tr("Failed to select OATH application"));
+        return Result<void>::error(i18n("Failed to select OATH application"));
     }
 
     // Parse response to get device ID, challenge, firmware version, password requirement, and serial
@@ -236,7 +238,7 @@ Result<void> YkOathSession::selectOathApplication(QByteArray &outChallenge, Vers
     quint32 serialNumber = 0;
     if (!m_oathProtocol->parseSelectResponse(response, deviceId, outChallenge, outFirmwareVersion, requiresPassword, serialNumber)) {
         qCDebug(YubiKeyOathDeviceLog) << "Failed to parse SELECT response - response was:" << response.toHex();
-        return Result<void>::error(tr("Failed to parse SELECT response"));
+        return Result<void>::error(i18n("Failed to parse SELECT response"));
     }
 
     // Update device ID if we got one from response
@@ -275,7 +277,7 @@ Result<QString> YkOathSession::calculateCode(const QString &name, int period)
 
     if (response.isEmpty()) {
         qCDebug(YubiKeyOathDeviceLog) << "Empty response from CALCULATE";
-        return Result<QString>::error(tr("Failed to communicate with YubiKey"));
+        return Result<QString>::error(i18n("Failed to communicate with YubiKey"));
     }
 
     // Check status word
@@ -285,7 +287,7 @@ Result<QString> YkOathSession::calculateCode(const QString &name, int period)
     if (sw == 0x6985) {
         qCDebug(YubiKeyOathDeviceLog) << "Touch required (SW=6985)";
         Q_EMIT touchRequired();
-        return Result<QString>::error(tr("Touch required"));
+        return Result<QString>::error(i18n("Touch required"));
     }
 
     // Check for authentication required
@@ -297,7 +299,7 @@ Result<QString> YkOathSession::calculateCode(const QString &name, int period)
     // Parse code
     const QString code = m_oathProtocol->parseCode(response);
     if (code.isEmpty()) {
-        return Result<QString>::error(tr("Failed to parse TOTP code from response"));
+        return Result<QString>::error(i18n("Failed to parse TOTP code from response"));
     }
 
     qCDebug(YubiKeyOathDeviceLog) << "Generated code:" << code;
@@ -316,7 +318,7 @@ Result<QList<OathCredential>> YkOathSession::calculateAll()
 
     if (response.isEmpty()) {
         qCDebug(YubiKeyOathDeviceLog) << "Empty response from CALCULATE ALL";
-        return Result<QList<OathCredential>>::error(tr("Failed to calculate codes"));
+        return Result<QList<OathCredential>>::error(i18n("Failed to calculate codes"));
     }
 
     // Check status word
@@ -350,7 +352,7 @@ Result<QList<OathCredential>> YkOathSession::listCredentials()
 
     if (response.isEmpty()) {
         qCDebug(YubiKeyOathDeviceLog) << "Empty response from LIST";
-        return Result<QList<OathCredential>>::error(tr("Failed to list credentials"));
+        return Result<QList<OathCredential>>::error(i18n("Failed to list credentials"));
     }
 
     // Check status word
@@ -392,7 +394,7 @@ Result<void> YkOathSession::authenticate(const QString &password, const QString 
 
     if (freshChallenge.isEmpty()) {
         qCDebug(YubiKeyOathDeviceLog) << "No challenge in SELECT response";
-        return Result<void>::error(tr("No challenge received from YubiKey"));
+        return Result<void>::error(i18n("No challenge received from YubiKey"));
     }
 
     qCDebug(YubiKeyOathDeviceLog) << "Fresh challenge from SELECT:" << freshChallenge.toHex();
@@ -431,7 +433,7 @@ Result<void> YkOathSession::authenticate(const QString &password, const QString 
 
     if (response.isEmpty()) {
         qCDebug(YubiKeyOathDeviceLog) << "Empty response from VALIDATE";
-        return Result<void>::error(tr("Authentication failed - no response"));
+        return Result<void>::error(i18n("Authentication failed - no response"));
     }
 
     // STEP 5: Check status word
@@ -468,11 +470,11 @@ Result<void> YkOathSession::authenticate(const QString &password, const QString 
         return Result<void>::success();
     } else if (sw == OathProtocol::SW_SECURITY_STATUS_NOT_SATISFIED) {
         qCDebug(YubiKeyOathDeviceLog) << "Wrong password";
-        return Result<void>::error(tr("Wrong password"));
+        return Result<void>::error(i18n("Wrong password"));
     }
 
     qCDebug(YubiKeyOathDeviceLog) << "Authentication failed with unknown error";
-    return Result<void>::error(tr("Authentication failed"));
+    return Result<void>::error(i18n("Authentication failed"));
 }
 
 Result<void> YkOathSession::putCredential(const OathCredentialData &data)
@@ -491,7 +493,7 @@ Result<void> YkOathSession::putCredential(const OathCredentialData &data)
     const QByteArray command = OathProtocol::createPutCommand(data);
     if (command.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Failed to create PUT command";
-        return Result<void>::error(tr("Failed to encode credential data"));
+        return Result<void>::error(i18n("Failed to encode credential data"));
     }
 
     qCDebug(YubiKeyOathDeviceLog) << "Sending PUT command, length:" << command.length();
@@ -501,7 +503,7 @@ Result<void> YkOathSession::putCredential(const OathCredentialData &data)
 
     if (response.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Empty response from PUT command";
-        return Result<void>::error(tr("No response from YubiKey"));
+        return Result<void>::error(i18n("No response from YubiKey"));
     }
 
     // Check status word
@@ -516,22 +518,22 @@ Result<void> YkOathSession::putCredential(const OathCredentialData &data)
     // Handle specific error cases
     if (sw == OathProtocol::SW_INSUFFICIENT_SPACE) {
         qCWarning(YubiKeyOathDeviceLog) << "Insufficient space on YubiKey";
-        return Result<void>::error(tr("Insufficient space on YubiKey"));
+        return Result<void>::error(i18n("Insufficient space on YubiKey"));
     }
 
     if (sw == OathProtocol::SW_SECURITY_STATUS_NOT_SATISFIED) {
         qCWarning(YubiKeyOathDeviceLog) << "Authentication required";
-        return Result<void>::error(tr("Authentication required - YubiKey is password protected"));
+        return Result<void>::error(i18n("Authentication required - YubiKey is password protected"));
     }
 
     if (sw == OathProtocol::SW_WRONG_DATA) {
         qCWarning(YubiKeyOathDeviceLog) << "Wrong data format";
-        return Result<void>::error(tr("Invalid credential data format"));
+        return Result<void>::error(i18n("Invalid credential data format"));
     }
 
     // Unknown error
     qCWarning(YubiKeyOathDeviceLog) << "PUT failed with status word:" << QString::number(sw, 16);
-    return Result<void>::error(tr("Failed to add credential (error code: 0x%1)")
+    return Result<void>::error(i18n("Failed to add credential (error code: 0x%1)")
                                 .arg(sw, 4, 16, QLatin1Char('0')));
 }
 
@@ -542,14 +544,14 @@ Result<void> YkOathSession::deleteCredential(const QString &name)
 
     if (name.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Empty credential name";
-        return Result<void>::error(tr("Credential name cannot be empty"));
+        return Result<void>::error(i18n("Credential name cannot be empty"));
     }
 
 // Create DELETE command
     const QByteArray command = OathProtocol::createDeleteCommand(name);
     if (command.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Failed to create DELETE command";
-        return Result<void>::error(tr("Failed to encode credential name"));
+        return Result<void>::error(i18n("Failed to encode credential name"));
     }
 
     qCDebug(YubiKeyOathDeviceLog) << "Sending DELETE command, length:" << command.length();
@@ -559,7 +561,7 @@ Result<void> YkOathSession::deleteCredential(const QString &name)
 
     if (response.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Empty response from DELETE command";
-        return Result<void>::error(tr("No response from YubiKey"));
+        return Result<void>::error(i18n("No response from YubiKey"));
     }
 
     // Check status word
@@ -574,22 +576,22 @@ Result<void> YkOathSession::deleteCredential(const QString &name)
     // Handle specific error cases
     if (sw == OathProtocol::SW_NO_SUCH_OBJECT) {
         qCWarning(YubiKeyOathDeviceLog) << "Credential not found";
-        return Result<void>::error(tr("Credential not found on YubiKey"));
+        return Result<void>::error(i18n("Credential not found on YubiKey"));
     }
 
     if (sw == OathProtocol::SW_SECURITY_STATUS_NOT_SATISFIED) {
         qCWarning(YubiKeyOathDeviceLog) << "Authentication required";
-        return Result<void>::error(tr("Authentication required - YubiKey is password protected"));
+        return Result<void>::error(i18n("Authentication required - YubiKey is password protected"));
     }
 
     if (sw == OathProtocol::SW_WRONG_DATA) {
         qCWarning(YubiKeyOathDeviceLog) << "Wrong data format";
-        return Result<void>::error(tr("Invalid credential name format"));
+        return Result<void>::error(i18n("Invalid credential name format"));
     }
 
     // Unknown error
     qCWarning(YubiKeyOathDeviceLog) << "DELETE failed with status word:" << QString::number(sw, 16);
-    return Result<void>::error(tr("Failed to delete credential (error code: 0x%1)")
+    return Result<void>::error(i18n("Failed to delete credential (error code: 0x%1)")
                                 .arg(sw, 4, 16, QLatin1Char('0')));
 }
 
@@ -599,12 +601,12 @@ Result<void> YkOathSession::setPassword(const QString &newPassword, const QStrin
 
     if (newPassword.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Empty new password";
-        return Result<void>::error(tr("Password cannot be empty"));
+        return Result<void>::error(i18n("Password cannot be empty"));
     }
 
     if (deviceId.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Empty device ID";
-        return Result<void>::error(tr("Device ID required for password derivation"));
+        return Result<void>::error(i18n("Device ID required for password derivation"));
     }
 
     // Execute SELECT to ensure OATH application is selected before SET_CODE
@@ -614,7 +616,7 @@ Result<void> YkOathSession::setPassword(const QString &newPassword, const QStrin
     auto selectResult = selectOathApplication(selectChallenge, firmwareVersion);
     if (selectResult.isError()) {
         qCWarning(YubiKeyOathDeviceLog) << "Failed to SELECT OATH application:" << selectResult.error();
-        return Result<void>::error(tr("Failed to select OATH application: %1").arg(selectResult.error()));
+        return Result<void>::error(i18n("Failed to select OATH application: %1", selectResult.error()));
     }
 
     // Derive key from password using PBKDF2
@@ -627,7 +629,7 @@ Result<void> YkOathSession::setPassword(const QString &newPassword, const QStrin
 
     if (key.length() != 16) {
         qCWarning(YubiKeyOathDeviceLog) << "PBKDF2 failed to derive 16-byte key";
-        return Result<void>::error(tr("Failed to derive encryption key"));
+        return Result<void>::error(i18n("Failed to derive encryption key"));
     }
 
     // Generate random challenge for mutual authentication
@@ -649,7 +651,7 @@ Result<void> YkOathSession::setPassword(const QString &newPassword, const QStrin
     const QByteArray command = OathProtocol::createSetCodeCommand(key, challenge, response);
     if (command.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Failed to create SET_CODE command";
-        return Result<void>::error(tr("Failed to create SET_CODE command"));
+        return Result<void>::error(i18n("Failed to create SET_CODE command"));
     }
 
     qCDebug(YubiKeyOathDeviceLog) << "Sending SET_CODE command, length:" << command.length();
@@ -659,7 +661,7 @@ Result<void> YkOathSession::setPassword(const QString &newPassword, const QStrin
 
     if (apduResponse.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Empty response from SET_CODE command";
-        return Result<void>::error(tr("No response from YubiKey"));
+        return Result<void>::error(i18n("No response from YubiKey"));
     }
 
     // Parse response
@@ -671,12 +673,12 @@ Result<void> YkOathSession::setPassword(const QString &newPassword, const QStrin
         qCWarning(YubiKeyOathDeviceLog) << "SET_CODE failed with status word:" << QString::number(sw, 16);
 
         if (sw == 0x6984) {
-            return Result<void>::error(tr("Password verification failed - wrong old password"));
+            return Result<void>::error(i18n("Password verification failed - wrong old password"));
         }
         if (sw == OathProtocol::SW_SECURITY_STATUS_NOT_SATISFIED) {
-            return Result<void>::error(tr("Authentication required - authenticate with old password first"));
+            return Result<void>::error(i18n("Authentication required - authenticate with old password first"));
         }
-        return Result<void>::error(tr("Failed to set password (error code: 0x%1)")
+        return Result<void>::error(i18n("Failed to set password (error code: 0x%1)")
                                     .arg(sw, 4, 16, QLatin1Char('0')));
     }
 
@@ -689,7 +691,7 @@ Result<void> YkOathSession::setPassword(const QString &newPassword, const QStrin
 
     if (!verificationResponse.isEmpty() && verificationResponse != expectedResponse) {
         qCWarning(YubiKeyOathDeviceLog) << "YubiKey response verification failed";
-        return Result<void>::error(tr("YubiKey authentication verification failed"));
+        return Result<void>::error(i18n("YubiKey authentication verification failed"));
     }
 
     qCInfo(YubiKeyOathDeviceLog) << "Password set successfully on device" << m_deviceId;
@@ -712,7 +714,7 @@ Result<void> YkOathSession::removePassword()
 
     if (response.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Empty response from REMOVE_CODE command";
-        return Result<void>::error(tr("No response from YubiKey"));
+        return Result<void>::error(i18n("No response from YubiKey"));
     }
 
     // Check status word
@@ -727,11 +729,11 @@ Result<void> YkOathSession::removePassword()
     // Handle errors
     if (sw == OathProtocol::SW_SECURITY_STATUS_NOT_SATISFIED) {
         qCWarning(YubiKeyOathDeviceLog) << "Authentication required";
-        return Result<void>::error(tr("Authentication required - authenticate with current password first"));
+        return Result<void>::error(i18n("Authentication required - authenticate with current password first"));
     }
 
     qCWarning(YubiKeyOathDeviceLog) << "REMOVE_CODE failed with status word:" << QString::number(sw, 16);
-    return Result<void>::error(tr("Failed to remove password (error code: 0x%1)")
+    return Result<void>::error(i18n("Failed to remove password (error code: 0x%1)")
                                 .arg(sw, 4, 16, QLatin1Char('0')));
 }
 
@@ -746,7 +748,7 @@ Result<void> YkOathSession::changePassword(const QString &oldPassword,
         auto authResult = authenticate(oldPassword, deviceId);
         if (authResult.isError()) {
             qCWarning(YubiKeyOathDeviceLog) << "Authentication with old password failed:" << authResult.error();
-            return Result<void>::error(tr("Wrong current password: %1").arg(authResult.error()));
+            return Result<void>::error(i18n("Wrong current password: %1", authResult.error()));
         }
         qCDebug(YubiKeyOathDeviceLog) << "Authenticated successfully with old password";
     } else {

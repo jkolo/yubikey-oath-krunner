@@ -5,6 +5,9 @@
 
 #include "nitrokey_oath_session.h"
 #include "../logging_categories.h"
+
+#include <KLocalizedString>
+
 #include <QDateTime>
 
 namespace YubiKeyOath {
@@ -41,7 +44,7 @@ Result<QString> NitrokeyOathSession::calculateCode(const QString &name, int peri
 
     if (response.isEmpty()) {
         qCDebug(YubiKeyOathDeviceLog) << "Empty response from CALCULATE";
-        return Result<QString>::error(tr("Failed to communicate with device"));
+        return Result<QString>::error(i18n("Failed to communicate with device"));
     }
 
     // Check status word
@@ -51,7 +54,7 @@ Result<QString> NitrokeyOathSession::calculateCode(const QString &name, int peri
     if (sw == 0x6982) {
         qCDebug(YubiKeyOathDeviceLog) << "Touch required (SW=6982, Nitrokey-specific)";
         Q_EMIT touchRequired();
-        return Result<QString>::error(tr("Touch required"));
+        return Result<QString>::error(i18n("Touch required"));
     }
 
     // Check for authentication required (also 0x6982, but happens when not authenticated)
@@ -61,13 +64,13 @@ Result<QString> NitrokeyOathSession::calculateCode(const QString &name, int peri
     // We handle touch first (more specific), then auth (general case)
     if (sw == OathProtocol::SW_SECURITY_STATUS_NOT_SATISFIED) {
         qCDebug(YubiKeyOathDeviceLog) << "Password or touch required for CALCULATE (SW=6982)";
-        return Result<QString>::error(tr("Password or touch required"));
+        return Result<QString>::error(i18n("Password or touch required"));
     }
 
     // Parse code
     const QString code = m_oathProtocol->parseCode(response);
     if (code.isEmpty()) {
-        return Result<QString>::error(tr("Failed to parse TOTP code from response"));
+        return Result<QString>::error(i18n("Failed to parse TOTP code from response"));
     }
 
     qCDebug(YubiKeyOathDeviceLog) << "Generated code:" << code;
@@ -92,7 +95,7 @@ Result<QList<OathCredential>> NitrokeyOathSession::calculateAll()
 
     if (listResponse.isEmpty()) {
         qCWarning(YubiKeyOathDeviceLog) << "Empty response from LIST v1";
-        return Result<QList<OathCredential>>::error(tr("Failed to list credentials"));
+        return Result<QList<OathCredential>>::error(i18n("Failed to list credentials"));
     }
 
     // Debug: Log response in hex
@@ -105,13 +108,13 @@ Result<QList<OathCredential>> NitrokeyOathSession::calculateAll()
     // NOTE: With CardTransaction doing SELECT before each operation, this should not happen
     if (listSw == OathProtocol::SW_INS_NOT_SUPPORTED || listSw == OathProtocol::SW_CLA_NOT_SUPPORTED) {
         qCWarning(YubiKeyOathDeviceLog) << "Session lost (SW=" << QString::number(listSw, 16) << ")";
-        return Result<QList<OathCredential>>::error(tr("Session lost"));
+        return Result<QList<OathCredential>>::error(i18n("Session lost"));
     }
 
     // Check for authentication requirement
     if (listSw == OathProtocol::SW_SECURITY_STATUS_NOT_SATISFIED) {
         qCDebug(YubiKeyOathDeviceLog) << "Password required for LIST";
-        return Result<QList<OathCredential>>::error(tr("Password required"));
+        return Result<QList<OathCredential>>::error(i18n("Password required"));
     }
 
     // Check for LIST v1 not supported (fallback to standard LIST)
@@ -126,7 +129,7 @@ Result<QList<OathCredential>> NitrokeyOathSession::calculateAll()
 
         if (stdListResponse.isEmpty()) {
             qCWarning(YubiKeyOathDeviceLog) << "Standard LIST failed: empty response";
-            return Result<QList<OathCredential>>::error(tr("Failed to list credentials"));
+            return Result<QList<OathCredential>>::error(i18n("Failed to list credentials"));
         }
 
         qCDebug(YubiKeyOathDeviceLog) << "Standard LIST response:" << stdListResponse.toHex(' ')
@@ -136,7 +139,7 @@ Result<QList<OathCredential>> NitrokeyOathSession::calculateAll()
 
         if (stdListSw != 0x9000) {
             qCWarning(YubiKeyOathDeviceLog) << "Standard LIST failed: SW=" << QString::number(stdListSw, 16);
-            return Result<QList<OathCredential>>::error(tr("Failed to list credentials (SW: %1)").arg(QString::number(stdListSw, 16)));
+            return Result<QList<OathCredential>>::error(i18n("Failed to list credentials (SW: %1)", QString::number(stdListSw, 16)));
         }
 
         // Parse with standard parser (no properties byte)
@@ -160,7 +163,7 @@ Result<QList<OathCredential>> NitrokeyOathSession::calculateAll()
     // Check for success
     if (listSw != 0x9000) {
         qCWarning(YubiKeyOathDeviceLog) << "LIST v1 failed: SW=" << QString::number(listSw, 16);
-        return Result<QList<OathCredential>>::error(tr("Failed to list credentials (SW: %1)").arg(QString::number(listSw, 16)));
+        return Result<QList<OathCredential>>::error(i18n("Failed to list credentials (SW: %1)", QString::number(listSw, 16)));
     }
 
     // Parse credentials from LIST v1 response

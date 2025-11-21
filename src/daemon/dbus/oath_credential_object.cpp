@@ -9,6 +9,8 @@
 #include "logging_categories.h"
 #include "credentialadaptor.h"  // Auto-generated D-Bus adaptor
 
+#include <KLocalizedString>
+
 #include <QDBusConnection>
 #include <QDBusError>
 #include <utility>
@@ -202,7 +204,7 @@ void OathCredentialObject::CopyToClipboard()
     const bool success = m_service->copyCodeToClipboard(m_deviceId, m_credential.originalName);
 
     // Emit result immediately
-    Q_EMIT ClipboardCopied(success, success ? QString() : QStringLiteral("Failed to copy to clipboard"));
+    Q_EMIT ClipboardCopied(success, success ? QString() : i18n("Failed to copy to clipboard"));
 }
 
 void OathCredentialObject::TypeCode(bool fallbackToCopy)
@@ -222,7 +224,7 @@ void OathCredentialObject::TypeCode(bool fallbackToCopy)
     }
 
     // Emit result immediately
-    Q_EMIT CodeTyped(success, success ? QString() : QStringLiteral("Failed to type code"));
+    Q_EMIT CodeTyped(success, success ? QString() : i18n("Failed to type code"));
 }
 
 void OathCredentialObject::Delete()
