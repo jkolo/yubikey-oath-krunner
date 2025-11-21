@@ -148,6 +148,34 @@ void OathDevice::setPassword(const QString& password)
 }
 
 // =============================================================================
+// Private Helper Methods
+// =============================================================================
+
+Result<void> OathDevice::validateCardTransaction(const CardTransaction& transaction) const
+{
+    if (!transaction.isValid()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Transaction failed:" << transaction.errorMessage();
+        return Result<void>::error(transaction.errorMessage());
+    }
+    return Result<void>::success();
+}
+
+Result<void> OathDevice::authenticateIfNeeded()
+{
+    if (m_password.isEmpty()) {
+        return Result<void>::success();
+    }
+
+    qCDebug(YubiKeyOathDeviceLog) << "Authenticating within transaction";
+    auto authResult = m_session->authenticate(m_password, m_deviceId);
+    if (authResult.isError()) {
+        qCWarning(YubiKeyOathDeviceLog) << "Authentication failed:" << authResult.error();
+        return Result<void>::error(i18n("Authentication failed"));
+    }
+    return Result<void>::success();
+}
+
+// =============================================================================
 // OATH Operations - Common implementations using polymorphic m_session
 // =============================================================================
 
@@ -183,19 +211,15 @@ Result<QString> OathDevice::generateCode(const QString& name)
 
     // Begin PC/SC transaction with automatic SELECT OATH
     const CardTransaction transaction(m_cardHandle, m_session.get());
-    if (!transaction.isValid()) {
-        qCWarning(YubiKeyOathDeviceLog) << "Transaction failed:" << transaction.errorMessage();
-        return Result<QString>::error(transaction.errorMessage());
+    auto validation = validateCardTransaction(transaction);
+    if (validation.isError()) {
+        return Result<QString>::error(validation.error());
     }
 
     // Authenticate if password required
-    if (!m_password.isEmpty()) {
-        qCDebug(YubiKeyOathDeviceLog) << "Authenticating within transaction";
-        auto authResult = m_session->authenticate(m_password, m_deviceId);
-        if (authResult.isError()) {
-            qCWarning(YubiKeyOathDeviceLog) << "Authentication failed:" << authResult.error();
-            return Result<QString>::error(i18n("Authentication failed"));
-        }
+    auto authResult = authenticateIfNeeded();
+    if (authResult.isError()) {
+        return Result<QString>::error(authResult.error());
     }
 
     // Emit touchRequired signal BEFORE calculateCode for touch-required credentials

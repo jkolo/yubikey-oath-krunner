@@ -132,6 +132,29 @@ protected Q_SLOTS:
      */
     void onCardResetDetected(const QByteArray &command);
 
+private:
+    /**
+     * @brief Validates CardTransaction and returns error if invalid
+     *
+     * Helper method to reduce code duplication. Checks if transaction is valid
+     * and logs/returns appropriate error if not.
+     *
+     * @param transaction CardTransaction to validate
+     * @return Result<void>::success() if valid, error with message if invalid
+     */
+    Result<void> validateCardTransaction(const CardTransaction& transaction) const;
+
+    /**
+     * @brief Authenticates with stored password if needed
+     *
+     * Helper method to reduce code duplication. Checks if password is set
+     * and authenticates with device if so.
+     *
+     * @return Result<void>::success() if no password or auth succeeded,
+     *         error with i18n message if authentication failed
+     */
+    Result<void> authenticateIfNeeded();
+
 protected:
     // Common member variables shared by all OATH device implementations
     // Moved from YubiKeyOathDevice and NitrokeyOathDevice to eliminate duplication

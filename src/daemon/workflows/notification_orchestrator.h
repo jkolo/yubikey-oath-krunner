@@ -293,6 +293,18 @@ private:
         const QString& iconName = QString()
     );
 
+    /**
+     * @brief Checks if notifications should be shown based on configuration and availability
+     *
+     * Helper method to reduce code duplication. Checks:
+     * - Configuration setting (showNotifications())
+     * - Notification manager availability
+     * - D-Bus notification service availability
+     *
+     * @return true if notifications should be shown, false otherwise
+     */
+    bool shouldShowNotifications() const;
+
     DBusNotificationManager *m_notificationManager;
     const ConfigurationProvider *m_config;
 

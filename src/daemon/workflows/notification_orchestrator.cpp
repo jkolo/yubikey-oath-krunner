@@ -44,12 +44,19 @@ NotificationOrchestrator::NotificationOrchestrator(DBusNotificationManager *noti
 
 NotificationOrchestrator::~NotificationOrchestrator() = default;
 
+bool NotificationOrchestrator::shouldShowNotifications() const
+{
+    return m_config->showNotifications()
+        && m_notificationManager
+        && m_notificationManager->isAvailable();
+}
+
 void NotificationOrchestrator::showCodeNotification(const QString &code,
                                                     const QString &credentialName,
                                                     int expirationSeconds,
                                                     const DeviceModel& deviceModel)
 {
-    if (!m_config->showNotifications() || !m_notificationManager || !m_notificationManager->isAvailable()) {
+    if (!shouldShowNotifications()) {
         return;
     }
 
@@ -102,7 +109,7 @@ void NotificationOrchestrator::showTouchNotification(const QString &credentialNa
                                                      int timeoutSeconds,
                                                      const DeviceModel& deviceModel)
 {
-    if (!m_config->showNotifications() || !m_notificationManager || !m_notificationManager->isAvailable()) {
+    if (!shouldShowNotifications()) {
         return;
     }
 
@@ -179,7 +186,7 @@ void NotificationOrchestrator::closeTouchNotification()
 
 void NotificationOrchestrator::showSimpleNotification(const QString &title, const QString &message, int type)
 {
-    if (!m_config->showNotifications() || !m_notificationManager || !m_notificationManager->isAvailable()) {
+    if (!shouldShowNotifications()) {
         return;
     }
 
@@ -208,7 +215,7 @@ void NotificationOrchestrator::showSimpleNotification(const QString &title, cons
 
 uint NotificationOrchestrator::showPersistentNotification(const QString &title, const QString &message, int type)
 {
-    if (!m_config->showNotifications() || !m_notificationManager || !m_notificationManager->isAvailable()) {
+    if (!shouldShowNotifications()) {
         return 0;
     }
 
@@ -248,7 +255,7 @@ void NotificationOrchestrator::closeNotification(uint notificationId)
 
 void NotificationOrchestrator::showModifierReleaseNotification(const QStringList& modifiers, int timeoutSeconds)
 {
-    if (!m_config->showNotifications() || !m_notificationManager || !m_notificationManager->isAvailable()) {
+    if (!shouldShowNotifications()) {
         return;
     }
 
@@ -328,7 +335,7 @@ void NotificationOrchestrator::showReconnectNotification(const QString &deviceNa
                                                          int timeoutSeconds,
                                                          const DeviceModel& deviceModel)
 {
-    if (!m_config->showNotifications() || !m_notificationManager || !m_notificationManager->isAvailable()) {
+    if (!shouldShowNotifications()) {
         return;
     }
 
