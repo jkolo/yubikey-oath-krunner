@@ -476,6 +476,47 @@ AFTER:  CardTransaction → IOathSelector ← YkOathSession implements (CORRECT:
 
 **📋 Implementation Plan:** See [TEST_IMPLEMENTATION.md](TEST_IMPLEMENTATION.md) for comprehensive testing strategy, roadmap (6 phases), and progress tracking
 
+**🐳 Containerized Testing:** See [CONTAINERIZED_TESTING.md](CONTAINERIZED_TESTING.md) for isolated test execution in containers (Docker or Podman)
+
+### Containerized Testing (v2.5.0+)
+
+**Goal:** Complete isolation from host system - no interference with D-Bus, KWallet, SQLite, or running daemons
+
+**Quick Start:**
+```bash
+./scripts/test-in-container.sh test           # Run all tests
+./scripts/test-in-container.sh coverage       # With coverage report
+./scripts/test-in-container.sh shell          # Interactive debugging
+```
+
+**Runtime Support:**
+- **Docker** - Mature ecosystem, BuildKit, wide CI/CD support
+- **Podman** - Rootless by default, no daemon, better security, OCI compliant
+- Scripts auto-detect and use whichever is available
+
+**Architecture:**
+- **Dockerfile.test** - Arch Linux base with Qt 6.7+, KDE Frameworks 6.0+, PC/SC Lite
+- **run-tests-container.sh** - Sets up isolated XDG dirs, private D-Bus session, runs tests
+- **docker-compose.test.yml** - Service definitions (tests, coverage, release, shell)
+- **test-in-container.sh** - Host-side wrapper with auto-detection (Docker/Podman)
+
+**Isolation:**
+- XDG directories: `/tmp/test-home/.local/share`, `.config`, `.cache`, `.runtime`
+- D-Bus: Private session bus at `${XDG_RUNTIME_DIR}/dbus-session`
+- KWallet: Test mode (`KWALLETD_TESTMODE=1`), isolated storage
+- Qt: Offscreen platform (`QT_QPA_PLATFORM=offscreen`), no X11 required
+
+**Benefits:**
+- ✅ No interference with host system (safe to run on production machines)
+- ✅ Reproducible builds (consistent environment across machines)
+- ✅ Clean state (fresh environment for each run)
+- ✅ CI/CD ready (portable, easy GitHub Actions/GitLab CI integration)
+- ✅ Rootless support (Podman default, enhanced security)
+
+**Comparison:**
+- **Host testing:** Fast iteration, direct debugging, but can affect production daemon
+- **Container testing:** Full isolation, reproducible, CI/CD friendly, rootless option (Podman)
+
 ### Test Strategy (v2.1.0+)
 
 **Framework:** Qt Test + Virtual Device Emulators + dbus-run-session isolation

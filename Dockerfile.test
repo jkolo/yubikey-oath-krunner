@@ -1,0 +1,88 @@
+# Dockerfile for running krunner-yubikey-oath tests in isolated environment
+# Based on Arch Linux with full KDE/Qt dependencies
+FROM archlinux:latest
+
+# Set non-interactive frontend
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Update system and install base dependencies
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm \
+    # Build tools
+    base-devel \
+    cmake \
+    ninja \
+    git \
+    clang \
+    llvm \
+    # Qt 6 core libraries
+    qt6-base \
+    qt6-declarative \
+    qt6-svg \
+    # KDE Frameworks 6
+    krunner \
+    ki18n \
+    kconfig \
+    kconfigwidgets \
+    knotifications \
+    kcoreaddons \
+    kwallet \
+    kcmutils \
+    kwidgetsaddons \
+    kguiaddons \
+    kwayland \
+    # System dependencies
+    pcsc-tools \
+    pcsclite \
+    dbus \
+    xorg-server-xvfb \
+    xorg-xauth \
+    xkbcommon \
+    libportal-qt6 \
+    # Additional tools for testing
+    procps-ng \
+    psmisc \
+    # ZXing for QR code parsing
+    zxing-cpp \
+    # Optional: coverage tools
+    lcov \
+    gcovr && \
+    # Clean package cache
+    pacman -Scc --noconfirm
+
+# Create test user (tests should not run as root)
+RUN useradd -m -s /bin/bash testuser && \
+    echo "testuser ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+# Set up D-Bus system
+RUN mkdir -p /run/dbus && \
+    dbus-uuidgen > /etc/machine-id
+
+# Create isolated test directories
+RUN mkdir -p /tmp/test-home/.local/share/krunner-yubikey \
+             /tmp/test-home/.local/share/kwalletd \
+             /tmp/test-home/.config \
+             /tmp/test-runtime && \
+    chown -R testuser:testuser /tmp/test-home /tmp/test-runtime
+
+# Switch to test user
+USER testuser
+WORKDIR /home/testuser
+
+# Set environment variables for isolation
+ENV HOME=/tmp/test-home \
+    XDG_DATA_HOME=/tmp/test-home/.local/share \
+    XDG_CONFIG_HOME=/tmp/test-home/.config \
+    XDG_CACHE_HOME=/tmp/test-home/.cache \
+    XDG_RUNTIME_DIR=/tmp/test-runtime \
+    QT_QPA_PLATFORM=offscreen \
+    QT_LOGGING_RULES="*.debug=false;pl.jkolo.yubikey.oath.*=true" \
+    DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/test-runtime/dbus-session
+
+# Copy source code
+COPY --chown=testuser:testuser . /home/testuser/yubikey-oath-krunner
+
+WORKDIR /home/testuser/yubikey-oath-krunner
+
+# Default command: run tests
+CMD ["./scripts/run-tests-container.sh"]

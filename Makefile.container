@@ -1,0 +1,118 @@
+# Makefile for containerized testing
+# Provides convenient shortcuts for Docker-based test execution
+#
+# Usage:
+#   make -f Makefile.container test
+#   make -f Makefile.container coverage
+#   make -f Makefile.container shell
+
+.PHONY: help test coverage release shell build clean
+
+# Default target
+.DEFAULT_GOAL := help
+
+# Colors for output
+GREEN  := \033[0;32m
+YELLOW := \033[1;33m
+BLUE   := \033[0;34m
+NC     := \033[0m
+
+help: ## Show this help message
+	@echo "$(BLUE)YubiKey OATH KRunner - Container Testing$(NC)"
+	@echo "$(BLUE)Supports: Docker and Podman (auto-detected)$(NC)"
+	@echo ""
+	@echo "Available targets:"
+	@echo ""
+	@awk 'BEGIN {FS = ":.*##"; printf ""} /^[a-zA-Z_-]+:.*?##/ { printf "  $(GREEN)%-15s$(NC) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "Examples:"
+	@echo "  make -f Makefile.container test"
+	@echo "  make -f Makefile.container coverage"
+	@echo "  make -f Makefile.container shell"
+
+test: ## Run tests in container (Debug build)
+	@echo "$(BLUE)Running tests in container...$(NC)"
+	./scripts/test-in-container.sh test
+
+test-clean: ## Run tests with clean build
+	@echo "$(BLUE)Running tests with clean build...$(NC)"
+	./scripts/test-in-container.sh test --clean
+
+coverage: ## Run tests with coverage report
+	@echo "$(BLUE)Running tests with coverage...$(NC)"
+	./scripts/test-in-container.sh coverage
+
+release: ## Run tests with Release build
+	@echo "$(BLUE)Running tests with Release build...$(NC)"
+	./scripts/test-in-container.sh release
+
+shell: ## Open interactive shell in test container
+	@echo "$(BLUE)Opening interactive shell...$(NC)"
+	./scripts/test-in-container.sh shell
+
+build: ## Build test container image
+	@echo "$(BLUE)Building test container image...$(NC)"
+	./scripts/test-in-container.sh build
+
+build-pull: ## Build test container image (pull latest base)
+	@echo "$(BLUE)Building test container image (pulling base)...$(NC)"
+	PULL_IMAGE=true ./scripts/test-in-container.sh build
+
+clean: ## Clean up containers and volumes
+	@echo "$(YELLOW)Cleaning up containers and volumes...$(NC)"
+	./scripts/test-in-container.sh clean
+
+# Aliases
+t: test  ## Alias for 'test'
+c: coverage  ## Alias for 'coverage'
+s: shell  ## Alias for 'shell'
+b: build  ## Alias for 'build'
+
+# Advanced targets
+test-preserve: ## Run tests and preserve test data
+	@echo "$(BLUE)Running tests (preserving data)...$(NC)"
+	./scripts/test-in-container.sh test --preserve
+
+compose-up: ## Start all test services
+	@echo "$(BLUE)Starting test services...$(NC)"
+	docker-compose -f docker-compose.test.yml up --build
+
+compose-down: ## Stop all test services
+	@echo "$(BLUE)Stopping test services...$(NC)"
+	docker-compose -f docker-compose.test.yml down
+
+compose-logs: ## Show logs from test services
+	docker-compose -f docker-compose.test.yml logs -f
+
+docker-prune: ## Clean up all container resources (use with caution!)
+	@echo "$(YELLOW)WARNING: This will remove all stopped containers, unused networks, and dangling images.$(NC)"
+	@echo "Press Ctrl+C to cancel, or Enter to continue..."
+	@read dummy
+	@if command -v docker &> /dev/null && docker ps &> /dev/null 2>&1; then \
+		docker system prune -f; \
+	elif command -v podman &> /dev/null; then \
+		podman system prune -f; \
+	fi
+
+status: ## Show container resource usage
+	@echo "$(BLUE)Container resource usage:$(NC)"
+	@echo ""
+	@if command -v docker &> /dev/null && docker ps &> /dev/null 2>&1; then \
+		echo "Runtime: Docker"; \
+		docker system df; \
+		echo ""; \
+		echo "$(BLUE)Test volumes:$(NC)"; \
+		docker volume ls | grep yubikey-oath || echo "  No test volumes found"; \
+		echo ""; \
+		echo "$(BLUE)Test images:$(NC)"; \
+		docker images | grep yubikey-oath || echo "  No test images found"; \
+	elif command -v podman &> /dev/null; then \
+		echo "Runtime: Podman"; \
+		podman system df; \
+		echo ""; \
+		echo "$(BLUE)Test volumes:$(NC)"; \
+		podman volume ls | grep yubikey-oath || echo "  No test volumes found"; \
+		echo ""; \
+		echo "$(BLUE)Test images:$(NC)"; \
+		podman images | grep yubikey-oath || echo "  No test images found"; \
+	fi

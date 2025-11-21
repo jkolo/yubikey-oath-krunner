@@ -1,0 +1,108 @@
+# Docker Compose configuration for running isolated tests
+# Usage:
+#   docker-compose -f docker-compose.test.yml up --build
+#   docker-compose -f docker-compose.test.yml run --rm tests
+#   docker-compose -f docker-compose.test.yml run --rm tests-coverage
+
+version: '3.8'
+
+services:
+  # Base test service
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    image: yubikey-oath-krunner-test:latest
+    container_name: yubikey-oath-tests
+    environment:
+      # Container marker
+      - CONTAINER=true
+      # Build configuration
+      - BUILD_TYPE=Debug
+      - BUILD_DIR=build-container-test
+      - CLEAN_BUILD=${CLEAN_BUILD:-false}
+      # Test configuration
+      - ENABLE_COVERAGE=OFF
+      - PRESERVE_TEST_DATA=${PRESERVE_TEST_DATA:-false}
+      # Qt/KDE configuration
+      - QT_QPA_PLATFORM=offscreen
+      - QT_LOGGING_RULES=*.debug=false;pl.jkolo.yubikey.oath.*=true
+      - QT_LOGGING_TO_CONSOLE=1
+      - KWALLETD_TESTMODE=1
+      - KDE_DEBUG=1
+    volumes:
+      # Mount source code (read-only for safety)
+      - ./:/home/testuser/yubikey-oath-krunner:ro
+      # Mount build directory (read-write for build artifacts)
+      - build-volume:/home/testuser/yubikey-oath-krunner/build-container-test
+    working_dir: /home/testuser/yubikey-oath-krunner
+    command: /home/testuser/yubikey-oath-krunner/scripts/run-tests-container.sh
+    # Resource limits (adjust as needed)
+    mem_limit: 4g
+    memswap_limit: 4g
+    cpus: 4
+
+  # Test service with coverage enabled
+  tests-coverage:
+    extends: tests
+    container_name: yubikey-oath-tests-coverage
+    environment:
+      - CONTAINER=true
+      - BUILD_TYPE=Debug
+      - BUILD_DIR=build-container-coverage
+      - CLEAN_BUILD=${CLEAN_BUILD:-true}
+      - ENABLE_COVERAGE=ON
+      - PRESERVE_TEST_DATA=true
+      - QT_QPA_PLATFORM=offscreen
+      - QT_LOGGING_RULES=*.debug=false;pl.jkolo.yubikey.oath.*=true
+      - QT_LOGGING_TO_CONSOLE=1
+      - KWALLETD_TESTMODE=1
+      - KDE_DEBUG=1
+    volumes:
+      - ./:/home/testuser/yubikey-oath-krunner:ro
+      - coverage-volume:/home/testuser/yubikey-oath-krunner/build-container-coverage
+
+  # Test service with Release build (for performance testing)
+  tests-release:
+    extends: tests
+    container_name: yubikey-oath-tests-release
+    environment:
+      - CONTAINER=true
+      - BUILD_TYPE=Release
+      - BUILD_DIR=build-container-release
+      - CLEAN_BUILD=${CLEAN_BUILD:-false}
+      - ENABLE_COVERAGE=OFF
+      - PRESERVE_TEST_DATA=false
+      - QT_QPA_PLATFORM=offscreen
+      - QT_LOGGING_RULES=*.debug=false;pl.jkolo.yubikey.oath.*=true
+      - QT_LOGGING_TO_CONSOLE=1
+      - KWALLETD_TESTMODE=1
+      - KDE_DEBUG=1
+    volumes:
+      - ./:/home/testuser/yubikey-oath-krunner:ro
+      - release-volume:/home/testuser/yubikey-oath-krunner/build-container-release
+
+  # Interactive shell for debugging
+  shell:
+    extends: tests
+    container_name: yubikey-oath-shell
+    environment:
+      - CONTAINER=true
+      - BUILD_TYPE=Debug
+      - BUILD_DIR=build-container-test
+    volumes:
+      - ./:/home/testuser/yubikey-oath-krunner
+      - build-volume:/home/testuser/yubikey-oath-krunner/build-container-test
+    entrypoint: /bin/bash
+    stdin_open: true
+    tty: true
+
+volumes:
+  build-volume:
+    name: yubikey-oath-build
+  coverage-volume:
+    name: yubikey-oath-coverage
+  release-volume:
+    name: yubikey-oath-release

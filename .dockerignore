@@ -1,0 +1,60 @@
+# Docker ignore file for test container builds
+# Excludes unnecessary files from Docker build context
+
+# Build artifacts
+build*/
+.cmake/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
+# Coverage reports
+coverage*/
+*.gcov
+*.gcda
+*.gcno
+*.info
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+.gitlab-ci.yml
+.github/
+
+# CI/CD (these are handled in container)
+.dockerignore
+
+# Documentation (copied but not needed for build)
+*.md
+!CLAUDE.md
+
+# Package files
+*.tar.gz
+*.zip
+*.deb
+*.rpm
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# User data
+*.db
+*.db-journal
+*.wallet
+
+# Test artifacts
+test-home/
+coverage-report/
