@@ -37,14 +37,14 @@ public:
         , m_removePasswordResult(true)
     {}
 
-    // ========== SecretStorage Interface (Non-Virtual) ==========
+    // ========== SecretStorage Interface ==========
 
     /**
      * @brief Loads password from in-memory storage
      * @param deviceId Device identifier
      * @return SecureString with password (empty if not found)
      */
-    SecureMemory::SecureString loadPasswordSync(const QString &deviceId) {
+    SecureMemory::SecureString loadPasswordSync(const QString &deviceId) override {
         if (m_passwords.contains(deviceId)) {
             return SecureMemory::SecureString(m_passwords.value(deviceId));
         }

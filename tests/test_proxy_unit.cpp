@@ -19,6 +19,7 @@
 #include <QDBusReply>
 #include <QDBusMessage>
 #include <QDBusArgument>
+#include <QDBusAbstractAdaptor>
 #include <QTest>
 #include <QSignalSpy>
 #include <QTimer>
@@ -33,6 +34,64 @@
 
 using namespace YubiKeyOath::Shared;
 
+// Forward declarations
+class MockOathService;
+
+/**
+ * @brief D-Bus adaptor for ObjectManager interface
+ *
+ * Qt's Q_CLASSINFO supports only one interface per class.
+ * Use QDBusAbstractAdaptor for proper multi-interface support.
+ */
+class MockObjectManagerAdaptor : public QDBusAbstractAdaptor
+{
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.DBus.ObjectManager")
+
+public:
+    explicit MockObjectManagerAdaptor(MockOathService *parent);
+
+public Q_SLOTS:
+    ManagedObjectMap GetManagedObjects();
+
+Q_SIGNALS:
+    void InterfacesAdded(const QDBusObjectPath &object_path,
+                        const InterfacePropertiesMap &interfaces);
+    void InterfacesRemoved(const QDBusObjectPath &object_path,
+                          const QStringList &interfaces);
+
+private:
+    MockOathService *m_service;
+};
+
+/**
+ * @brief D-Bus adaptor for Credential interface
+ *
+ * Emits signals after method calls for proper async behavior.
+ */
+class MockCredentialAdaptor : public QDBusAbstractAdaptor
+{
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "pl.jkolo.yubikey.oath.Credential")
+
+public:
+    explicit MockCredentialAdaptor(MockOathService *parent);
+
+public Q_SLOTS:
+    void GenerateCode();
+    void CopyToClipboard();
+    void TypeCode(bool fallbackToCopy);
+    void Delete();
+
+Q_SIGNALS:
+    void CodeGenerated(const QString &code, qint64 validUntil, const QString &error);
+    void ClipboardCopied(bool success, const QString &error);
+    void CodeTyped(bool success, const QString &error);
+
+private:
+    MockOathService *m_service;
+};
+
 /**
  * @brief Mock D-Bus service simulating YubiKey OATH daemon
  *
@@ -43,9 +102,6 @@ class MockOathService : public QObject
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "pl.jkolo.yubikey.oath.Manager")
-    Q_CLASSINFO("D-Bus Interface", "org.freedesktop.DBus.ObjectManager")
-    Q_CLASSINFO("D-Bus Interface", "pl.jkolo.yubikey.oath.Device")
-    Q_CLASSINFO("D-Bus Interface", "pl.jkolo.yubikey.oath.Credential")
 
     Q_PROPERTY(QString Version READ version CONSTANT)
 
@@ -53,6 +109,9 @@ public:
     explicit MockOathService(QObject *parent = nullptr)
         : QObject(parent)
     {
+        // Attach adaptors - they register under their own interface names
+        new MockObjectManagerAdaptor(this);
+        new MockCredentialAdaptor(this);
     }
 
     QString version() const { return QStringLiteral("2.0.0-mock"); }
@@ -68,11 +127,12 @@ public Q_SLOTS:
         QDBusObjectPath devicePath1(QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1"));
         InterfacePropertiesMap deviceInterfaces1;
         QVariantMap deviceProps1;
-        deviceProps1[QStringLiteral("DeviceId")] = QStringLiteral("mock_device_1");
+        deviceProps1[QStringLiteral("ID")] = QStringLiteral("mock_device_1");  // OathDeviceProxy expects "ID" not "DeviceId"
         deviceProps1[QStringLiteral("Name")] = QStringLiteral("Mock YubiKey 1");
         deviceProps1[QStringLiteral("IsConnected")] = true;
         deviceProps1[QStringLiteral("RequiresPassword")] = false;
         deviceProps1[QStringLiteral("HasValidPassword")] = true;
+        deviceProps1[QStringLiteral("SerialNumber")] = QVariant::fromValue<quint32>(12345678);
         deviceInterfaces1[QStringLiteral("pl.jkolo.yubikey.oath.Device")] = deviceProps1;
         result[devicePath1] = deviceInterfaces1;
 
@@ -169,6 +229,83 @@ Q_SIGNALS:
     void nameChanged(const QString &newName);
     void connectionChanged(bool connected);
 };
+
+// ========== Adaptor Implementations ==========
+
+MockObjectManagerAdaptor::MockObjectManagerAdaptor(MockOathService *parent)
+    : QDBusAbstractAdaptor(parent)
+    , m_service(parent)
+{
+    setAutoRelaySignals(true);
+}
+
+ManagedObjectMap MockObjectManagerAdaptor::GetManagedObjects()
+{
+    return m_service->GetManagedObjects();
+}
+
+MockCredentialAdaptor::MockCredentialAdaptor(MockOathService *parent)
+    : QDBusAbstractAdaptor(parent)
+    , m_service(parent)
+{
+    setAutoRelaySignals(true);
+}
+
+void MockCredentialAdaptor::GenerateCode()
+{
+    QString code = QStringLiteral("123456");
+    qint64 validUntil = QDateTime::currentSecsSinceEpoch() + 30;
+
+    // Emit D-Bus signal with explicit path (required because same object is at multiple paths)
+    // Use first credential path as default
+    QString credPath = QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1/credentials/github_3ajdoe");
+
+    QTimer::singleShot(10, this, [code, validUntil, credPath]() {
+        QDBusMessage signal = QDBusMessage::createSignal(
+            credPath,
+            QStringLiteral("pl.jkolo.yubikey.oath.Credential"),
+            QStringLiteral("CodeGenerated")
+        );
+        signal << code << validUntil << QString();
+        QDBusConnection::sessionBus().send(signal);
+    });
+}
+
+void MockCredentialAdaptor::CopyToClipboard()
+{
+    QString credPath = QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1/credentials/github_3ajdoe");
+
+    QTimer::singleShot(10, this, [credPath]() {
+        QDBusMessage signal = QDBusMessage::createSignal(
+            credPath,
+            QStringLiteral("pl.jkolo.yubikey.oath.Credential"),
+            QStringLiteral("ClipboardCopied")
+        );
+        signal << true << QString();
+        QDBusConnection::sessionBus().send(signal);
+    });
+}
+
+void MockCredentialAdaptor::TypeCode(bool fallbackToCopy)
+{
+    Q_UNUSED(fallbackToCopy)
+    QString credPath = QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1/credentials/github_3ajdoe");
+
+    QTimer::singleShot(10, this, [credPath]() {
+        QDBusMessage signal = QDBusMessage::createSignal(
+            credPath,
+            QStringLiteral("pl.jkolo.yubikey.oath.Credential"),
+            QStringLiteral("CodeTyped")
+        );
+        signal << true << QString();
+        QDBusConnection::sessionBus().send(signal);
+    });
+}
+
+void MockCredentialAdaptor::Delete()
+{
+    // Mock delete - no signal needed
+}
 
 /**
  * @brief Unit tests for proxy classes
@@ -271,11 +408,11 @@ bool TestProxyUnit::registerMockOathService()
         return false;
     }
 
-    // Register manager object
+    // Register manager object with ExportAdaptors for proper interface routing
     if (!bus.registerObject(QStringLiteral("/pl/jkolo/yubikey/oath"),
                            m_mockService.get(),
+                           QDBusConnection::ExportAdaptors |
                            QDBusConnection::ExportAllProperties |
-                           QDBusConnection::ExportAllSlots |
                            QDBusConnection::ExportAllSignals)) {
         qCritical() << "Failed to register manager object:" << bus.lastError().message();
         return false;
@@ -284,24 +421,24 @@ bool TestProxyUnit::registerMockOathService()
     // Register device object
     if (!bus.registerObject(QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1"),
                            m_mockService.get(),
+                           QDBusConnection::ExportAdaptors |
                            QDBusConnection::ExportAllProperties |
-                           QDBusConnection::ExportAllSlots |
                            QDBusConnection::ExportAllSignals)) {
         qCritical() << "Failed to register device object:" << bus.lastError().message();
         return false;
     }
 
-    // Register credential objects
+    // Register credential objects with adaptors for proper signal routing
     bus.registerObject(QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1/credentials/github_3ajdoe"),
                       m_mockService.get(),
+                      QDBusConnection::ExportAdaptors |
                       QDBusConnection::ExportAllProperties |
-                      QDBusConnection::ExportAllSlots |
                       QDBusConnection::ExportAllSignals);
 
     bus.registerObject(QStringLiteral("/pl/jkolo/yubikey/oath/devices/mock_device_1/credentials/google_3ajdoe"),
                       m_mockService.get(),
+                      QDBusConnection::ExportAdaptors |
                       QDBusConnection::ExportAllProperties |
-                      QDBusConnection::ExportAllSlots |
                       QDBusConnection::ExportAllSignals);
 
     qDebug() << "Mock D-Bus service registered successfully";

@@ -39,8 +39,9 @@ public:
      *
      * Returns SecureString that will automatically wipe password from memory
      * when it goes out of scope. Empty SecureString if password not found.
+     * Virtual to allow mocking in tests.
      */
-    SecureMemory::SecureString loadPasswordSync(const QString &deviceId);
+    virtual SecureMemory::SecureString loadPasswordSync(const QString &deviceId);
 
     /**
      * @brief Saves password to KWallet
