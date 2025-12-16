@@ -1,0 +1,104 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: build-job
+  namespace: krunner-yubikey-ci
+  labels:
+    app.kubernetes.io/name: krunner-yubikey-oath
+    app.kubernetes.io/component: build
+    app.kubernetes.io/version: "2.0.0"
+spec:
+  # Keep last 3 completed jobs for debugging
+  ttlSecondsAfterFinished: 86400  # 24 hours
+  backoffLimit: 2
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: krunner-yubikey-oath
+        app.kubernetes.io/component: build
+    spec:
+      restartPolicy: Never
+
+      # Image pull secret for private registry
+      imagePullSecrets:
+        - name: registry-credentials
+
+      # Init container: Clone source code (if needed)
+      # If running in GitLab CI, source is already in workspace
+      initContainers:
+        - name: git-clone
+          image: alpine/git:latest
+          command:
+            - sh
+            - -c
+            - |
+              if [ ! -d /workspace/.git ]; then
+                echo "Cloning repository..."
+                git clone --depth=1 \
+                  https://git.kolosowscy.pl/jkolo/krunner-yubikey-oath.git \
+                  /workspace
+              else
+                echo "Repository already exists, skipping clone"
+              fi
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+
+      containers:
+        - name: builder
+          image: registry.kolosowscy.pl/krunner-yubikey-oath:builder-latest
+          imagePullPolicy: Always
+
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              echo "Starting build process..."
+
+              cd /workspace
+
+              # Configure CMake
+              cmake --preset ${CMAKE_PRESET} \
+                -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
+                -DCMAKE_C_COMPILER=clang \
+                -DCMAKE_CXX_COMPILER=clang++ \
+                -DCMAKE_INSTALL_PREFIX=/opt/krunner-yubikey
+
+              # Build with all available cores
+              NPROC=$(nproc)
+              echo "Building with $NPROC parallel jobs..."
+              cmake --build build-clang-release -j${NPROC}
+
+              echo "Build completed successfully!"
+
+          envFrom:
+            - configMapRef:
+                name: build-config
+
+          env:
+            - name: CCACHE_DIR
+              value: /cache/.ccache
+
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: build-cache
+              mountPath: /cache
+
+          resources:
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+
+      volumes:
+        - name: workspace
+          emptyDir: {}
+        - name: build-cache
+          persistentVolumeClaim:
+            claimName: build-cache-pvc

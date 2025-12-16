@@ -1,0 +1,63 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: build-config
+  namespace: krunner-yubikey-ci
+  labels:
+    app.kubernetes.io/name: krunner-yubikey-oath
+    app.kubernetes.io/component: build
+data:
+  CMAKE_PRESET: "clang-release"
+  CMAKE_BUILD_TYPE: "Release"
+  ENABLE_COVERAGE: "ON"
+  CTEST_PARALLEL_LEVEL: "4"
+  CTEST_OUTPUT_ON_FAILURE: "1"
+  CCACHE_MAXSIZE: "2G"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-config
+  namespace: krunner-yubikey-ci
+  labels:
+    app.kubernetes.io/name: krunner-yubikey-oath
+    app.kubernetes.io/component: test
+data:
+  # Qt configuration
+  QT_QPA_PLATFORM: "offscreen"
+  QT_LOGGING_TO_CONSOLE: "1"
+
+  # X11 display for input tests
+  DISPLAY: ":99"
+
+  # D-Bus configuration
+  DBUS_SESSION_BUS_ADDRESS: "unix:path=/tmp/dbus-session"
+
+  # Test verbosity
+  CTEST_OUTPUT_ON_FAILURE: "1"
+  CTEST_PARALLEL_LEVEL: "4"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dbus-config
+  namespace: krunner-yubikey-ci
+  labels:
+    app.kubernetes.io/name: krunner-yubikey-oath
+    app.kubernetes.io/component: test
+data:
+  session.conf: |
+    <!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bus Configuration 1.0//EN"
+     "http://www.freedesktop.org/standards/dbus/1.0/busconfig.dtd">
+    <busconfig>
+      <type>session</type>
+      <listen>unix:path=/tmp/dbus-session</listen>
+      <policy context="default">
+        <allow send_destination="*" eavesdrop="true"/>
+        <allow eavesdrop="true"/>
+        <allow own="*"/>
+      </policy>
+    </busconfig>

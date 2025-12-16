@@ -1,0 +1,37 @@
+---
+# Persistent Volume Claim for build cache (ccache + CMake artifacts)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: build-cache-pvc
+  namespace: krunner-yubikey-ci
+  labels:
+    app.kubernetes.io/name: krunner-yubikey-oath
+    app.kubernetes.io/component: build
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # Adjust storageClassName based on your cluster configuration
+  # Common values: standard, gp2, local-path (k3s/kind)
+  storageClassName: standard
+
+---
+# Persistent Volume Claim for test artifacts (coverage reports, JUnit XML)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: test-artifacts-pvc
+  namespace: krunner-yubikey-ci
+  labels:
+    app.kubernetes.io/name: krunner-yubikey-oath
+    app.kubernetes.io/component: test
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: standard

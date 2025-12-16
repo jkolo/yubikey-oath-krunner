@@ -1,0 +1,198 @@
+version: '3.8'
+
+# Docker Compose / Podman Compose configuration for KRunner YubiKey OATH Plugin
+# Compatible with both docker-compose and podman-compose
+
+services:
+  # =============================================================================
+  # Build service - Compile the project
+  # =============================================================================
+  build:
+    build:
+      context: .
+      dockerfile: Containerfile
+      target: builder
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: registry.kolosowscy.pl/krunner-yubikey-oath:builder-latest
+    container_name: krunner-yubikey-build
+    volumes:
+      # Mount source for development
+      - ./:/workspace:rw
+      # Persistent ccache for faster rebuilds
+      - ccache-data:/workspace/.ccache:rw
+      # Persistent CMake build directory
+      - build-data:/workspace/build-clang-release:rw
+    environment:
+      - CCACHE_DIR=/workspace/.ccache
+      - CCACHE_MAXSIZE=2G
+      - CMAKE_PRESET=clang-release
+    working_dir: /workspace
+    command: >
+      sh -c "
+        cmake --preset clang-release &&
+        cmake --build build-clang-release -j$$(nproc)
+      "
+
+  # =============================================================================
+  # Test service - Run all tests with virtual devices
+  # =============================================================================
+  test:
+    build:
+      context: .
+      dockerfile: Containerfile
+      target: test
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: registry.kolosowscy.pl/krunner-yubikey-oath:test-latest
+    container_name: krunner-yubikey-test
+    depends_on:
+      - build
+    volumes:
+      # Mount source for test access
+      - ./:/workspace:ro
+      # Mount build artifacts from build service (rw for ctest temporary files)
+      - build-data:/workspace/build-clang-release:rw
+      # Mount coverage output
+      - ./coverage-report:/workspace/coverage-report:rw
+    environment:
+      # Qt offscreen rendering (no X11 needed for most tests)
+      - QT_QPA_PLATFORM=offscreen
+      # D-Bus session for test isolation
+      - DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/dbus-session
+      # Xvfb display for input tests
+      - DISPLAY=:99
+      # Test configuration
+      - CTEST_OUTPUT_ON_FAILURE=1
+      - CTEST_PARALLEL_LEVEL=4
+    working_dir: /workspace
+    command: >
+      sh -c "
+        # Start Xvfb for input tests
+        Xvfb :99 -screen 0 1024x768x24 -nolisten tcp &
+        XVFB_PID=$$!
+
+        # Start D-Bus session
+        dbus-daemon --session --fork --print-address > /tmp/dbus-address
+        export DBUS_SESSION_BUS_ADDRESS=$$(cat /tmp/dbus-address)
+
+        # Run tests
+        cd build-clang-release
+        ctest --output-on-failure --parallel 4
+        TEST_RESULT=$$?
+
+        # Generate coverage if tests passed
+        if [ $$TEST_RESULT -eq 0 ]; then
+          echo 'Generating coverage report...'
+          cd /workspace
+          ./scripts/generate-coverage.sh build-clang-release || true
+        fi
+
+        # Cleanup
+        kill $$XVFB_PID 2>/dev/null || true
+
+        exit $$TEST_RESULT
+      "
+
+  # =============================================================================
+  # Dev service - Interactive development environment
+  # =============================================================================
+  dev:
+    build:
+      context: .
+      dockerfile: Containerfile
+      target: test
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: registry.kolosowscy.pl/krunner-yubikey-oath:test-latest
+    container_name: krunner-yubikey-dev
+    volumes:
+      # Mount source for live editing
+      - ./:/workspace:rw
+      # Persistent ccache
+      - ccache-data:/workspace/.ccache:rw
+      # Persistent build directory
+      - build-data:/workspace/build-clang-release:rw
+      # Coverage output
+      - ./coverage-report:/workspace/coverage-report:rw
+    environment:
+      - QT_QPA_PLATFORM=offscreen
+      - DISPLAY=:99
+      - CCACHE_DIR=/workspace/.ccache
+      - CCACHE_MAXSIZE=2G
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    command: /bin/bash
+
+  # =============================================================================
+  # Artifacts service - Build final installation image
+  # =============================================================================
+  artifacts:
+    build:
+      context: .
+      dockerfile: Containerfile
+      target: artifacts
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    image: registry.kolosowscy.pl/krunner-yubikey-oath:latest
+    container_name: krunner-yubikey-artifacts
+    depends_on:
+      - build
+    volumes:
+      # Extract installed files to host
+      - ./dist:/dist:rw
+    command: >
+      sh -c "
+        echo 'Copying installed files to /dist...'
+        mkdir -p /dist/usr/bin
+        mkdir -p /dist/usr/lib/qt6/plugins/kf6/krunner
+        mkdir -p /dist/usr/lib/qt6/plugins
+        mkdir -p /dist/usr/share/icons
+        cp /usr/bin/yubikey-oath-daemon /dist/usr/bin/
+        cp /usr/lib/qt6/plugins/kf6/krunner/krunner_yubikey.so /dist/usr/lib/qt6/plugins/kf6/krunner/
+        cp /usr/lib/qt6/plugins/kcm_krunner_yubikey.so /dist/usr/lib/qt6/plugins/
+        cp -r /usr/share/icons/hicolor /dist/usr/share/icons/ || true
+        echo 'Artifacts copied to ./dist/'
+      "
+
+# =============================================================================
+# Volumes - Persistent data for faster rebuilds
+# =============================================================================
+volumes:
+  # ccache storage (speeds up C++ compilation)
+  ccache-data:
+    driver: local
+
+  # CMake build directory (avoids full rebuilds)
+  build-data:
+    driver: local
+
+# =============================================================================
+# Usage Examples
+# =============================================================================
+#
+# Build the project:
+#   podman-compose up build
+#   docker-compose up build
+#
+# Run all tests:
+#   podman-compose run --rm test
+#   docker-compose run --rm test
+#
+# Interactive development shell:
+#   podman-compose run --rm dev
+#   docker-compose run --rm dev
+#
+# Extract build artifacts:
+#   podman-compose run --rm artifacts
+#   docker-compose run --rm artifacts
+#
+# Clean volumes (force full rebuild):
+#   podman-compose down -v
+#   docker-compose down -v
+#
+# View logs:
+#   podman-compose logs -f test
+#   docker-compose logs -f test
+#

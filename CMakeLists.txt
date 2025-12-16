@@ -42,6 +42,11 @@ endif()
 # Code Coverage Option
 option(ENABLE_COVERAGE "Enable code coverage analysis with gcov/lcov" OFF)
 
+# CI Build Option
+# When enabled, skip optional/slow build steps like icon generation
+# Icons should be pre-generated and committed to repository for CI builds
+option(CI_BUILD "Enable CI-specific build optimizations" OFF)
+
 if(ENABLE_COVERAGE)
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         message(STATUS "Code coverage enabled")
@@ -108,13 +113,19 @@ include_directories(${CMAKE_SOURCE_DIR}/src/shared)
 
 # Generate hicolor theme icons from source PNG/SVG files
 # This creates all required sizes (16-256px) for freedesktop.org hicolor theme
-add_custom_target(generate-icons ALL
-    COMMAND ${CMAKE_COMMAND} -E env CMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}
-            ${CMAKE_SOURCE_DIR}/scripts/generate-icon-sizes.sh
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    COMMENT "Generating hicolor theme icons from source files"
-    VERBATIM
-)
+# Skip in CI builds - icons should be pre-generated and committed
+if(NOT CI_BUILD)
+    add_custom_target(generate-icons ALL
+        COMMAND ${CMAKE_COMMAND} -E env CMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}
+                ${CMAKE_SOURCE_DIR}/scripts/generate-icon-sizes.sh
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Generating hicolor theme icons from source files"
+        VERBATIM
+    )
+    message(STATUS "Icon generation enabled (disable with -DCI_BUILD=ON)")
+else()
+    message(STATUS "Icon generation skipped (CI_BUILD=ON, using pre-generated icons)")
+endif()
 
 add_subdirectory(src)
 

@@ -59,3 +59,18 @@ rc.cpp
 
 # Logs
 *.log
+
+# Container artifacts
+dist/
+k8s-test-results/
+.github-release-url.txt
+
+# Kubernetes secrets (never commit!)
+k8s/secret.yaml
+
+# Local container configuration
+kind-config.yaml
+.kube/
+
+# Coverage reports
+coverage-report/

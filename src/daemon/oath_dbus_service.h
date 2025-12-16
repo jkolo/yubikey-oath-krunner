@@ -54,6 +54,16 @@ public:
     ~OathDBusService() override;
 
 private:
+    /**
+     * @brief Register D-Bus metatypes for OATH operations
+     *
+     * Registers all custom types used in D-Bus communication. This centralizes
+     * type registration (instead of scattering it across main.cpp, proxy classes, etc.)
+     *
+     * Pattern: Static flag ensures registration happens only once.
+     */
+    static void registerDBusTypes();
+
     std::unique_ptr<OathService> m_service;
     OathManagerObject *m_manager;  // Owned by QObject hierarchy (parent = this)
 };

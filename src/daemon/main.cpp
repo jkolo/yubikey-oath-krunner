@@ -10,7 +10,6 @@
 #include <QApplication>
 #include <QDBusConnection>
 #include <QDBusError>
-#include <QDBusMetaType>
 #include <QDebug>
 #include <KLocalizedString>
 
@@ -31,12 +30,8 @@ int main(int argc, char *argv[])
     // Set desktop file name for XDG Portal app ID
     app.setDesktopFileName(QStringLiteral("pl.jkolo.yubikey.oath.daemon"));
 
-    // Log Qt platform plugin and clipboard availability
-    qWarning() << "Qt platform:" << QApplication::platformName();
-    qWarning() << "Wayland display:" << qgetenv("WAYLAND_DISPLAY");
-    qWarning() << "X11 display:" << qgetenv("DISPLAY");
-
-    // Register custom types for D-Bus marshaling
+    // Register custom types for Qt's metatype system (required for signals/slots)
+    // Note: D-Bus type registration is now handled by OathDBusService
     qRegisterMetaType<YubiKeyOath::Shared::DeviceInfo>("YubiKeyOath::Shared::DeviceInfo");
     qRegisterMetaType<YubiKeyOath::Shared::CredentialInfo>("YubiKeyOath::Shared::CredentialInfo");
     qRegisterMetaType<YubiKeyOath::Shared::GenerateCodeResult>("YubiKeyOath::Shared::GenerateCodeResult");
@@ -44,14 +39,6 @@ int main(int argc, char *argv[])
     qRegisterMetaType<QList<YubiKeyOath::Shared::DeviceInfo>>("QList<YubiKeyOath::Shared::DeviceInfo>");
     qRegisterMetaType<QList<YubiKeyOath::Shared::CredentialInfo>>("QList<YubiKeyOath::Shared::CredentialInfo>");
     qRegisterMetaType<YubiKeyOath::Shared::DeviceState>("YubiKeyOath::Shared::DeviceState");
-
-    qDBusRegisterMetaType<YubiKeyOath::Shared::DeviceInfo>();
-    qDBusRegisterMetaType<YubiKeyOath::Shared::CredentialInfo>();
-    qDBusRegisterMetaType<YubiKeyOath::Shared::GenerateCodeResult>();
-    qDBusRegisterMetaType<YubiKeyOath::Shared::AddCredentialResult>();
-    qDBusRegisterMetaType<QList<YubiKeyOath::Shared::DeviceInfo>>();
-    qDBusRegisterMetaType<QList<YubiKeyOath::Shared::CredentialInfo>>();
-    qDBusRegisterMetaType<YubiKeyOath::Shared::DeviceState>();
 
     // Create service
     const YubiKeyOath::Daemon::OathDBusService service;
@@ -64,10 +51,6 @@ int main(int argc, char *argv[])
                     << connection.lastError().message();
         return 1;
     }
-
-    qInfo() << "YubiKey OATH daemon started successfully";
-    qInfo() << "D-Bus service: pl.jkolo.yubikey.oath.daemon";
-    qInfo() << "D-Bus architecture: hierarchical (ObjectManager pattern)";
 
     return app.exec();
 }

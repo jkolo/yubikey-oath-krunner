@@ -1,0 +1,10 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: krunner-yubikey-ci
+  labels:
+    app.kubernetes.io/name: krunner-yubikey-oath
+    app.kubernetes.io/component: ci-cd
+    app.kubernetes.io/part-of: krunner-yubikey-oath
+    app.kubernetes.io/managed-by: kubectl

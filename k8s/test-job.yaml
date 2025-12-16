@@ -1,0 +1,199 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-job
+  namespace: krunner-yubikey-ci
+  labels:
+    app.kubernetes.io/name: krunner-yubikey-oath
+    app.kubernetes.io/component: test
+    app.kubernetes.io/version: "2.0.0"
+spec:
+  ttlSecondsAfterFinished: 86400  # 24 hours
+  backoffLimit: 1
+
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: krunner-yubikey-oath
+        app.kubernetes.io/component: test
+    spec:
+      restartPolicy: Never
+
+      imagePullSecrets:
+        - name: registry-credentials
+
+      # Share process namespace for sidecar coordination
+      shareProcessNamespace: true
+
+      initContainers:
+        # Copy build artifacts from build-job
+        # In real CI/CD, this would be handled by GitLab artifacts
+        - name: copy-build-artifacts
+          image: alpine:latest
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for build artifacts..."
+              # In practice, this would copy from build-cache PVC or artifact storage
+              echo "Artifacts ready"
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: build-cache
+              mountPath: /cache
+
+      containers:
+        # Main test runner container
+        - name: test-runner
+          image: registry.kolosowscy.pl/krunner-yubikey-oath:test-latest
+          imagePullPolicy: Always
+
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              echo "Waiting for D-Bus and Xvfb to be ready..."
+              sleep 3
+
+              # Verify D-Bus is running
+              if [ ! -S /tmp/dbus-session ]; then
+                echo "ERROR: D-Bus socket not found at /tmp/dbus-session"
+                exit 1
+              fi
+
+              echo "Starting test execution..."
+              cd /workspace/build-clang-release
+
+              # Run tests with parallel execution
+              ctest --output-on-failure \
+                    --parallel ${CTEST_PARALLEL_LEVEL} \
+                    --no-compress-output \
+                    --test-output-size-passed 65536 \
+                    --test-output-size-failed 1048576
+
+              TEST_RESULT=$?
+
+              # Generate coverage report if tests passed
+              if [ $TEST_RESULT -eq 0 ]; then
+                echo "Tests passed! Generating coverage report..."
+                cd /workspace
+                ./scripts/generate-coverage.sh build-clang-release || true
+
+                # Copy coverage artifacts
+                if [ -d coverage-report ]; then
+                  cp -r coverage-report /artifacts/
+                  echo "Coverage report saved to /artifacts/coverage-report"
+                fi
+              else
+                echo "Tests failed with exit code $TEST_RESULT"
+              fi
+
+              # Copy test results
+              find build-clang-release -name "*.xml" -exec cp {} /artifacts/ \; || true
+
+              exit $TEST_RESULT
+
+          envFrom:
+            - configMapRef:
+                name: test-config
+
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+              readOnly: true
+            - name: dbus-socket
+              mountPath: /tmp
+            - name: test-artifacts
+              mountPath: /artifacts
+
+          resources:
+            requests:
+              cpu: "2"
+              memory: "4Gi"
+            limits:
+              cpu: "4"
+              memory: "8Gi"
+
+        # Sidecar: D-Bus session daemon
+        - name: dbus-daemon
+          image: registry.kolosowscy.pl/krunner-yubikey-oath:test-latest
+          imagePullPolicy: Always
+
+          command:
+            - sh
+            - -c
+            - |
+              echo "Starting D-Bus session daemon..."
+              mkdir -p /tmp/dbus
+
+              # Start D-Bus daemon
+              dbus-daemon --session \
+                          --nofork \
+                          --address=unix:path=/tmp/dbus-session \
+                          --print-address
+
+          volumeMounts:
+            - name: dbus-socket
+              mountPath: /tmp
+            - name: dbus-config
+              mountPath: /etc/dbus-1/session.conf
+              subPath: session.conf
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+
+        # Sidecar: Xvfb for input tests
+        - name: xvfb
+          image: registry.kolosowscy.pl/krunner-yubikey-oath:test-latest
+          imagePullPolicy: Always
+
+          command:
+            - Xvfb
+            - :99
+            - -screen
+            - "0"
+            - 1024x768x24
+            - -nolisten
+            - tcp
+            - -ac
+
+          env:
+            - name: DISPLAY
+              value: ":99"
+
+          volumeMounts:
+            - name: x11-socket
+              mountPath: /tmp/.X11-unix
+
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+      volumes:
+        - name: workspace
+          emptyDir: {}
+        - name: build-cache
+          persistentVolumeClaim:
+            claimName: build-cache-pvc
+        - name: test-artifacts
+          persistentVolumeClaim:
+            claimName: test-artifacts-pvc
+        - name: dbus-socket
+          emptyDir: {}
+        - name: dbus-config
+          configMap:
+            name: dbus-config
+        - name: x11-socket
+          emptyDir: {}

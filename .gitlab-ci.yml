@@ -1,0 +1,324 @@
+# GitLab CI/CD Pipeline for KRunner YubiKey OATH Plugin
+# Requires: Docker executor with podman backend, 4 cores, 8GB RAM
+#
+# Required CI/CD Variables (Settings → CI/CD → Variables):
+#   REGISTRY_USER        - Username for registry.kolosowscy.pl (masked)
+#   REGISTRY_PASSWORD    - Password for registry.kolosowscy.pl (masked)
+#   GITHUB_TOKEN         - GitHub Personal Access Token with repo scope (masked)
+#   AUR_SSH_KEY          - SSH private key for aur@aur.archlinux.org (file, masked)
+#   AUR_GIT_EMAIL        - Email for AUR commits (e.g., ci@kolosowscy.pl)
+#   AUR_GIT_NAME         - Name for AUR commits (e.g., GitLab CI)
+
+variables:
+  # Container registry configuration
+  CONTAINER_REGISTRY: registry.kolosowscy.pl
+  CONTAINER_IMAGE: ${CONTAINER_REGISTRY}/krunner-yubikey-oath
+  CONTAINER_TAG: ${CI_COMMIT_REF_SLUG}
+
+  # Build configuration
+  CMAKE_PRESET: clang-release
+  CMAKE_BUILD_TYPE: Release
+  ENABLE_COVERAGE: "ON"
+
+  # Podman/Buildah configuration
+  BUILDAH_FORMAT: oci
+  STORAGE_DRIVER: vfs
+
+  # GitLab features
+  GIT_DEPTH: 1
+  GIT_SUBMODULE_STRATEGY: none
+
+# Default settings for all jobs
+default:
+  # Retry on infrastructure failures
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+
+  # Login to container registry before each job
+  before_script:
+    - echo "Logging into container registry..."
+    - echo "$REGISTRY_PASSWORD" | podman login -u "$REGISTRY_USER" --password-stdin $CONTAINER_REGISTRY
+
+# Pipeline stages
+stages:
+  - build-image    # Build container images
+  - build          # Compile the project
+  - test           # Run unit and E2E tests
+  - coverage       # Generate coverage reports
+  - analysis       # Static analysis (clang-tidy)
+  - package        # Create release tarballs
+  - deploy         # Deploy to GitHub and AUR
+
+# =============================================================================
+# Stage 1: Build Container Images
+# =============================================================================
+
+build:container-builder:
+  stage: build-image
+  image: quay.io/buildah/stable:latest
+  script:
+    - echo "Building builder stage..."
+    - buildah bud --format=${BUILDAH_FORMAT} --target builder --layers --cache-from=${CONTAINER_IMAGE}:builder-${CONTAINER_TAG} -t ${CONTAINER_IMAGE}:builder-${CONTAINER_TAG} -f Containerfile .
+    - buildah push ${CONTAINER_IMAGE}:builder-${CONTAINER_TAG}
+    # Tag as 'latest' on main branch
+    - |
+      if [ "$CI_COMMIT_BRANCH" == "main" ]; then
+        buildah tag ${CONTAINER_IMAGE}:builder-${CONTAINER_TAG} ${CONTAINER_IMAGE}:builder-latest
+        buildah push ${CONTAINER_IMAGE}:builder-latest
+      fi
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+  tags:
+    - docker
+
+build:container-test:
+  stage: build-image
+  image: quay.io/buildah/stable:latest
+  needs:
+    - build:container-builder
+  script:
+    - echo "Building test stage..."
+    - buildah bud --format=${BUILDAH_FORMAT} --target test --layers --cache-from=${CONTAINER_IMAGE}:test-${CONTAINER_TAG} -t ${CONTAINER_IMAGE}:test-${CONTAINER_TAG} -f Containerfile .
+    - buildah push ${CONTAINER_IMAGE}:test-${CONTAINER_TAG}
+    # Tag as 'latest' on main branch
+    - |
+      if [ "$CI_COMMIT_BRANCH" == "main" ]; then
+        buildah tag ${CONTAINER_IMAGE}:test-${CONTAINER_TAG} ${CONTAINER_IMAGE}:test-latest
+        buildah push ${CONTAINER_IMAGE}:test-latest
+      fi
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+  tags:
+    - docker
+
+# =============================================================================
+# Stage 2: Build Project
+# =============================================================================
+
+build:debug:
+  stage: build
+  image: ${CONTAINER_IMAGE}:builder-${CONTAINER_TAG}
+  needs:
+    - build:container-builder
+  script:
+    - echo "Configuring CMake (debug)..."
+    - cmake --preset clang-debug -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+    - echo "Building (debug)..."
+    - NPROC=$(nproc)
+    - cmake --build build-clang-debug -j${NPROC}
+  artifacts:
+    paths:
+      - build-clang-debug/
+    expire_in: 1 day
+  cache:
+    key: build-debug-${CI_COMMIT_REF_SLUG}
+    paths:
+      - .ccache/
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+  tags:
+    - docker
+
+build:release:
+  stage: build
+  image: ${CONTAINER_IMAGE}:builder-${CONTAINER_TAG}
+  needs:
+    - build:container-builder
+  script:
+    - echo "Configuring CMake (release)..."
+    - cmake --preset ${CMAKE_PRESET} -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DENABLE_COVERAGE=${ENABLE_COVERAGE}
+    - echo "Building (release)..."
+    - NPROC=$(nproc)
+    - cmake --build build-clang-release -j${NPROC}
+  artifacts:
+    paths:
+      - build-clang-release/
+    expire_in: 7 days
+  cache:
+    key: build-release-${CI_COMMIT_REF_SLUG}
+    paths:
+      - .ccache/
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+  tags:
+    - docker
+
+# =============================================================================
+# Stage 3: Tests
+# =============================================================================
+
+test:unit:
+  stage: test
+  image: ${CONTAINER_IMAGE}:test-${CONTAINER_TAG}
+  needs:
+    - build:container-test
+    - build:release
+  script:
+    - echo "Running unit and service tests..."
+    - chmod +x scripts/ci-test-runner.sh
+    - ./scripts/ci-test-runner.sh unit
+  artifacts:
+    reports:
+      junit: build-clang-release/test-results-unit.xml
+    paths:
+      - build-clang-release/test-results-unit.xml
+      - build-clang-release/Testing/
+    expire_in: 7 days
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+  tags:
+    - docker
+
+test:e2e:
+  stage: test
+  image: ${CONTAINER_IMAGE}:test-${CONTAINER_TAG}
+  needs:
+    - build:container-test
+    - build:release
+  script:
+    - echo "Running end-to-end tests..."
+    - chmod +x scripts/ci-test-runner.sh
+    - ./scripts/ci-test-runner.sh e2e
+  artifacts:
+    reports:
+      junit: build-clang-release/test-results-e2e.xml
+    paths:
+      - build-clang-release/test-results-e2e.xml
+      - build-clang-release/Testing/
+    expire_in: 7 days
+  timeout: 5m
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+  tags:
+    - docker
+
+# =============================================================================
+# Stage 4: Coverage
+# =============================================================================
+
+coverage:report:
+  stage: coverage
+  image: ${CONTAINER_IMAGE}:test-${CONTAINER_TAG}
+  needs:
+    - build:container-test
+    - build:release
+    - test:unit
+    - test:e2e
+  script:
+    - echo "Generating coverage report..."
+    - chmod +x scripts/generate-coverage.sh
+    - ./scripts/generate-coverage.sh build-clang-release
+  coverage: '/^TOTAL.*\s+(\d+\%)$/'
+  artifacts:
+    paths:
+      - coverage-report/
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage-report/coverage.xml
+    expire_in: 30 days
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG'
+  tags:
+    - docker
+
+# =============================================================================
+# Stage 5: Static Analysis
+# =============================================================================
+
+lint:clang-tidy:
+  stage: analysis
+  image: ${CONTAINER_IMAGE}:builder-${CONTAINER_TAG}
+  needs:
+    - build:container-builder
+    - build:release
+  script:
+    - echo "Running clang-tidy static analysis..."
+    - cd build-clang-release
+    - run-clang-tidy -p . 2>&1 | tee clang-tidy-report.txt || true
+  artifacts:
+    paths:
+      - build-clang-release/clang-tidy-report.txt
+    expire_in: 7 days
+  allow_failure: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  tags:
+    - docker
+
+# =============================================================================
+# Stage 6: Package (only on tags)
+# =============================================================================
+
+package:tarball:
+  stage: package
+  image: ${CONTAINER_IMAGE}:builder-${CONTAINER_TAG}
+  needs:
+    - build:container-builder
+    - build:release
+    - test:unit
+    - test:e2e
+  script:
+    - echo "Creating release tarball for ${CI_COMMIT_TAG}..."
+    - chmod +x scripts/create-release-tarball.sh
+    - ./scripts/create-release-tarball.sh ${CI_COMMIT_TAG}
+  artifacts:
+    paths:
+      - krunner-yubikey-oath-${CI_COMMIT_TAG}.tar.gz
+      - krunner-yubikey-oath-${CI_COMMIT_TAG}.tar.gz.sha256
+  rules:
+    - if: '$CI_COMMIT_TAG'
+  tags:
+    - docker
+
+# =============================================================================
+# Stage 7: Deploy (only on tags)
+# =============================================================================
+
+deploy:github-release:
+  stage: deploy
+  image: ${CONTAINER_IMAGE}:test-${CONTAINER_TAG}
+  needs:
+    - build:container-test
+    - package:tarball
+  script:
+    - echo "Creating GitHub release for ${CI_COMMIT_TAG}..."
+    - chmod +x scripts/create-github-release.sh
+    - ./scripts/create-github-release.sh ${CI_COMMIT_TAG}
+  rules:
+    - if: '$CI_COMMIT_TAG'
+  tags:
+    - docker
+
+deploy:aur-update:
+  stage: deploy
+  image: ${CONTAINER_IMAGE}:test-${CONTAINER_TAG}
+  needs:
+    - build:container-test
+    - package:tarball
+    - deploy:github-release
+  script:
+    - echo "Updating AUR package for ${CI_COMMIT_TAG}..."
+    - chmod +x scripts/update-aur-package.sh
+    - ./scripts/update-aur-package.sh ${CI_COMMIT_TAG}
+  rules:
+    - if: '$CI_COMMIT_TAG'
+  tags:
+    - docker

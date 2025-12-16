@@ -34,9 +34,7 @@ namespace Daemon {
         new ManagerAdaptor(this);
         qCDebug(OathDaemonLog) << "YubiKeyManagerObject: ManagerAdaptor created";
 
-        // Register D-Bus meta types for GetManagedObjects return value
-        qDBusRegisterMetaType<InterfacePropertiesMap>();
-        qDBusRegisterMetaType<ManagedObjectMap>();
+        // Note: D-Bus type registration is now centralized in OathDBusService::registerDBusTypes()
 
         // Connect to service signals to track device changes
         connect(m_service, &OathService::deviceConnected,

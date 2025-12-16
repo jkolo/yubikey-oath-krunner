@@ -87,6 +87,23 @@ OathService::OathService(QObject *parent)
     // deviceConnected signals, and those are already connected to onDeviceConnected above (line 60-61).
     // This removes the blocking loop that was causing 5-30s startup delay.
 
+    // Initialize devices from database after signal connections are established
+    // This ensures OathManagerObject receives deviceConnected signals for all known devices
+    QTimer::singleShot(0, this, [this]() {
+        qCDebug(OathDaemonLog) << "OathService: Emitting deviceConnected signals for known devices from database";
+        const QList<DeviceInfo> devices = listDevices();
+        for (const auto &devInfo : devices) {
+            if (!devInfo._internalDeviceId.isEmpty()) {
+                qCDebug(OathDaemonLog) << "OathService: Emitting deviceConnected for device:"
+                                          << devInfo._internalDeviceId << "isConnected:" << devInfo.isConnected();
+                // Emit deviceConnected signal - OathManagerObject will create D-Bus object
+                // and call connectToDevice() if device is connected
+                Q_EMIT deviceConnected(devInfo._internalDeviceId);
+            }
+        }
+        qCDebug(OathDaemonLog) << "OathService: Device initialization signals emitted for" << devices.size() << "devices";
+    });
+
     qCDebug(OathDaemonLog) << "OathService: Initialization complete (async device enumeration in progress)";
 }
 

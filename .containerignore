@@ -1,0 +1,76 @@
+# Build artifacts
+build-*/
+build/
+*.o
+*.so
+*.a
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+# Coverage artifacts
+coverage-report/
+*.gcov
+*.gcda
+*.gcno
+*.profdata
+*.profraw
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# IDEs
+.vscode/
+.idea/
+.clangd/
+.cache/
+*.swp
+*.swo
+*~
+
+# CI/CD
+.gitlab-ci.yml
+.github/
+
+# Documentation (not needed for build)
+docs/
+*.md
+CHANGELOG.md
+LICENSE
+
+# Test artifacts
+test-results*.xml
+junit-*.xml
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+
+# Kubernetes secrets (never copy to image)
+k8s/secret.yaml
+
+# Local configuration
+.env
+.env.local
+local.conf
+
+# Container tools
+Containerfile
+.containerignore
+docker-compose.yml
+
+# ccache
+.ccache/
+
+# Package manager artifacts
+*.deb
+*.rpm
+*.pkg.tar.zst
+*.tar.gz
+*.tar.xz

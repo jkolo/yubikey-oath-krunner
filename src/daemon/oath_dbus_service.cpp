@@ -11,17 +11,47 @@
 
 #include <QDebug>
 #include <QDBusConnection>
+#include <QDBusMetaType>
 #include <QTimer>
 
 namespace YubiKeyOath {
 namespace Daemon {
 using namespace YubiKeyOath::Shared;
 
+void OathDBusService::registerDBusTypes()
+{
+    // Register D-Bus types only once (static flag pattern)
+    static bool registered = false;
+    if (registered) {
+        return;
+    }
+
+    // Register all custom types used in D-Bus communication
+    // These types are used by Manager, Device, and Credential interfaces
+    qDBusRegisterMetaType<DeviceInfo>();
+    qDBusRegisterMetaType<CredentialInfo>();
+    qDBusRegisterMetaType<GenerateCodeResult>();
+    qDBusRegisterMetaType<AddCredentialResult>();
+    qDBusRegisterMetaType<QList<DeviceInfo>>();
+    qDBusRegisterMetaType<QList<CredentialInfo>>();
+    qDBusRegisterMetaType<DeviceState>();
+
+    // Register ObjectManager types (used by GetManagedObjects)
+    qDBusRegisterMetaType<InterfacePropertiesMap>();
+    qDBusRegisterMetaType<ManagedObjectMap>();
+
+    registered = true;
+    qCDebug(OathDaemonLog) << "OathDBusService: D-Bus metatypes registered";
+}
+
 OathDBusService::OathDBusService(QObject *parent)
     : QObject(parent)
     , m_service(std::make_unique<OathService>(this))
     , m_manager(nullptr)
 {
+    // Register D-Bus types before any D-Bus operations
+    registerDBusTypes();
+
     qCDebug(OathDaemonLog) << "OathDBusService: Initializing D-Bus service with hierarchical architecture";
 
     // Create and register Manager object at /pl/jkolo/yubikey/oath
@@ -37,32 +67,19 @@ OathDBusService::OathDBusService(QObject *parent)
     }
 
     // NOTE: Device lifecycle signals are connected in YubiKeyManagerObject constructor
-    // - deviceConnected -> addDevice
+    // - deviceConnected -> addDevice (creates D-Bus objects for devices)
     // - deviceDisconnected -> onDeviceDisconnected (updates State to Disconnected)
     // - deviceForgotten -> removeDevice (removes from D-Bus completely)
+    //
+    // Device initialization from database happens in OathService via signal emission
+    // (see oath_service.cpp constructor - QTimer::singleShot for deviceConnected signals)
 
-    // Add ALL known devices to Manager (both connected and disconnected from database)
-    // (devices detected during OathService initialization, before signals were connected)
-    // Device objects will be created and connected to actual devices if available
-    const QList<DeviceInfo> devices = m_service->listDevices();
-    for (const auto &devInfo : devices) {
-        if (!devInfo._internalDeviceId.isEmpty()) {
-            const bool connected = devInfo.isConnected();
-            qCDebug(OathDaemonLog) << "OathDBusService: Adding device to Manager:"
-                                      << devInfo._internalDeviceId << "isConnected:" << connected;
-            // Pass connection status - Manager will call connectToDevice() if isConnected=true
-            m_manager->addDeviceWithStatus(devInfo._internalDeviceId, connected);
-        }
-    }
+    qCInfo(OathDaemonLog) << "OathDBusService: D-Bus interface initialized (devices will be added via signals)";
 
-    qCInfo(OathDaemonLog) << "OathDBusService: D-Bus interface fully initialized with"
-                             << devices.size() << "devices from database";
-
-    // NOW start PC/SC monitoring - D-Bus is ready with all database objects
-    // This must happen AFTER D-Bus objects are created to avoid race condition where
-    // PC/SC detects cards and triggers updateCredentials() before D-Bus is ready
+    // Start PC/SC monitoring after D-Bus infrastructure is ready
+    // Device D-Bus objects will be created asynchronously via deviceConnected signals
     QTimer::singleShot(0, this, [this]() {
-        qCInfo(OathDaemonLog) << "OathDBusService: Starting PC/SC monitoring after D-Bus initialization";
+        qCInfo(OathDaemonLog) << "OathDBusService: Starting PC/SC monitoring";
         m_service->getDeviceManager()->startMonitoring();
         qCDebug(OathDaemonLog) << "OathDBusService: PC/SC monitoring started successfully";
     });
