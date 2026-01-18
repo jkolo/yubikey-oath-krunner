@@ -177,9 +177,9 @@ YkOathSession (base protocol)
 ### Core Components
 
 - **YubiKeyRunner** (`src/krunner/yubikeyrunner.{h,cpp}` ~200 lines): plugin entry, uses ManagerProxy
-- **YubiKeyDeviceManager** (`src/daemon/oath/yubikey_device_manager.{h,cpp}` ~400 lines): multi-device, PC/SC, hot-plug, factories
+- **OathDeviceManager** (`src/daemon/oath/oath_device_manager.{h,cpp}` ~900 lines): multi-device, PC/SC, hot-plug, brand factories, configuration injection
 - **IOathSelector** (`src/daemon/pcsc/i_oath_selector.h` ~72 lines): Interface for OATH applet selection, implements Dependency Inversion Principle
-- **YkOathSession** (`src/daemon/oath/yk_oath_session.{h,cpp}` ~450 lines): OATH protocol base implementing IOathSelector, PC/SC I/O with 50ms rate limiting, PBKDF2, NOT thread-safe
+- **YkOathSession** (`src/daemon/oath/yk_oath_session.{h,cpp}` ~1100 lines): OATH protocol base implementing IOathSelector, PC/SC I/O with configurable rate limiting (default: 0 = no delay), PBKDF2, NOT thread-safe
 - **OathProtocol** (`src/daemon/oath/oath_protocol.{h,cpp}` ~200 lines): utilities, constants, TLV parsing
 - **OathErrorCodes** (`src/daemon/oath/oath_error_codes.h`): Translation-independent error constants (PASSWORD_REQUIRED, TOUCH_REQUIRED, etc.)
 - **ManagementProtocol** (`src/daemon/oath/management_protocol.{h,cpp}` ~150 lines): GET DEVICE INFO, YubiKey 4.1+
@@ -270,11 +270,11 @@ return result;
 
 **Infrastructure:**
 
-- **PcscWorkerPool** (`src/daemon/infrastructure/pcsc_worker_pool.{h,cpp}` ~190 lines):
+- **PcscWorkerPool** (`src/daemon/infrastructure/pcsc_worker_pool.{h,cpp}` ~135 lines):
   - Singleton thread pool (default 4 workers) for all PC/SC operations
-  - Per-device rate limiting (50ms minimum interval) prevents communication errors
   - Priority-based queuing: Background < Normal < UserInteraction
-  - Thread-safe with QMutex protection
+  - Thread-safe operation submission
+  - **Note:** Rate limiting moved to YkOathSession (configurable via `PcscRateLimitMs`)
   - **Usage:** `PcscWorkerPool::instance().submit(deviceId, operation, priority)`
 
 - **DeviceState** (`src/shared/types/device_state.{h,cpp}` ~115 lines):
@@ -400,19 +400,19 @@ return result;
 - **SecureMemory::SecureString** (`src/daemon/utils/secure_memory.h`): Used for OathDevice::m_password (line 226), automatic memory wiping on destruction, defense-in-depth protection
 
 **PC/SC Reliability:**
-- **Rate Limiting** (YkOathSession): 50ms minimum interval between PC/SC operations prevents communication errors with slower readers or during high-frequency operations (TOTP auto-refresh)
+- **Configurable Rate Limiting** (YkOathSession): Optional delay between PC/SC APDU operations (default: 0 = no delay for max performance). Users with slower readers can set `PcscRateLimitMs=50` in config file.
 - **Automatic PC/SC Service Recovery** (v2.4.0+): Daemon automatically recovers from pcscd.service restarts without manual intervention
   - **Detection**: CardReaderMonitor detects SCARD_E_NO_SERVICE (0x8010001D) errors in monitoring loops
   - **Signal**: Emits `pcscServiceLost()` signal once when service unavailability is detected (guarded by flag to prevent spam)
-  - **Recovery Process** (6 steps in `YubiKeyDeviceManager::handlePcscServiceLost()`):
+  - **Recovery Process** (6 steps in `OathDeviceManager::handlePcscServiceLost()`):
     1. Stop card reader monitoring
     2. Disconnect all devices (card handles become invalid after pcscd restart)
     3. Release old PC/SC context (SCardReleaseContext)
-    4. Wait 2 seconds for pcscd stabilization
+    4. Wait 500ms for pcscd stabilization
     5. Re-establish PC/SC context (SCardEstablishContext)
     6. Reset monitor state and restart monitoring
   - **Device Re-enumeration**: After recovery, devices are automatically re-detected via explicit enumeration (critical for devices that remained connected during pcscd restart)
-  - **Implementation**: card_reader_monitor.cpp:267-378 (detection), yubikey_device_manager.cpp:832-899 (recovery + re-enumeration)
+  - **Implementation**: card_reader_monitor.cpp:267-378 (detection), oath_device_manager.cpp:860-920 (recovery + re-enumeration)
 
 ### Input System
 
@@ -613,6 +613,31 @@ OathManagerProxy manager(testBus.createConnection());
 **D-Bus:** `busctl --user list | grep yubikey`, `busctl --user tree pl.jkolo.yubikey.oath.daemon`, `dbus-monitor --session "sender='pl.jkolo.yubikey.oath.daemon'"`
 
 **Common issue:** "Could not register D-Bus service" → another daemon running: `pkill -9 yubikey-oath-daemon`, check `$DBUS_SESSION_BUS_ADDRESS`
+
+## Configuration
+
+**Config file:** `~/.config/yubikey-oathrc` (KConfig format, shared by daemon and KRunner)
+
+**Available settings:**
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `ShowNotifications` | bool | true | Show desktop notifications |
+| `ShowUsername` | bool | true | Include username in display |
+| `ShowCode` | bool | false | Show TOTP code in KRunner results |
+| `ShowDeviceName` | bool | false | Show device name in results |
+| `ShowDeviceNameOnlyWhenMultiple` | bool | true | Only show device name when multiple devices connected |
+| `TouchTimeout` | int | 15 | Seconds to wait for touch (daemon: 15, KRunner: 10) |
+| `NotificationExtraTime` | int | 5 | Extra seconds for notification display |
+| `PrimaryAction` | string | "copy" | Default action: "copy" or "type" |
+| `DeviceReconnectTimeout` | int | 30 | Seconds before reconnect attempt |
+| `EnableCredentialsCache` | bool | true | Cache credentials for offline display |
+| `CredentialSaveRateLimit` | int | 1000 | Min ms between credential cache saves |
+| `PcscRateLimitMs` | int | 0 | Min ms between PC/SC APDU operations (0 = no delay) |
+
+**Performance tuning:**
+- `PcscRateLimitMs=0` (default): Maximum speed, no artificial delays
+- `PcscRateLimitMs=50`: Use if experiencing communication errors with specific readers
 
 ## Dependencies
 

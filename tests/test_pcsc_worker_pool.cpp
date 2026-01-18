@@ -109,7 +109,7 @@ private Q_SLOTS:
      * NOTE: Rate limiting is now handled at YkOathSession level, not in PcscWorkerPool.
      * This test verifies that multiple devices can execute without interference.
      */
-    void testMultipleDevicesIndependentRateLimiting()
+    void testMultipleDevicesConcurrency()
     {
         const QString device1 = QStringLiteral("device-1");
         const QString device2 = QStringLiteral("device-2");
@@ -173,7 +173,7 @@ private Q_SLOTS:
         QList<int> executionOrder;
 
         // Submit operations with different priorities
-        // Due to rate limiting, they should execute in priority order
+        // Thread pool priority mechanism should favor higher priority operations
 
         // Low priority
         PcscWorkerPool::instance().submit(

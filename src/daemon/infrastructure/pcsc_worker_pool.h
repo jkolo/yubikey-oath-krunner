@@ -89,6 +89,7 @@ public:
      * @param deviceId Device identifier (ignored)
      * @deprecated This method is a no-op kept for API compatibility.
      */
+    [[deprecated("No-op: rate limiting moved to YkOathSession. Use setRateLimitMs() instead.")]]
     void clearDeviceHistory(const QString& deviceId);
 
     /**
