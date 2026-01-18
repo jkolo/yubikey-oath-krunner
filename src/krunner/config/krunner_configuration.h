@@ -48,6 +48,7 @@ public:
     int deviceReconnectTimeout() const override;
     bool enableCredentialsCache() const override;
     int credentialSaveRateLimit() const override;
+    int pcscRateLimitMs() const override;
 
 Q_SIGNALS:
     /**

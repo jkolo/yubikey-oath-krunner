@@ -5,9 +5,7 @@
 
 #pragma once
 
-#include <QMutex>
 #include <QThreadPool>
-#include <QMap>
 #include <QString>
 #include <QRunnable>
 #include <functional>
@@ -31,14 +29,16 @@ enum class PcscOperationPriority {
  * @brief Dedicated thread pool for PC/SC operations
  *
  * Provides:
- * - Per-device rate limiting (50ms minimum between operations)
  * - Priority-based queuing
  * - Thread pool size control (max 4 workers)
  * - Device-safe operation serialization
  *
+ * NOTE: Rate limiting is handled at YkOathSession level (configurable via
+ * PcscRateLimitMs setting), not in this worker pool. This eliminates
+ * redundant delays and centralizes rate limit configuration.
+ *
  * Singleton pattern ensures global coordination of PC/SC access.
  * All device operations should go through this pool to prevent:
- * - Communication errors from rapid PC/SC calls
  * - Reader/card conflicts from concurrent access
  * - System resource exhaustion
  *
@@ -46,9 +46,6 @@ enum class PcscOperationPriority {
  */
 class PcscWorkerPool : public QObject {
     Q_OBJECT
-
-    // Allow PcscOperation to access rate limiting methods
-    friend class PcscOperation;
 
 public:
     /**
@@ -62,15 +59,15 @@ public:
      *
      * The operation will be queued and executed when:
      * 1. A worker thread becomes available
-     * 2. At least 50ms has elapsed since last operation on this device
-     * 3. All higher priority operations are processed
+     * 2. All higher priority operations are processed
      *
-     * @param deviceId Device identifier (for rate limiting)
+     * @param deviceId Device identifier (for tracking)
      * @param operation Function to execute (may throw exceptions)
      * @param priority Operation priority level
      *
      * @note The operation runs on a worker thread, not the caller's thread.
      *       Use signals/slots or QMetaObject::invokeMethod for cross-thread communication.
+     * @note Rate limiting is handled at YkOathSession level, not here.
      *
      * Usage:
      * @code
@@ -84,12 +81,13 @@ public:
                 PcscOperationPriority priority = PcscOperationPriority::Normal);
 
     /**
-     * @brief Clears rate limiting history for a device
+     * @brief Legacy method - no longer performs any action
      *
-     * Call when device is disconnected to free memory.
-     * Does NOT cancel pending operations for this device.
+     * Previously cleared rate limiting history. Rate limiting is now
+     * handled at YkOathSession level.
      *
-     * @param deviceId Device identifier
+     * @param deviceId Device identifier (ignored)
+     * @deprecated This method is a no-op kept for API compatibility.
      */
     void clearDeviceHistory(const QString& deviceId);
 
@@ -134,41 +132,24 @@ private:
     // Prevent copying
     Q_DISABLE_COPY(PcscWorkerPool)
 
-    /**
-     * @brief Gets time since last operation on device
-     * @param deviceId Device identifier
-     * @return Milliseconds since last operation, or LLONG_MAX if never accessed
-     */
-    qint64 timeSinceLastOperation(const QString& deviceId) const;
-
-    /**
-     * @brief Records operation timestamp for device
-     * @param deviceId Device identifier
-     */
-    void recordOperation(const QString& deviceId);
-
-    QThreadPool *m_threadPool;                  ///< Underlying thread pool
-    mutable QMutex m_rateLimitMutex;            ///< Protects rate limiting map
-    QMap<QString, qint64> m_deviceLastOperation; ///< Last operation timestamp per device
+    QThreadPool *m_threadPool;  ///< Underlying thread pool
 
     static constexpr int DEFAULT_MAX_THREADS = 4;
-    static constexpr qint64 MIN_OPERATION_INTERVAL_MS = 50; ///< 50ms rate limit
 };
 
 /**
- * @brief Internal QRunnable wrapper for rate-limited operations
+ * @brief Internal QRunnable wrapper for queued PC/SC operations
  *
  * Handles:
- * - Enforcing rate limiting before execution
  * - Priority-based scheduling
  * - Exception catching and logging
  *
+ * @note Rate limiting is handled at YkOathSession level, not here.
  * @note For internal use by PcscWorkerPool only
  */
 class PcscOperation : public QRunnable {
 public:
-    PcscOperation(PcscWorkerPool* pool,
-                  QString deviceId,
+    PcscOperation(QString deviceId,
                   std::function<void()> operation,
                   PcscOperationPriority priority);
 
@@ -178,7 +159,6 @@ public:
     PcscOperationPriority priority() const { return m_priority; }
 
 private:
-    PcscWorkerPool* m_pool;
     QString m_deviceId;
     std::function<void()> m_operation;
     PcscOperationPriority m_priority;

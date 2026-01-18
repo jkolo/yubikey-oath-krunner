@@ -45,6 +45,9 @@ OathService::OathService(QObject *parent)
 {
     qCDebug(OathDaemonLog) << "OathService: Initializing";
 
+    // Set configuration for device manager (needed for PC/SC rate limiting)
+    m_deviceManager->setConfiguration(m_config.get());
+
     // Initialize database
     if (!m_database->initialize()) {
         qCWarning(OathDaemonLog) << "OathService: Failed to initialize database";
@@ -326,6 +329,17 @@ void OathService::onConfigurationChanged()
             qCWarning(OathDaemonLog) << "OathService: Failed to clear cached credentials";
         } else {
             qCDebug(OathDaemonLog) << "OathService: All cached credentials cleared successfully";
+        }
+    }
+
+    // Update PC/SC rate limit for all connected devices
+    const int rateLimitMs = m_config->pcscRateLimitMs();
+    qCDebug(OathDaemonLog) << "OathService: Updating PC/SC rate limit to" << rateLimitMs << "ms for all devices";
+    const QStringList deviceIds = m_deviceManager->getConnectedDeviceIds();
+    for (const QString &deviceId : deviceIds) {
+        OathDevice *device = m_deviceManager->getDevice(deviceId);
+        if (device) {
+            device->setSessionRateLimitMs(rateLimitMs);
         }
     }
 }

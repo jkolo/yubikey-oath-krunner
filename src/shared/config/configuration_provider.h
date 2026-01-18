@@ -97,6 +97,16 @@ public:
      * @return Minimum milliseconds between credential cache saves
      */
     virtual int credentialSaveRateLimit() const = 0;
+
+    /**
+     * @brief Gets PC/SC rate limit setting
+     * @return Minimum milliseconds between APDU operations (0 = no delay, default)
+     *
+     * This setting controls the delay between PC/SC APDU operations.
+     * Default is 0 (no delay) for maximum performance.
+     * Users experiencing communication errors with specific readers can increase this value.
+     */
+    virtual int pcscRateLimitMs() const = 0;
 };
 
 } // namespace Shared

@@ -6,11 +6,6 @@
 #include "pcsc_worker_pool.h"
 #include "../logging_categories.h"
 
-#include <QDateTime>
-#include <QThread>
-#include <QMutexLocker>
-#include <limits>
-
 namespace YubiKeyOath {
 namespace Daemon {
 
@@ -18,12 +13,10 @@ namespace Daemon {
 // PcscOperation Implementation
 // ============================================================================
 
-PcscOperation::PcscOperation(PcscWorkerPool* pool,
-                             QString deviceId,
+PcscOperation::PcscOperation(QString deviceId,
                              std::function<void()> operation,
                              PcscOperationPriority priority)
-    : m_pool(pool)
-    , m_deviceId(std::move(deviceId))
+    : m_deviceId(std::move(deviceId))
     , m_operation(std::move(operation))
     , m_priority(priority)
 {
@@ -32,19 +25,8 @@ PcscOperation::PcscOperation(PcscWorkerPool* pool,
 
 void PcscOperation::run()
 {
-    // Enforce rate limiting before execution
-    const qint64 timeSince = m_pool->timeSinceLastOperation(m_deviceId);
-    const qint64 minInterval = PcscWorkerPool::MIN_OPERATION_INTERVAL_MS;
-
-    if (timeSince < minInterval) {
-        const qint64 sleepTime = minInterval - timeSince;
-        qCDebug(OathDaemonLog) << "Rate limiting device" << m_deviceId
-                                  << "- sleeping for" << sleepTime << "ms";
-        QThread::msleep(sleepTime);
-    }
-
-    // Record operation start time
-    m_pool->recordOperation(m_deviceId);
+    // Rate limiting is now handled at YkOathSession level (configurable via PcscRateLimitMs).
+    // This eliminates redundant delays and centralizes rate limit configuration.
 
     // Execute the operation
     // Note: No exception handling - project compiled with -fno-exceptions
@@ -93,7 +75,7 @@ void PcscWorkerPool::submit(const QString& deviceId,
                               << "priority" << static_cast<int>(priority);
 
     // Create runnable (will be auto-deleted by thread pool)
-    auto* runnable = new PcscOperation(this, deviceId, std::move(operation), priority);
+    auto* runnable = new PcscOperation(deviceId, std::move(operation), priority);
 
     // Map priority to Qt's priority levels
     // Note: Qt doesn't support fine-grained priority, so we map to 3 levels
@@ -115,10 +97,9 @@ void PcscWorkerPool::submit(const QString& deviceId,
 
 void PcscWorkerPool::clearDeviceHistory(const QString& deviceId)
 {
-    const QMutexLocker locker(&m_rateLimitMutex);
-    if (m_deviceLastOperation.remove(deviceId) > 0) {
-        qCDebug(OathDaemonLog) << "Cleared rate limiting history for device" << deviceId;
-    }
+    // No-op - rate limiting is now handled at YkOathSession level.
+    // Kept for API compatibility.
+    Q_UNUSED(deviceId)
 }
 
 bool PcscWorkerPool::waitForDone(int msecs)
@@ -148,27 +129,6 @@ void PcscWorkerPool::setMaxThreadCount(int maxThreads)
 int PcscWorkerPool::maxThreadCount() const
 {
     return m_threadPool->maxThreadCount();
-}
-
-qint64 PcscWorkerPool::timeSinceLastOperation(const QString& deviceId) const
-{
-    const QMutexLocker locker(&m_rateLimitMutex);
-
-    if (!m_deviceLastOperation.contains(deviceId)) {
-        // Never accessed - return max value to allow immediate execution
-        return std::numeric_limits<qint64>::max();
-    }
-
-    const qint64 lastOpTime = m_deviceLastOperation.value(deviceId);
-    const qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
-    return currentTime - lastOpTime;
-}
-
-void PcscWorkerPool::recordOperation(const QString& deviceId)
-{
-    const QMutexLocker locker(&m_rateLimitMutex);
-    const qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
-    m_deviceLastOperation.insert(deviceId, currentTime);
 }
 
 } // namespace Daemon

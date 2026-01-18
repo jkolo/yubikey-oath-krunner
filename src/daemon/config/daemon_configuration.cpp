@@ -15,6 +15,9 @@ using namespace YubiKeyOath::Shared;
 // Default rate limit for credential saves (5 seconds)
 constexpr int DEFAULT_CREDENTIAL_SAVE_RATE_LIMIT_MS = 5000;
 
+// Default PC/SC rate limit (0 = no delay for maximum performance)
+constexpr int DEFAULT_PCSC_RATE_LIMIT_MS = 0;
+
 DaemonConfiguration::DaemonConfiguration(QObject *parent)
     : QObject(parent)
     , m_config(KSharedConfig::openConfig(QStringLiteral("yubikey-oathrc")))
@@ -97,6 +100,11 @@ int DaemonConfiguration::deviceReconnectTimeout() const
 int DaemonConfiguration::credentialSaveRateLimit() const
 {
     return readConfigEntry(ConfigKeys::CREDENTIAL_SAVE_RATE_LIMIT_MS, DEFAULT_CREDENTIAL_SAVE_RATE_LIMIT_MS);
+}
+
+int DaemonConfiguration::pcscRateLimitMs() const
+{
+    return readConfigEntry(ConfigKeys::PCSC_RATE_LIMIT_MS, DEFAULT_PCSC_RATE_LIMIT_MS);
 }
 
 void DaemonConfiguration::onConfigFileChanged(const QString &path)

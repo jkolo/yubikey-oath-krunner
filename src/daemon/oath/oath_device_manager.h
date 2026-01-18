@@ -35,6 +35,7 @@
 namespace YubiKeyOath {
 namespace Shared {
     enum class DeviceBrand : uint8_t;  // Forward declaration
+    class ConfigurationProvider;       // Forward declaration
 }
 namespace Daemon {
     class YkOathSession;  // Forward declaration
@@ -79,6 +80,15 @@ public:
      * @brief Destructor
      */
     ~OathDeviceManager();
+
+    /**
+     * @brief Sets configuration provider for device settings
+     * @param config Configuration provider (not owned, must outlive manager)
+     *
+     * Used to configure session rate limiting for newly created devices.
+     * Must be called before startMonitoring() for settings to apply.
+     */
+    void setConfiguration(Shared::ConfigurationProvider *config);
 
     // Device lifecycle management
     /**
@@ -388,6 +398,7 @@ private:
 
     // Member variables
     CardReaderMonitor *m_readerMonitor;
+    Shared::ConfigurationProvider *m_config = nullptr;  ///< Configuration provider (not owned)
     mutable QMutex m_devicesMutex;  ///< Protects m_devices map from concurrent access
     QMap<QString, QString> m_readerToDeviceMap;  ///< Tracks which readers are in use (reader name → device ID) to prevent duplicate connections
 

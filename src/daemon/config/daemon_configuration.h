@@ -49,6 +49,9 @@ public:
     int deviceReconnectTimeout() const override;
     int credentialSaveRateLimit() const override;
 
+    // PC/SC communication settings
+    int pcscRateLimitMs() const override;
+
 Q_SIGNALS:
     /**
      * @brief Emitted when configuration has been reloaded

@@ -561,5 +561,13 @@ Result<void> OathDevice::reconnectCardHandle(const QString &readerName)
     return Result<void>::error(i18n("Failed to reconnect after multiple attempts"));
 }
 
+void OathDevice::setSessionRateLimitMs(qint64 intervalMs)
+{
+    if (m_session) {
+        qCDebug(YubiKeyOathDeviceLog) << "Setting session rate limit to" << intervalMs << "ms for device" << m_deviceId;
+        m_session->setRateLimitMs(intervalMs);
+    }
+}
+
 } // namespace Daemon
 } // namespace YubiKeyOath

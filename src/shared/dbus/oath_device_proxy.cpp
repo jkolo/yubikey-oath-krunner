@@ -142,7 +142,7 @@ bool OathDeviceProxy::changePassword(const QString &oldPassword, const QString &
         return false;
     }
 
-    QDBusReply<bool> reply = m_interface->call(QStringLiteral("ChangePassword"),
+    const QDBusReply<bool> reply = m_interface->call(QStringLiteral("ChangePassword"),
                                                 oldPassword, newPassword);
 
     if (!reply.isValid()) {
@@ -172,7 +172,7 @@ void OathDeviceProxy::forget()
         return;
     }
 
-    QDBusReply<void> reply = m_interface->call(QStringLiteral("Forget"));
+    const QDBusReply<void> reply = m_interface->call(QStringLiteral("Forget"));
 
     if (!reply.isValid()) {
         qCWarning(OathDeviceProxyLog) << "Forget failed for" << m_name
@@ -197,7 +197,7 @@ AddCredentialResult OathDeviceProxy::addCredential(const QString &name,
         return AddCredentialResult{QStringLiteral("Error"), QStringLiteral("D-Bus interface invalid")};
     }
 
-    QDBusReply<AddCredentialResult> reply = m_interface->call(
+    const QDBusReply<AddCredentialResult> reply = m_interface->call(
         QStringLiteral("AddCredential"),
         name, secret, type, algorithm, digits, period, counter, requireTouch
     );
@@ -228,7 +228,7 @@ bool OathDeviceProxy::setName(const QString &newName)
                                    QLatin1String(PROPERTIES_INTERFACE),
                                    QDBusConnection::sessionBus());
 
-    QDBusReply<void> reply = propsInterface.call(QStringLiteral("Set"),
+    const QDBusReply<void> reply = propsInterface.call(QStringLiteral("Set"),
                                                   QLatin1String(INTERFACE_NAME),
                                                   QStringLiteral("Name"),
                                                   QVariant::fromValue(QDBusVariant(newName)));
@@ -288,7 +288,7 @@ void OathDeviceProxy::onCredentialAddedSignal(const QDBusObjectPath &credentialP
                                    QLatin1String(PROPERTIES_INTERFACE),
                                    QDBusConnection::sessionBus());
 
-    QDBusReply<QVariantMap> reply = propsInterface.call(
+    const QDBusReply<QVariantMap> reply = propsInterface.call(
         QStringLiteral("GetAll"),
         QStringLiteral("pl.jkolo.yubikey.oath.Credential")
     );

@@ -143,7 +143,7 @@ bool CardReaderMonitor::monitorReaderChanges()
     if (result != SCARD_S_SUCCESS) {
         qCWarning(CardReaderMonitorLog) << "SCardGetStatusChange failed (reader changes):"
                    << QString::number(result, 16);
-        msleep(1000); // Wait before retry
+        msleep(300); // Wait before retry
         return true;
     }
 
@@ -199,7 +199,7 @@ bool CardReaderMonitor::monitorCardChanges()
     if (result != SCARD_S_SUCCESS) {
         qCWarning(CardReaderMonitorLog) << "SCardGetStatusChange failed (card changes):"
                    << QString::number(result, 16);
-        msleep(1000); // Wait before retry
+        msleep(300); // Wait before retry
         return true;
     }
 
@@ -260,7 +260,7 @@ bool CardReaderMonitor::monitorAllReadersForCardChanges()
 
     if (result == SCARD_E_NO_READERS_AVAILABLE) {
         // No readers available - this is normal, just continue
-        msleep(1000);
+        msleep(300);
         return true;
     }
 
@@ -270,13 +270,13 @@ bool CardReaderMonitor::monitorAllReadersForCardChanges()
             qCWarning(CardReaderMonitorLog) << "SCardListReaders failed (get length):"
                        << QStringLiteral("0x%1").arg(result, 0, 16);
         }
-        msleep(1000);
+        msleep(300);
         return true;
     }
 
     if (readersLen == 0) {
         // No readers - continue monitoring
-        msleep(1000);
+        msleep(300);
         return true;
     }
 
@@ -290,7 +290,7 @@ bool CardReaderMonitor::monitorAllReadersForCardChanges()
             qCWarning(CardReaderMonitorLog) << "SCardListReaders failed (get data):"
                        << QStringLiteral("0x%1").arg(result, 0, 16);
         }
-        msleep(1000);
+        msleep(300);
         return true;
     }
 
@@ -304,7 +304,7 @@ bool CardReaderMonitor::monitorAllReadersForCardChanges()
     }
 
     if (currentReaders.isEmpty()) {
-        msleep(1000);
+        msleep(300);
         return true;
     }
 
@@ -358,7 +358,7 @@ bool CardReaderMonitor::monitorAllReadersForCardChanges()
             qCWarning(CardReaderMonitorLog) << "SCardGetStatusChange failed (all readers):"
                        << QStringLiteral("0x%1").arg(result, 0, 16);
         }
-        msleep(1000);
+        msleep(300);
         return true;
     }
 

@@ -118,6 +118,21 @@ public:
     [[nodiscard]] virtual bool requiresPassword() const { return m_requiresPassword; }
     [[nodiscard]] virtual quint32 selectSerialNumber() const { return m_selectSerialNumber; }
 
+    /**
+     * @brief Sets the PC/SC rate limit for APDU operations
+     * @param intervalMs Minimum milliseconds between operations (0 = no delay)
+     *
+     * Default is 0 (no delay) for maximum performance.
+     * Users experiencing communication errors can increase this value.
+     */
+    void setRateLimitMs(qint64 intervalMs);
+
+    /**
+     * @brief Gets the current PC/SC rate limit setting
+     * @return Current rate limit in milliseconds (0 = no delay)
+     */
+    [[nodiscard]] qint64 rateLimitMs() const { return m_rateLimitMs; }
+
 Q_SIGNALS:
     /**
      * @brief Emitted when YubiKey requires physical touch
@@ -211,6 +226,7 @@ protected:
     bool m_requiresPassword = false;  ///< Password requirement from SELECT TAG_CHALLENGE presence
     std::unique_ptr<OathProtocol> m_oathProtocol;  ///< Brand-specific OATH protocol implementation
     qint64 m_lastPcscOperationTime = 0;  ///< Timestamp (ms since epoch) of last PC/SC operation for rate limiting
+    qint64 m_rateLimitMs = 0;  ///< Configurable rate limit in ms (0 = no delay, default for max performance)
 };
 
 } // namespace Daemon

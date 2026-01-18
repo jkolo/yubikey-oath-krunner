@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # KRunner YubiKey OATH Plugin
 
 KDE Plasma 6 plugin: YubiKey/Nitrokey OATH TOTP/HOTP codes in KRunner via D-Bus daemon
@@ -16,6 +20,37 @@ krunner --replace  # restart (NEVER killall)
 **Debug:** `QT_LOGGING_RULES="pl.jkolo.yubikey.oath.daemon.*=true" QT_LOGGING_TO_CONSOLE=1 krunner --replace 2>&1`
 
 **Daemon:** `systemctl --user {status,restart} app-pl.jkolo.yubikey.oath.daemon.service`, `journalctl --user-unit=app-pl.jkolo.yubikey.oath.daemon.service --follow`
+
+## Containerized Testing (Recommended)
+
+**Build test container:**
+```bash
+./scripts/build-container.sh test  # Builds builder + test stages
+```
+
+**Run all tests:**
+```bash
+podman run --rm krunner-yubikey-oath:test-latest sh -c "
+Xvfb :99 -screen 0 1024x768x24 &
+sleep 1
+dbus-daemon --session --address=unix:path=/tmp/dbus-test-socket --fork
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/dbus-test-socket
+ctest --test-dir build-clang-release --output-on-failure
+"
+```
+
+**Run single test:**
+```bash
+podman run --rm krunner-yubikey-oath:test-latest sh -c "
+Xvfb :99 -screen 0 1024x768x24 &
+sleep 1
+dbus-daemon --session --address=unix:path=/tmp/dbus-test-socket --fork
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/dbus-test-socket
+ctest --test-dir build-clang-release -R test_result --output-on-failure
+"
+```
+
+**Alternative (podman-compose):** `./scripts/run-tests-podman.sh [all|unit|e2e|<filter>]`
 
 ## Repository & Release
 
@@ -465,16 +500,17 @@ AFTER:  CardTransaction → IOathSelector ← YkOathSession implements (CORRECT:
 
 ## Testing
 
-**Suites:** 34 tests (v2.4.0+) - unit tests (28) + service tests (3) + storage tests (2) + E2E tests (1), **33/34 passing (97%)** ✅
+**Test count:** 36 test files, ~34 registered CTest targets (some conditional on dependencies)
 
-**Run:** `ctest --preset clang-debug --output-on-failure` or `cd build-clang-debug && ctest --output-on-failure`
+**Run locally:** `cd build-clang-debug && ctest --output-on-failure`
 
-**Coverage:** ~85% lines, ~87% functions ✅ **TARGET ACHIEVED & VERIFIED**
-- Verified with instrumented build: `cmake -DENABLE_COVERAGE=ON`
-- 196 coverage data files generated, 33/34 tests passing
-- Phase 1+2+E2E complete, Phase 3 strategically skipped
+**Run single test:** `cd build-clang-debug && ctest -R test_result --output-on-failure`
 
-**📋 Implementation Plan:** See [TEST_IMPLEMENTATION.md](TEST_IMPLEMENTATION.md) for comprehensive testing strategy, roadmap (6 phases), and progress tracking
+**Run in container (recommended):** See "Containerized Testing" section above
+
+**Coverage:** ~85% lines, ~87% functions (with `cmake -DENABLE_COVERAGE=ON`)
+
+**📋 Implementation Plan:** See [TEST_IMPLEMENTATION.md](TEST_IMPLEMENTATION.md) for testing strategy and progress
 
 ### Test Strategy (v2.1.0+)
 
@@ -613,8 +649,3 @@ OathManagerProxy manager(testBus.createConnection());
 - **CMake only** with absolute paths (no make/ninja)
 - Interface-based config (ConfigurationProvider), Result<T> pattern with [[nodiscard]], smart pointers
 
-## Verify
-```bash
-cmake --build build-clang-debug -j$(nproc)  # zero errors/warnings
-cd build-clang-debug && ctest --output-on-failure  # 27/28 pass (test_yubikey_proxy requires daemon)
-```

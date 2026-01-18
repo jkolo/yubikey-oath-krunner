@@ -80,7 +80,7 @@ uint DBusNotificationManager::showNotification(
              << "hints:" << hints
              << "timeout:" << expireTimeout;
 
-    QDBusReply<uint> reply = m_interface->call(
+    const QDBusReply<uint> reply = m_interface->call(
         QStringLiteral("Notify"),
         appName,
         replacesId,

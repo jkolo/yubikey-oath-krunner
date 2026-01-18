@@ -7,6 +7,7 @@
 #include "../logging_categories.h"
 #include "../infrastructure/pcsc_worker_pool.h"
 #include "../../shared/types/device_brand.h"
+#include "../../shared/config/configuration_provider.h"
 
 #include <QDebug>
 #include <QMetaObject>
@@ -67,6 +68,13 @@ OathDeviceManager::OathDeviceManager(QObject* parent)
 
 OathDeviceManager::~OathDeviceManager() {
     cleanup();
+}
+
+void OathDeviceManager::setConfiguration(Shared::ConfigurationProvider *config)
+{
+    m_config = config;
+    qCDebug(OathDeviceManagerLog) << "Configuration provider set, pcscRateLimitMs:"
+                                     << (m_config ? m_config->pcscRateLimitMs() : -1);
 }
 
 Result<void> OathDeviceManager::initialize() {
@@ -723,19 +731,33 @@ std::unique_ptr<OathDevice> OathDeviceManager::createDevice(
 {
     using namespace YubiKeyOath::Shared;
 
+    std::unique_ptr<OathDevice> device;
     switch (brand) {
     case DeviceBrand::Nitrokey:
-        return std::make_unique<NitrokeyOathDevice>(
+        device = std::make_unique<NitrokeyOathDevice>(
             deviceId, readerName, cardHandle, protocol,
             challenge, requiresPassword, m_context, this);
+        break;
 
     case DeviceBrand::YubiKey:
     case DeviceBrand::Unknown:
     default:
-        return std::make_unique<YubiKeyOathDevice>(
+        device = std::make_unique<YubiKeyOathDevice>(
             deviceId, readerName, cardHandle, protocol,
             challenge, requiresPassword, m_context, this);
+        break;
     }
+
+    // Apply configuration to newly created device
+    if (device && m_config) {
+        const int rateLimitMs = m_config->pcscRateLimitMs();
+        if (rateLimitMs > 0) {
+            qCDebug(OathDeviceManagerLog) << "Setting session rate limit to" << rateLimitMs << "ms for device" << deviceId;
+        }
+        device->setSessionRateLimitMs(rateLimitMs);
+    }
+
+    return device;
 }
 
 void OathDeviceManager::enumerateAndConnectDevicesAsync()
@@ -866,8 +888,8 @@ void OathDeviceManager::handlePcscServiceLost()
     }
 
     // Step 4: Wait for pcscd stabilization (PC/SC service needs time to fully restart)
-    qCDebug(OathDeviceManagerLog) << "Step 4/6: Waiting 2 seconds for pcscd stabilization";
-    QThread::sleep(2);
+    qCDebug(OathDeviceManagerLog) << "Step 4/6: Waiting 500ms for pcscd stabilization";
+    QThread::msleep(500);
 
     // Step 5: Re-establish PC/SC context
     qCDebug(OathDeviceManagerLog) << "Step 5/6: Re-establishing PC/SC context";

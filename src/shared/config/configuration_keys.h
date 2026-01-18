@@ -37,6 +37,9 @@ constexpr const char *ENABLE_CREDENTIALS_CACHE = "EnableCredentialsCache";
 constexpr const char *DEVICE_RECONNECT_TIMEOUT = "DeviceReconnectTimeout";
 constexpr const char *CREDENTIAL_SAVE_RATE_LIMIT_MS = "CredentialSaveRateLimit";
 
+// PC/SC communication settings
+constexpr const char *PCSC_RATE_LIMIT_MS = "PcscRateLimitMs";
+
 } // namespace ConfigKeys
 } // namespace Shared
 } // namespace YubiKeyOath

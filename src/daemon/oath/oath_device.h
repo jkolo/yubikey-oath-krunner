@@ -106,6 +106,14 @@ public:
     virtual Result<void> reconnectCardHandle(const QString &readerName);
     virtual QList<OathCredential> fetchCredentialsSync(const QString &password = QString());
 
+    /**
+     * @brief Sets PC/SC rate limit for session APDU operations
+     * @param intervalMs Minimum milliseconds between operations (0 = no delay)
+     *
+     * Forwards to internal session's setRateLimitMs().
+     */
+    void setSessionRateLimitMs(qint64 intervalMs);
+
 Q_SIGNALS:
     void touchRequired();
     void errorOccurred(const QString &error);

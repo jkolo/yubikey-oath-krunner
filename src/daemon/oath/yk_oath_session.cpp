@@ -59,19 +59,16 @@ QByteArray YkOathSession::sendApdu(const QByteArray &command, int retryCount)
         return {};
     }
 
-    // PC/SC rate limiting: enforce minimum 50ms interval between operations
-    // This prevents overwhelming the card/reader with rapid commands which can
-    // cause communication errors, especially with slower readers or during
-    // high-frequency operations (e.g., TOTP auto-refresh)
-    static constexpr qint64 MIN_PCSC_INTERVAL_MS = 50;
-    const qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
-
-    if (m_lastPcscOperationTime > 0) {
+    // PC/SC rate limiting: configurable interval between operations
+    // Default is 0 (no delay) for maximum performance.
+    // Users experiencing communication errors with specific readers can increase this value.
+    if (m_rateLimitMs > 0 && m_lastPcscOperationTime > 0) {
+        const qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
         const qint64 elapsed = currentTime - m_lastPcscOperationTime;
-        if (elapsed < MIN_PCSC_INTERVAL_MS) {
-            const qint64 sleepTime = MIN_PCSC_INTERVAL_MS - elapsed;
+        if (elapsed < m_rateLimitMs) {
+            const qint64 sleepTime = m_rateLimitMs - elapsed;
             qCDebug(YubiKeyOathDeviceLog) << "PC/SC rate limiting: sleeping for" << sleepTime << "ms"
-                     << "(elapsed since last operation:" << elapsed << "ms)";
+                     << "(elapsed since last operation:" << elapsed << "ms, limit:" << m_rateLimitMs << "ms)";
             QThread::msleep(sleepTime);
         }
     }
@@ -1096,6 +1093,12 @@ void YkOathSession::updateCardHandle(SCARDHANDLE newHandle, DWORD newProtocol)
     m_protocol = newProtocol;
 
     qCDebug(YubiKeyOathDeviceLog) << "Card handle updated, session marked as inactive";
+}
+
+void YkOathSession::setRateLimitMs(qint64 intervalMs)
+{
+    m_rateLimitMs = intervalMs;
+    qCDebug(YubiKeyOathDeviceLog) << "PC/SC rate limit set to" << intervalMs << "ms for device" << m_deviceId;
 }
 
 // =============================================================================

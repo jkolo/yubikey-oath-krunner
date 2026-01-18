@@ -56,10 +56,10 @@ private Q_SLOTS:
     }
 
     /**
-     * @brief Test rate limiting enforces 50ms minimum interval
+     * @brief Test that operations execute without rate limiting delays
      *
-     * Note: Due to thread pool parallelism, we need to serialize operations.
-     * We do this by using a single thread pool and waiting between submissions.
+     * NOTE: Rate limiting is now handled at YkOathSession level, not in PcscWorkerPool.
+     * This test verifies that operations execute quickly without artificial delays.
      */
     void testRateLimiting()
     {
@@ -72,6 +72,9 @@ private Q_SLOTS:
 
         QMutex mutex;
         QList<qint64> timestamps;
+
+        QElapsedTimer timer;
+        timer.start();
 
         // Submit 3 rapid operations for same device
         for (int i = 0; i < 3; ++i) {
@@ -90,22 +93,21 @@ private Q_SLOTS:
         QVERIFY(success);
         QCOMPARE(timestamps.size(), 3);
 
-        // Verify at least 50ms between consecutive operations
-        for (int i = 1; i < timestamps.size(); ++i) {
-            qint64 interval = timestamps[i] - timestamps[i-1];
-            QVERIFY2(interval >= 45, // Allow 5ms tolerance for timing imprecision
-                     qPrintable(QString("Interval %1ms is less than 50ms").arg(interval)));
-        }
+        // Verify operations completed quickly (no 50ms delays between operations)
+        // With 3 operations and no rate limiting, total time should be well under 100ms
+        qint64 totalTime = timer.elapsed();
+        QVERIFY2(totalTime < 100,
+                 qPrintable(QString("Total time %1ms too slow, expected < 100ms (no rate limiting)").arg(totalTime)));
 
         // Restore original thread count
         pool.setMaxThreadCount(originalThreadCount);
     }
 
     /**
-     * @brief Test that different devices don't interfere with each other's rate limiting
+     * @brief Test that multiple devices can execute operations concurrently
      *
-     * Note: Using 2 threads ensures each device can make progress without blocking the other,
-     * while still enforcing rate limiting per device.
+     * NOTE: Rate limiting is now handled at YkOathSession level, not in PcscWorkerPool.
+     * This test verifies that multiple devices can execute without interference.
      */
     void testMultipleDevicesIndependentRateLimiting()
     {
@@ -119,6 +121,9 @@ private Q_SLOTS:
 
         QMutex mutex;
         QMap<QString, QList<qint64>> deviceTimestamps;
+
+        QElapsedTimer timer;
+        timer.start();
 
         // Submit operations for both devices in interleaved fashion
         for (int i = 0; i < 3; ++i) {
@@ -148,14 +153,11 @@ private Q_SLOTS:
         QCOMPARE(deviceTimestamps[device1].size(), 3);
         QCOMPARE(deviceTimestamps[device2].size(), 3);
 
-        // Verify rate limiting per device
-        for (const auto& timestamps : deviceTimestamps) {
-            for (int i = 1; i < timestamps.size(); ++i) {
-                qint64 interval = timestamps[i] - timestamps[i-1];
-                QVERIFY2(interval >= 45,
-                         qPrintable(QString("Device interval %1ms < 50ms").arg(interval)));
-            }
-        }
+        // Verify operations completed quickly without rate limiting delays
+        // 6 total operations with 2 threads should complete well under 100ms
+        qint64 totalTime = timer.elapsed();
+        QVERIFY2(totalTime < 200,  // Allow some tolerance for thread scheduling
+                 qPrintable(QString("Total time %1ms too slow, expected < 200ms (no rate limiting)").arg(totalTime)));
 
         // Restore original thread count
         pool.setMaxThreadCount(originalThreadCount);
@@ -213,7 +215,10 @@ private Q_SLOTS:
     }
 
     /**
-     * @brief Test device history clearing
+     * @brief Test device history clearing (now a no-op, kept for API compatibility)
+     *
+     * NOTE: Rate limiting is now handled at YkOathSession level, not in PcscWorkerPool.
+     * clearDeviceHistory() is now a no-op kept for API compatibility.
      */
     void testClearDeviceHistory()
     {
@@ -232,12 +237,10 @@ private Q_SLOTS:
         PcscWorkerPool::instance().waitForDone(1000);
         QCOMPARE(executionCount.loadRelaxed(), 1);
 
-        // Clear history
+        // Clear history (now a no-op, kept for API compatibility)
         PcscWorkerPool::instance().clearDeviceHistory(deviceId);
 
-        // Submit second operation immediately
-        // Without clearing, this would be rate-limited
-        // With clearing, rate limiting is reset (though we can't reliably test timing)
+        // Submit second operation immediately - should execute without delay
         PcscWorkerPool::instance().submit(
             deviceId,
             [&executionCount]() {

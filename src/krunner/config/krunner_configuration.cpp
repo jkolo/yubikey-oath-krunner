@@ -107,6 +107,13 @@ int KRunnerConfiguration::credentialSaveRateLimit() const
     return readConfigEntry(ConfigKeys::CREDENTIAL_SAVE_RATE_LIMIT_MS, 1000);
 }
 
+int KRunnerConfiguration::pcscRateLimitMs() const
+{
+    // NOTE: PC/SC rate limiting is primarily used by daemon, not KRunner
+    // Default 0 = no delay (matches daemon default)
+    return readConfigEntry(ConfigKeys::PCSC_RATE_LIMIT_MS, 0);
+}
+
 void KRunnerConfiguration::onConfigFileChanged(const QString &path)
 {
     qDebug() << "KRunnerConfiguration: Config file changed:" << path;

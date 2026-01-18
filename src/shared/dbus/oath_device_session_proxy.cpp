@@ -82,7 +82,7 @@ bool OathDeviceSessionProxy::savePassword(const QString &password)
         return false;
     }
 
-    QDBusReply<bool> reply = m_interface->call(QStringLiteral("SavePassword"), password);
+    const QDBusReply<bool> reply = m_interface->call(QStringLiteral("SavePassword"), password);
 
     if (!reply.isValid()) {
         qCWarning(OathDeviceSessionProxyLog) << "SavePassword failed for" << m_objectPath

@@ -46,6 +46,7 @@ public:
         , m_deviceReconnectTimeout(30)
         , m_enableCredentialsCache(true)  // Default: cache enabled
         , m_credentialSaveRateLimit(1000)  // Default: 1 second
+        , m_pcscRateLimitMs(0)  // Default: no delay
     {
     }
 
@@ -97,6 +98,10 @@ public:
 
     int credentialSaveRateLimit() const override {
         return m_credentialSaveRateLimit;
+    }
+
+    int pcscRateLimitMs() const override {
+        return m_pcscRateLimitMs;
     }
 
 Q_SIGNALS:
@@ -160,6 +165,11 @@ public:
         Q_EMIT configurationChanged();
     }
 
+    void setPcscRateLimitMs(int value) {
+        m_pcscRateLimitMs = value;
+        Q_EMIT configurationChanged();
+    }
+
     // Helper: Reset to default values
     void reset() {
         m_showNotifications = true;
@@ -173,6 +183,7 @@ public:
         m_deviceReconnectTimeout = 30;
         m_enableCredentialsCache = true;
         m_credentialSaveRateLimit = 1000;
+        m_pcscRateLimitMs = 0;
         Q_EMIT configurationChanged();
     }
 
@@ -191,6 +202,7 @@ private:
     // DaemonConfiguration-specific fields
     bool m_enableCredentialsCache;
     int m_credentialSaveRateLimit;
+    int m_pcscRateLimitMs;
 };
 
 } // namespace Daemon
