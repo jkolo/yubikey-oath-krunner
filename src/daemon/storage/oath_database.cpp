@@ -741,9 +741,9 @@ bool OathDatabase::insertNewCredentials(const QString &deviceId, const QList<Oat
         insertQuery.bindValue(QStringLiteral(":issuer"), cred.issuer);
         insertQuery.bindValue(QStringLiteral(":account"), cred.account);
         insertQuery.bindValue(QStringLiteral(":period"), cred.period);
-        insertQuery.bindValue(QStringLiteral(":algorithm"), cred.algorithm);
+        insertQuery.bindValue(QStringLiteral(":algorithm"), static_cast<int>(cred.algorithm));
         insertQuery.bindValue(QStringLiteral(":digits"), cred.digits);
-        insertQuery.bindValue(QStringLiteral(":type"), cred.type);
+        insertQuery.bindValue(QStringLiteral(":type"), static_cast<int>(cred.type));
         insertQuery.bindValue(QStringLiteral(":requires_touch"), cred.requiresTouch ? 1 : 0);
 
         if (!insertQuery.exec()) {
@@ -823,11 +823,11 @@ QList<OathCredential> OathDatabase::getCredentials(const QString &deviceId)
         cred.issuer = query.value(1).toString();
         cred.account = query.value(2).toString();
         cred.period = query.value(3).toInt();
-        cred.algorithm = query.value(4).toInt();
+        cred.algorithm = static_cast<OathAlgorithm>(query.value(4).toInt());
         cred.digits = query.value(5).toInt();
-        cred.type = query.value(6).toInt();
+        cred.type = static_cast<OathType>(query.value(6).toInt());
         cred.requiresTouch = query.value(7).toInt() != 0;
-        cred.isTotp = (cred.type == 2);
+        cred.isTotp = (cred.type == OathType::TOTP);
         cred.deviceId = deviceId;
         // Note: code and validUntil are not stored in cache
 

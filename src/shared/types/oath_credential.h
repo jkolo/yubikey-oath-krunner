@@ -10,13 +10,10 @@
 #include <QMetaType>
 #include <QDebug>
 #include <QDataStream>
+#include "oath_credential_data.h"
 
 namespace YubiKeyOath {
 namespace Shared {
-
-// Forward declare enums from oath_credential_data.h
-enum class OathType;
-enum class OathAlgorithm;
 
 // Forward declarations for formatting options
 struct FormatOptions;
@@ -40,8 +37,8 @@ struct OathCredential {
     // Extended metadata (optional, for D-Bus properties)
     int digits = 6;            ///< Number of digits (6-8)
     int period = 30;           ///< TOTP period in seconds
-    int algorithm = 1;         ///< Algorithm: 1=SHA1, 2=SHA256, 3=SHA512
-    int type = 2;              ///< Type: 1=HOTP, 2=TOTP
+    OathAlgorithm algorithm = OathAlgorithm::SHA1;   ///< Hash algorithm
+    OathType type = OathType::TOTP;                  ///< Credential type
 
     /**
      * @brief Formats credential for display with flexible options
@@ -132,14 +129,19 @@ inline QDebug operator<<(QDebug debug, const OathCredential &cred) {
 inline QDataStream &operator<<(QDataStream &out, const OathCredential &cred) {
     out << cred.originalName << cred.issuer << cred.account << cred.code
         << cred.validUntil << cred.requiresTouch << cred.isTotp
-        << cred.digits << cred.period << cred.algorithm << cred.type;
+        << cred.digits << cred.period
+        << static_cast<int>(cred.algorithm) << static_cast<int>(cred.type);
     return out;
 }
 
 inline QDataStream &operator>>(QDataStream &in, OathCredential &cred) {
+    int algorithm = 0;
+    int type = 0;
     in >> cred.originalName >> cred.issuer >> cred.account >> cred.code
        >> cred.validUntil >> cred.requiresTouch >> cred.isTotp
-       >> cred.digits >> cred.period >> cred.algorithm >> cred.type;
+       >> cred.digits >> cred.period >> algorithm >> type;
+    cred.algorithm = static_cast<OathAlgorithm>(algorithm);
+    cred.type = static_cast<OathType>(type);
     return in;
 }
 

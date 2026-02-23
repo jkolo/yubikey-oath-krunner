@@ -194,18 +194,8 @@ protected:
      */
     QByteArray sendApdu(const QByteArray &command, int retryCount = 0);
 
-    /**
-     * @brief Derives PBKDF2 key from password
-     * @param password Password string
-     * @param salt Salt bytes (typically device ID)
-     * @param iterations Number of iterations (typically 1000)
-     * @param keyLength Desired key length in bytes (typically 16)
-     * @return Derived key bytes
-     */
-    static QByteArray deriveKeyPbkdf2(const QByteArray &password,
-                                     const QByteArray &salt,
-                                     int iterations,
-                                     int keyLength);
+    // Note: PBKDF2 derivation moved to PasswordDerivation::deriveKeyPbkdf2 utility.
+    // See src/daemon/utils/password_derivation.h
 
     /**
      * @brief Attempts to reconnect to card after reset

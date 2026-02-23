@@ -113,8 +113,8 @@ QString YKOathProtocol::parseCode(const QByteArray &response) const
     // Check status word
     quint16 const sw = getStatusWord(response);
 
-    // YubiKey-specific: 0x6985 = touch required (vs Nitrokey 0x6982)
-    if (sw == 0x6985) {
+    // YubiKey-specific: touch required (vs Nitrokey SW_SECURITY_STATUS_NOT_SATISFIED)
+    if (sw == SW_CONDITIONS_NOT_SATISFIED) {
         return {}; // Caller should detect this via status word
     }
 
@@ -225,7 +225,7 @@ QList<OathCredential> YKOathProtocol::parseCalculateAllResponse(const QByteArray
                     // HOTP credential - no response to avoid incrementing counter
                     if (!credentials.isEmpty()) {
                         credentials.last().isTotp = false;
-                        credentials.last().type = 1; // HOTP type
+                        credentials.last().type = OathType::HOTP;
 
                         // Re-parse credential ID with isTotp=false to get period=0
                         int hotpPeriod = 0;
@@ -247,7 +247,7 @@ QList<OathCredential> YKOathProtocol::parseCalculateAllResponse(const QByteArray
                     if (!credentials.isEmpty()) {
                         credentials.last().code = code;
                         credentials.last().digits = static_cast<int>(digits);
-                        credentials.last().type = 2; // TOTP type
+                        credentials.last().type = OathType::TOTP;
 
                         // Calculate validity using actual period extracted from credential name
                         qint64 const currentTime = QDateTime::currentSecsSinceEpoch();

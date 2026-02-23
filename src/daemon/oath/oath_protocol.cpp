@@ -5,6 +5,7 @@
 
 #include "oath_protocol.h"
 #include "../logging_categories.h"
+#include "../utils/secure_logging.h"
 
 #include <QDateTime>
 #include <QDebug>
@@ -458,12 +459,12 @@ QList<OathCredential> OathProtocol::parseCredentialList(const QByteArray &respon
 
                 // Extract type from lower 4 bits of nameAlgo
                 quint8 const oathType = nameAlgo & 0x0F;
-                cred.isTotp = (oathType == 0x02); // TOTP if lower nibble is 0x02
-                cred.type = static_cast<int>(oathType);
+                cred.type = static_cast<OathType>(oathType);
+                cred.isTotp = (cred.type == OathType::TOTP);
 
                 // Extract algorithm from upper 4 bits of nameAlgo
                 quint8 const algorithmBits = (nameAlgo >> 4) & 0x0F;
-                cred.algorithm = static_cast<int>(algorithmBits);
+                cred.algorithm = static_cast<OathAlgorithm>(algorithmBits);
 
                 // Parse credential ID to extract period, issuer, and account
                 int period = 30;
@@ -759,7 +760,7 @@ bool OathProtocol::parseOtpSerialResponse(const QByteArray &response,
                 (static_cast<quint8>(serialBytes[2]) << 8) |
                 (static_cast<quint8>(serialBytes[3]));
 
-    qCDebug(YubiKeyOathDeviceLog) << "OTP serial parsed successfully:" << outSerial;
+    qCDebug(YubiKeyOathDeviceLog) << "OTP serial parsed successfully:" << SecureLogging::maskSerial(outSerial);
     return true;
 }
 
@@ -820,7 +821,7 @@ bool OathProtocol::parseSerialResponse(const QByteArray &response,
                 (static_cast<quint8>(response[2]) << 8) |
                 (static_cast<quint8>(response[3]));
 
-    qCInfo(YubiKeyOathDeviceLog) << "PIV serial number retrieved:" << outSerial;
+    qCInfo(YubiKeyOathDeviceLog) << "PIV serial number retrieved:" << SecureLogging::maskSerial(outSerial);
 
     return true;
 }

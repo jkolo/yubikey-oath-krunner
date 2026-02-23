@@ -57,6 +57,7 @@ public:
     static constexpr quint16 SW_MORE_DATA = 0x6100;
     static constexpr quint16 SW_SECURITY_STATUS_NOT_SATISFIED = 0x6982;
     static constexpr quint16 SW_NO_SUCH_OBJECT = 0x6984;
+    static constexpr quint16 SW_CONDITIONS_NOT_SATISFIED = 0x6985;
     static constexpr quint16 SW_WRONG_DATA = 0x6A80;
     static constexpr quint16 SW_INSUFFICIENT_SPACE = 0x6A84;
     static constexpr quint16 SW_INS_NOT_SUPPORTED = 0x6D00;

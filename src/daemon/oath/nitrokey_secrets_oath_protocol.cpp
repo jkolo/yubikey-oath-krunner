@@ -73,8 +73,8 @@ QString NitrokeySecretsOathProtocol::parseCode(const QByteArray &response) const
     // Check status word
     quint16 const sw = getStatusWord(response);
 
-    // Nitrokey-specific: 0x6982 = touch required (vs YubiKey 0x6985)
-    if (sw == 0x6982) {
+    // Nitrokey-specific: SecurityStatusNotSatisfied = touch required (vs YubiKey ConditionsNotSatisfied)
+    if (sw == SW_SECURITY_STATUS_NOT_SATISFIED) {
         return {}; // Caller should detect this via status word
     }
 
@@ -205,12 +205,12 @@ QList<OathCredential> NitrokeySecretsOathProtocol::parseCredentialListV1(const Q
                 // Extract type from UPPER 4 bits of nameAlgo
                 // Nitrokey format: upper=Kind (0x10=HOTP, 0x20=TOTP), lower=Algorithm (0x01=SHA1)
                 quint8 const kindBits = nameAlgo & 0xF0;
-                cred.isTotp = (kindBits == 0x20); // TOTP if upper nibble is 0x20
-                cred.type = (kindBits == 0x20) ? 0x02 : 0x01; // 0x02=TOTP, 0x01=HOTP for compatibility
+                cred.type = (kindBits == 0x20) ? OathType::TOTP : OathType::HOTP;
+                cred.isTotp = (cred.type == OathType::TOTP);
 
                 // Extract algorithm from LOWER 4 bits of nameAlgo
                 quint8 const algorithmBits = nameAlgo & 0x0F;
-                cred.algorithm = static_cast<int>(algorithmBits);
+                cred.algorithm = static_cast<OathAlgorithm>(algorithmBits);
 
                 // Extract touch_required from properties byte (Bit 0 = 0x01)
                 cred.requiresTouch = (properties & 0x01) != 0;

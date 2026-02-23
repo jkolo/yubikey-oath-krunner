@@ -5,6 +5,7 @@
 
 #include "nitrokey_oath_session.h"
 #include "../logging_categories.h"
+#include "../utils/secure_logging.h"
 #include <QDateTime>
 
 namespace YubiKeyOath {
@@ -47,8 +48,8 @@ Result<QString> NitrokeyOathSession::calculateCode(const QString &name, int peri
     // Check status word
     const quint16 sw = OathProtocol::getStatusWord(response);
 
-    // Nitrokey-specific: Check for touch required (0x6982 instead of 0x6985)
-    if (sw == 0x6982) {
+    // Nitrokey-specific: Check for touch required (SecurityStatusNotSatisfied instead of ConditionsNotSatisfied)
+    if (sw == OathProtocol::SW_SECURITY_STATUS_NOT_SATISFIED) {
         qCDebug(YubiKeyOathDeviceLog) << "Touch required (SW=6982, Nitrokey-specific)";
         Q_EMIT touchRequired();
         return Result<QString>::error(tr("Touch required"));
@@ -70,7 +71,7 @@ Result<QString> NitrokeyOathSession::calculateCode(const QString &name, int peri
         return Result<QString>::error(tr("Failed to parse TOTP code from response"));
     }
 
-    qCDebug(YubiKeyOathDeviceLog) << "Generated code:" << code;
+    qCDebug(YubiKeyOathDeviceLog) << "Code generated successfully";
     return Result<QString>::success(code);
 }
 
@@ -85,8 +86,7 @@ Result<QList<OathCredential>> NitrokeyOathSession::calculateAll()
     // Send LIST v1 command
     const QByteArray listCommand = NitrokeySecretsOathProtocol::createListCommandV1();
 
-    // Debug: Log command in hex
-    qCDebug(YubiKeyOathDeviceLog) << "Sending LIST v1 command:" << listCommand.toHex(' ');
+    qCDebug(YubiKeyOathDeviceLog) << "Sending LIST v1 command";
 
     const QByteArray listResponse = sendApdu(listCommand);
 
@@ -95,9 +95,7 @@ Result<QList<OathCredential>> NitrokeyOathSession::calculateAll()
         return Result<QList<OathCredential>>::error(tr("Failed to list credentials"));
     }
 
-    // Debug: Log response in hex
-    qCDebug(YubiKeyOathDeviceLog) << "LIST v1 response:" << listResponse.toHex(' ')
-                                   << "(" << listResponse.length() << "bytes)";
+    qCDebug(YubiKeyOathDeviceLog) << "LIST v1 response received:" << listResponse.length() << "bytes";
 
     const quint16 listSw = OathProtocol::getStatusWord(listResponse);
 
@@ -115,12 +113,12 @@ Result<QList<OathCredential>> NitrokeyOathSession::calculateAll()
     }
 
     // Check for LIST v1 not supported (fallback to standard LIST)
-    if (listSw == 0x6985) {
+    if (listSw == OathProtocol::SW_CONDITIONS_NOT_SATISFIED) {
         qCInfo(YubiKeyOathDeviceLog) << "LIST v1 not supported (SW=6985), falling back to standard LIST";
 
         // Fallback: Use standard LIST (Nitrokey CCID requires Le byte)
         const QByteArray stdListCommand = NitrokeySecretsOathProtocol::createListCommand();
-        qCDebug(YubiKeyOathDeviceLog) << "Sending standard LIST command:" << stdListCommand.toHex(' ');
+        qCDebug(YubiKeyOathDeviceLog) << "Sending standard LIST command";
 
         const QByteArray stdListResponse = sendApdu(stdListCommand);
 
@@ -129,8 +127,7 @@ Result<QList<OathCredential>> NitrokeyOathSession::calculateAll()
             return Result<QList<OathCredential>>::error(tr("Failed to list credentials"));
         }
 
-        qCDebug(YubiKeyOathDeviceLog) << "Standard LIST response:" << stdListResponse.toHex(' ')
-                                       << "(" << stdListResponse.length() << "bytes)";
+        qCDebug(YubiKeyOathDeviceLog) << "Standard LIST response received:" << stdListResponse.length() << "bytes";
 
         const quint16 stdListSw = OathProtocol::getStatusWord(stdListResponse);
 
