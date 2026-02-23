@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(krunner-yubikey VERSION 2.0.0)
+project(krunner-yubikey VERSION 2.5.0)
 
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
