@@ -112,6 +112,15 @@ public:
     CredentialService* getCredentialService() const;
 
     /**
+     * @brief Gets action coordinator for direct action execution
+     * @return Pointer to OathActionCoordinator (not owned)
+     *
+     * Use this for async workflows where you need to execute copy/type
+     * operations after code generation is complete (e.g., from D-Bus objects).
+     */
+    OathActionCoordinator* getActionCoordinator() const { return m_actionCoordinator.get(); }
+
+    /**
      * @brief Gets IDs of all currently connected devices
      * @return List of connected device IDs
      */

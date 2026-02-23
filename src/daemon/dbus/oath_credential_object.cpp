@@ -6,11 +6,15 @@
 #include "oath_credential_object.h"
 #include "services/oath_service.h"
 #include "services/credential_service.h"
+#include "actions/oath_action_coordinator.h"
+#include "actions/action_executor.h"  // For ActionExecutor::ActionResult
+#include "oath/oath_device.h"  // For OathDevice::touchRequired() signal
 #include "logging_categories.h"
 #include "credentialadaptor.h"  // Auto-generated D-Bus adaptor
 
 #include <QDBusConnection>
 #include <QDBusError>
+#include <QElapsedTimer>
 #include <utility>
 
 namespace YubiKeyOath {
@@ -48,6 +52,7 @@ OathCredentialObject::~OathCredentialObject()
 {
     qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: Destructor for credential:"
                               << m_credential.originalName;
+    disconnectPending();
     unregisterObject();
 }
 
@@ -128,24 +133,14 @@ bool OathCredentialObject::requiresTouch() const
 
 QString OathCredentialObject::type() const
 {
-    // Type: 1=HOTP, 2=TOTP
-    return m_credential.type == 2
+    return m_credential.type == OathType::TOTP
            ? QString::fromLatin1("TOTP")
            : QString::fromLatin1("HOTP");
 }
 
 QString OathCredentialObject::algorithm() const
 {
-    // Algorithm: 1=SHA1, 2=SHA256, 3=SHA512
-    switch (m_credential.algorithm) {
-        case 2:
-            return QString::fromLatin1("SHA256");
-        case 3:
-            return QString::fromLatin1("SHA512");
-        case 1:
-        default:
-            return QString::fromLatin1("SHA1");
-    }
+    return algorithmToString(m_credential.algorithm);
 }
 
 int OathCredentialObject::digits() const
@@ -165,31 +160,72 @@ QString OathCredentialObject::deviceId() const
 
 // === ASYNC API IMPLEMENTATION ===
 
+void OathCredentialObject::disconnectPending()
+{
+    if (m_pendingConnection) {
+        disconnect(m_pendingConnection);
+        m_pendingConnection = {};
+    }
+    if (m_touchSignalConnection) {
+        disconnect(m_touchSignalConnection);
+        m_touchSignalConnection = {};
+    }
+}
+
+void OathCredentialObject::executeWithCodeGeneration(bool handleTouch, const CodeResultCallback &onResult)
+{
+    const bool showTouch = handleTouch && m_credential.requiresTouch;
+
+    // Cancel any previous pending operation (must be before touch signal setup)
+    disconnectPending();
+
+    if (showTouch) {
+        auto *device = m_service->getDevice(m_deviceId);
+        if (device) {
+            // Capture values now - device may be destroyed later
+            const Shared::DeviceModel deviceModel = device->deviceModel();
+            const int timeout = m_service->getActionCoordinator()->touchTimeout();
+            const QString credentialName = m_credential.originalName;
+
+            // Show notification when device emits preemptive touchRequired() signal
+            // (fired from worker thread just before CALCULATE APDU - LED blinks immediately after)
+            m_touchSignalConnection = connect(device, &OathDevice::touchRequired,
+                this, [this, credentialName, timeout, deviceModel]() {
+                    if (m_touchSignalConnection) {
+                        disconnect(m_touchSignalConnection);
+                        m_touchSignalConnection = {};
+                    }
+                    m_service->getActionCoordinator()->showTouchNotification(
+                        credentialName, timeout, deviceModel);
+                });
+        }
+    }
+
+    m_pendingConnection = connect(m_service->getCredentialService(), &CredentialService::codeGenerated,
+            this, [this, onResult, showTouch](const QString &deviceId, const QString &credentialName,
+                                              const QString &code, qint64 validUntil, const QString &error) {
+        if (deviceId == m_deviceId && credentialName == m_credential.originalName) {
+            disconnectPending();
+
+            if (showTouch) {
+                m_service->getActionCoordinator()->closeTouchNotification();
+            }
+
+            onResult(code, validUntil, error);
+        }
+    });
+
+    m_service->getCredentialService()->generateCodeAsync(m_deviceId, m_credential.originalName);
+}
+
 void OathCredentialObject::GenerateCode()
 {
     qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: GenerateCode (async) for credential:"
                               << m_credential.originalName << "on device:" << m_deviceId;
 
-    // Connect to service signal for this specific operation (one-shot connection)
-    auto *connection = new QMetaObject::Connection();
-    *connection = connect(m_service->getCredentialService(), &CredentialService::codeGenerated,
-            this, [this, connection](const QString &deviceId, const QString &credentialName,
-                                     const QString &code, qint64 validUntil, const QString &error) {
-        if (deviceId == m_deviceId && credentialName == m_credential.originalName) {
-            qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: Code generated async for:"
-                                      << m_credential.originalName;
-
-            // Emit D-Bus signal
-            Q_EMIT CodeGenerated(code, validUntil, error);
-
-            // Disconnect one-shot signal
-            disconnect(*connection);
-            delete connection;
-        }
+    executeWithCodeGeneration(false, [this](const QString &code, qint64 validUntil, const QString &error) {
+        Q_EMIT CodeGenerated(code, validUntil, error);
     });
-
-    // Trigger async code generation
-    m_service->getCredentialService()->generateCodeAsync(m_deviceId, m_credential.originalName);
 }
 
 void OathCredentialObject::CopyToClipboard()
@@ -197,12 +233,38 @@ void OathCredentialObject::CopyToClipboard()
     qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: CopyToClipboard (async) for credential:"
                               << m_credential.originalName << "on device:" << m_deviceId;
 
-    // For now, use sync implementation - will be migrated to async in service layer
-    // TODO: Implement full async workflow with clipboard signals
-    const bool success = m_service->copyCodeToClipboard(m_deviceId, m_credential.originalName);
+    auto *copyTimer = new QElapsedTimer();
+    copyTimer->start();
 
-    // Emit result immediately
-    Q_EMIT ClipboardCopied(success, success ? QString() : QStringLiteral("Failed to copy to clipboard"));
+    executeWithCodeGeneration(true, [this, copyTimer](const QString &code, qint64 /*validUntil*/, const QString &error) {
+        qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: [TIMING] CopyToClipboard code generation callback at"
+                                  << copyTimer->elapsed() << "ms";
+
+        if (!error.isEmpty()) {
+            qCWarning(OathDaemonLog) << "YubiKeyCredentialObject: Code generation failed:" << error;
+            delete copyTimer;
+            Q_EMIT ClipboardCopied(false, error);
+            return;
+        }
+
+        qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: Code generated, copying to clipboard";
+
+        QElapsedTimer actionTimer;
+        actionTimer.start();
+
+        auto *device = m_service->getDevice(m_deviceId);
+        const Shared::DeviceModel deviceModel = device ? device->deviceModel() : Shared::DeviceModel{};
+
+        auto result = m_service->getActionCoordinator()->executeActionWithNotification(
+            code, m_credential.originalName, QStringLiteral("copy"), deviceModel);
+        const bool success = (result == ActionExecutor::ActionResult::Success);
+
+        qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: [TIMING] CopyToClipboard action took"
+                                  << actionTimer.elapsed() << "ms, total:" << copyTimer->elapsed() << "ms";
+        delete copyTimer;
+
+        Q_EMIT ClipboardCopied(success, success ? QString() : QStringLiteral("Failed to copy to clipboard"));
+    });
 }
 
 void OathCredentialObject::TypeCode(bool fallbackToCopy)
@@ -211,18 +273,46 @@ void OathCredentialObject::TypeCode(bool fallbackToCopy)
                               << m_credential.originalName << "on device:" << m_deviceId
                               << "fallbackToCopy:" << fallbackToCopy;
 
-    // For now, use sync implementation - will be migrated to async in service layer
-    // TODO: Implement full async workflow with type signals
-    bool success = m_service->typeCode(m_deviceId, m_credential.originalName);
+    auto *typeCodeTimer = new QElapsedTimer();
+    typeCodeTimer->start();
 
-    // If typing failed and fallback is enabled, try clipboard
-    if (!success && fallbackToCopy) {
-        qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: TypeCode failed, falling back to clipboard";
-        success = m_service->copyCodeToClipboard(m_deviceId, m_credential.originalName);
-    }
+    executeWithCodeGeneration(true, [this, fallbackToCopy, typeCodeTimer](const QString &code, qint64 /*validUntil*/, const QString &error) {
+        qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: [TIMING] Code generation callback at"
+                                  << typeCodeTimer->elapsed() << "ms";
 
-    // Emit result immediately
-    Q_EMIT CodeTyped(success, success ? QString() : QStringLiteral("Failed to type code"));
+        if (!error.isEmpty()) {
+            qCWarning(OathDaemonLog) << "YubiKeyCredentialObject: Code generation failed:" << error;
+            delete typeCodeTimer;
+            Q_EMIT CodeTyped(false, error);
+            return;
+        }
+
+        qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: Code generated, typing code";
+
+        QElapsedTimer actionTimer;
+        actionTimer.start();
+
+        auto result = m_service->getActionCoordinator()->executeTypeOnly(code, m_credential.originalName);
+        bool success = (result == ActionExecutor::ActionResult::Success);
+
+        qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: [TIMING] executeTypeOnly took"
+                                  << actionTimer.elapsed() << "ms";
+
+        if (!success && fallbackToCopy) {
+            qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: TypeCode failed, falling back to clipboard";
+            auto *device = m_service->getDevice(m_deviceId);
+            const Shared::DeviceModel deviceModel = device ? device->deviceModel() : Shared::DeviceModel{};
+            auto copyResult = m_service->getActionCoordinator()->executeActionWithNotification(
+                code, m_credential.originalName, QStringLiteral("copy"), deviceModel);
+            success = (copyResult == ActionExecutor::ActionResult::Success);
+        }
+
+        qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: [TIMING] TypeCode total:"
+                                  << typeCodeTimer->elapsed() << "ms";
+        delete typeCodeTimer;
+
+        Q_EMIT CodeTyped(success, success ? QString() : QStringLiteral("Failed to type code"));
+    });
 }
 
 void OathCredentialObject::Delete()
@@ -230,25 +320,20 @@ void OathCredentialObject::Delete()
     qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: Delete (async) credential:"
                               << m_credential.originalName << "from device:" << m_deviceId;
 
-    // Connect to service signal for this specific operation (one-shot connection)
-    auto *connection = new QMetaObject::Connection();
-    *connection = connect(m_service->getCredentialService(), &CredentialService::credentialDeleted,
-            this, [this, connection](const QString &deviceId, const QString &credentialName,
-                                     bool success, const QString &error) {
+    disconnectPending();
+
+    m_pendingConnection = connect(m_service->getCredentialService(), &CredentialService::credentialDeleted,
+            this, [this](const QString &deviceId, const QString &credentialName,
+                         bool success, const QString &error) {
         if (deviceId == m_deviceId && credentialName == m_credential.originalName) {
+            disconnectPending();
+
             qCDebug(OathDaemonLog) << "YubiKeyCredentialObject: Credential deleted async:"
                                       << m_credential.originalName << "success:" << success;
-
-            // Emit D-Bus signal
             Q_EMIT Deleted(success, error);
-
-            // Disconnect one-shot signal
-            disconnect(*connection);
-            delete connection;
         }
     });
 
-    // Trigger async deletion
     m_service->getCredentialService()->deleteCredentialAsync(m_deviceId, m_credential.originalName);
 }
 

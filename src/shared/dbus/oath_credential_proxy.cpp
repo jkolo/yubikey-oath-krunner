@@ -11,6 +11,7 @@
 #include <QLatin1String>
 #include <QLoggingCategory>
 #include <QDateTime>
+#include <QMutexLocker>
 
 Q_LOGGING_CATEGORY(OathCredentialProxyLog, "pl.jkolo.yubikey.oath.client.credential.proxy")
 
@@ -143,12 +144,14 @@ void OathCredentialProxy::deleteCredential()
 
 GenerateCodeResult OathCredentialProxy::getCachedCode() const
 {
+    QMutexLocker locker(&m_cacheMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
     return GenerateCodeResult{.code = m_cachedCode, .validUntil = m_cachedValidUntil};
 }
 
 bool OathCredentialProxy::isCacheValid() const
 {
-    qint64 const currentTime = QDateTime::currentSecsSinceEpoch();
+    QMutexLocker locker(&m_cacheMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
+    const qint64 currentTime = QDateTime::currentSecsSinceEpoch();
     return !m_cachedCode.isEmpty() && m_cachedValidUntil > currentTime;
 }
 
@@ -256,6 +259,7 @@ void OathCredentialProxy::onCodeGenerated(const QString &code, qint64 validUntil
 
     // Update cache if successful
     if (error.isEmpty() && !code.isEmpty()) {
+        QMutexLocker locker(&m_cacheMutex);  // NOLINT(misc-const-correctness) - QMutexLocker destructor unlocks
         m_cachedCode = code;
         m_cachedValidUntil = validUntil;
     }

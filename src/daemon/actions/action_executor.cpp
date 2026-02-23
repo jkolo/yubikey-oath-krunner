@@ -14,6 +14,7 @@
 
 #include <KLocalizedString>
 #include <QDebug>
+#include <QElapsedTimer>
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -54,13 +55,19 @@ ActionExecutor::ActionResult ActionExecutor::executeTypeAction(const QString &co
     }
 
     // Check for pressed modifier keys and wait for release
+    QElapsedTimer modifierTimer;
+    modifierTimer.start();
     const ActionResult modifierCheck = checkAndWaitForModifiers(credentialName);
+    qCDebug(ActionExecutorLog) << "[TIMING] Modifier check took" << modifierTimer.elapsed() << "ms";
     if (modifierCheck != ActionResult::Success) {
         qCWarning(ActionExecutorLog) << "Type action cancelled due to modifier keys for:" << credentialName;
         return modifierCheck;
     }
 
+    QElapsedTimer typeTimer;
+    typeTimer.start();
     const bool success = m_textInput->typeText(code);
+    qCDebug(ActionExecutorLog) << "[TIMING] typeText() took" << typeTimer.elapsed() << "ms";
 
     if (success) {
         qCDebug(ActionExecutorLog) << "Code typed successfully for:" << credentialName;

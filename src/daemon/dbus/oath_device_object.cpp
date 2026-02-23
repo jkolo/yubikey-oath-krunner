@@ -4,10 +4,12 @@
  */
 
 #include "oath_device_object.h"
+#include "credential_object_manager.h"
 #include "oath_credential_object.h"
 #include "services/oath_service.h"
 #include "oath/oath_device.h"
 #include "types/device_state.h"
+#include "utils/credential_id_encoder.h"
 #include "logging_categories.h"
 #include "deviceadaptor.h"         // Auto-generated D-Bus adaptor for Device interface
 #include "devicesessionadaptor.h"  // Auto-generated D-Bus adaptor for DeviceSession interface
@@ -15,8 +17,6 @@
 #include <QDBusConnection>
 #include <QDBusError>
 #include <QDBusMessage>
-#include <QCryptographicHash>
-#include <QUrl>
 #include <utility>
 
 namespace YubiKeyOath {
@@ -70,11 +70,27 @@ OathDeviceObject::OathDeviceObject(QString deviceId,
         }
     }
 
+    // Create credential object manager
+    m_credentialManager = std::make_unique<CredentialObjectManager>(
+        m_deviceId, m_objectPath, m_service, m_connection, this);
+
+    // Connect credential manager signals to D-Bus signals
+    connect(m_credentialManager.get(), &CredentialObjectManager::credentialAdded,
+            this, [this](const QString &path) {
+                Q_EMIT CredentialAdded(QDBusObjectPath(path));
+                Q_EMIT credentialAdded();
+            });
+    connect(m_credentialManager.get(), &CredentialObjectManager::credentialRemoved,
+            this, [this](const QString &path) {
+                Q_EMIT CredentialRemoved(QDBusObjectPath(path));
+                Q_EMIT credentialRemoved();
+            });
+
     // Connect to service signals for credential updates
     connect(m_service, &OathService::credentialsUpdated,
             this, [this](const QString &deviceId) {
                 if (deviceId == m_deviceId) {
-                    updateCredentials();
+                    m_credentialManager->updateCredentials();
                 }
             });
 
@@ -131,11 +147,8 @@ void OathDeviceObject::unregisterObject()
         return;
     }
 
-    // Remove all credential objects first
-    const QStringList credIds = m_credentials.keys();
-    for (const QString &credId : credIds) {
-        removeCredential(credId);
-    }
+    // Remove all credential objects first (manager handles cleanup)
+    m_credentialManager->removeAllCredentials();
 
     m_connection.unregisterObject(m_objectPath);
     m_registered = false;
@@ -376,8 +389,8 @@ Shared::AddCredentialResult OathDeviceObject::AddCredential(const QString &name,
 
     // If success, result.message contains credential name - build path
     if (result.status == QLatin1String("Success")) {
-        const QString credId = encodeCredentialId(result.message);
-        const QString path = credentialPath(credId);
+        const QString credId = CredentialIdEncoder::encode(result.message);
+        const QString path = QString::fromLatin1("%1/credentials/%2").arg(m_objectPath, credId);
         return {QLatin1String("Success"), path};
     }
 
@@ -386,119 +399,27 @@ Shared::AddCredentialResult OathDeviceObject::AddCredential(const QString &name,
 
 OathCredentialObject* OathDeviceObject::addCredential(const Shared::OathCredential &credential)
 {
-    const QString credId = encodeCredentialId(credential.originalName);
-
-    qCDebug(OathDaemonLog) << "YubiKeyDeviceObject: Adding credential:" << credential.originalName
-                              << "id:" << credId << "for device:" << m_deviceId;
-
-    // Check if already exists
-    if (m_credentials.contains(credId)) {
-        qCWarning(OathDaemonLog) << "YubiKeyDeviceObject: Credential already exists:" << credId;
-        return m_credentials.value(credId);
-    }
-
-    // Create credential object
-    const QString path = credentialPath(credId);
-    auto *credObj = new OathCredentialObject(credential, m_deviceId, m_service,
-                                              m_connection, this);
-
-    // Set object path before registration
-    credObj->setObjectPath(path);
-
-    if (!credObj->registerObject()) {
-        qCCritical(OathDaemonLog) << "YubiKeyDeviceObject: Failed to register credential object"
-                                     << credId;
-        delete credObj;
-        return nullptr;
-    }
-
-    m_credentials.insert(credId, credObj);
-
-    // Emit D-Bus signals for ObjectManager
-    Q_EMIT CredentialAdded(QDBusObjectPath(path));
-    Q_EMIT credentialAdded(); // Internal signal for Manager
-
-    qCInfo(OathDaemonLog) << "YubiKeyDeviceObject: Credential added:" << credential.originalName
-                             << "at" << path;
-
-    return credObj;
+    return m_credentialManager->addCredential(credential);
 }
 
 void OathDeviceObject::removeCredential(const QString &credentialId)
 {
-    qCDebug(OathDaemonLog) << "YubiKeyDeviceObject: Removing credential:" << credentialId
-                              << "from device:" << m_deviceId;
-
-    if (!m_credentials.contains(credentialId)) {
-        qCWarning(OathDaemonLog) << "YubiKeyDeviceObject: Credential not found:" << credentialId;
-        return;
-    }
-
-    OathCredentialObject *const credObj = m_credentials.value(credentialId);
-    const QString path = credObj->objectPath();
-
-    // Unregister and delete
-    credObj->unregisterObject();
-    delete credObj;
-
-    m_credentials.remove(credentialId);
-
-    // Emit D-Bus signals for ObjectManager
-    Q_EMIT CredentialRemoved(QDBusObjectPath(path));
-    Q_EMIT credentialRemoved(); // Internal signal for Manager
-
-    qCInfo(OathDaemonLog) << "YubiKeyDeviceObject: Credential removed:" << credentialId;
+    m_credentialManager->removeCredential(credentialId);
 }
 
 OathCredentialObject* OathDeviceObject::getCredential(const QString &credentialId) const
 {
-    return m_credentials.value(credentialId, nullptr);
+    return m_credentialManager->getCredential(credentialId);
 }
 
 QStringList OathDeviceObject::credentialPaths() const
 {
-    QStringList paths;
-    for (auto it = m_credentials.constBegin(); it != m_credentials.constEnd(); ++it) {
-        paths.append(it.value()->objectPath());
-    }
-    return paths;
+    return m_credentialManager->credentialPaths();
 }
 
 void OathDeviceObject::updateCredentials()
 {
-    qCDebug(OathDaemonLog) << "YubiKeyDeviceObject: Updating credentials for device:"
-                              << m_deviceId;
-
-    // Get current credentials from service
-    const QList<Shared::OathCredential> currentCreds = m_service->getCredentials(m_deviceId);
-
-    // Build set of current credential IDs
-    QSet<QString> currentCredIds;
-    for (const auto &cred : currentCreds) {
-        currentCredIds.insert(encodeCredentialId(cred.originalName));
-    }
-
-    // Build set of existing credential IDs
-    const QSet<QString> existingCredIds = QSet<QString>(m_credentials.keyBegin(),
-                                                         m_credentials.keyEnd());
-
-    // Remove credentials that no longer exist
-    const QSet<QString> toRemove = existingCredIds - currentCredIds;
-    for (const QString &credId : toRemove) {
-        removeCredential(credId);
-    }
-
-    // Add new credentials
-    const QSet<QString> toAdd = currentCredIds - existingCredIds;
-    for (const auto &cred : currentCreds) {
-        const QString credId = encodeCredentialId(cred.originalName);
-        if (toAdd.contains(credId)) {
-            addCredential(cred);
-        }
-    }
-
-    qCDebug(OathDaemonLog) << "YubiKeyDeviceObject: Credentials updated for device:"
-                              << m_deviceId << "- total:" << m_credentials.size();
+    m_credentialManager->updateCredentials();
 }
 
 void OathDeviceObject::connectToDevice()
@@ -564,121 +485,7 @@ QVariantMap OathDeviceObject::getManagedObjectData() const
 
 QVariantMap OathDeviceObject::getManagedCredentialObjects() const
 {
-    QVariantMap result;
-
-    for (auto it = m_credentials.constBegin(); it != m_credentials.constEnd(); ++it) {
-        const QString path = it.value()->objectPath();
-        const QVariantMap credData = it.value()->getManagedObjectData();
-        result.insert(path, credData);
-    }
-
-    return result;
-}
-
-QString OathDeviceObject::encodeCredentialId(const QString &credentialName)
-{
-    // Encode credential name for use in D-Bus object path
-    // D-Bus paths allow only: [A-Za-z0-9_/]
-    // Use transliteration for Unicode characters and special character mappings
-
-    // Transliteration map for common Unicode characters
-    static const QHash<QChar, QString> translitMap = {
-        // Polish characters (lowercase)
-        {QChar(0x0105), QStringLiteral("a")},  // ą
-        {QChar(0x0107), QStringLiteral("c")},  // ć
-        {QChar(0x0119), QStringLiteral("e")},  // ę
-        {QChar(0x0142), QStringLiteral("l")},  // ł
-        {QChar(0x0144), QStringLiteral("n")},  // ń
-        {QChar(0x00F3), QStringLiteral("o")},  // ó
-        {QChar(0x015B), QStringLiteral("s")},  // ś
-        {QChar(0x017A), QStringLiteral("z")},  // ź
-        {QChar(0x017C), QStringLiteral("z")},  // ż
-        // Polish characters (uppercase)
-        {QChar(0x0104), QStringLiteral("a")},  // Ą
-        {QChar(0x0106), QStringLiteral("c")},  // Ć
-        {QChar(0x0118), QStringLiteral("e")},  // Ę
-        {QChar(0x0141), QStringLiteral("l")},  // Ł
-        {QChar(0x0143), QStringLiteral("n")},  // Ń
-        {QChar(0x00D3), QStringLiteral("o")},  // Ó
-        {QChar(0x015A), QStringLiteral("s")},  // Ś
-        {QChar(0x0179), QStringLiteral("z")},  // Ź
-        {QChar(0x017B), QStringLiteral("z")},  // Ż
-        // Common special characters with readable mappings
-        {QLatin1Char('@'), QStringLiteral("_at_")},
-        {QLatin1Char('.'), QStringLiteral("_dot_")},
-        {QLatin1Char(':'), QStringLiteral("_colon_")},
-        {QLatin1Char(' '), QStringLiteral("_")},
-        {QLatin1Char('('), QStringLiteral("_")},
-        {QLatin1Char(')'), QStringLiteral("_")},
-        {QLatin1Char('-'), QStringLiteral("_")},
-        {QLatin1Char('+'), QStringLiteral("_plus_")},
-        {QLatin1Char('='), QStringLiteral("_eq_")},
-        {QLatin1Char('/'), QStringLiteral("_slash_")},
-        {QLatin1Char('\\'), QStringLiteral("_backslash_")},
-        {QLatin1Char('&'), QStringLiteral("_and_")},
-        {QLatin1Char('%'), QStringLiteral("_percent_")},
-        {QLatin1Char('#'), QStringLiteral("_hash_")},
-        {QLatin1Char('!'), QStringLiteral("_excl_")},
-        {QLatin1Char('?'), QStringLiteral("_q_")},
-        {QLatin1Char('*'), QStringLiteral("_star_")},
-        {QLatin1Char(','), QStringLiteral("_")},
-        {QLatin1Char(';'), QStringLiteral("_")},
-        {QLatin1Char('\''), QStringLiteral("_")},
-        {QLatin1Char('"'), QStringLiteral("_")},
-        {QLatin1Char('['), QStringLiteral("_")},
-        {QLatin1Char(']'), QStringLiteral("_")},
-        {QLatin1Char('{'), QStringLiteral("_")},
-        {QLatin1Char('}'), QStringLiteral("_")},
-        {QLatin1Char('<'), QStringLiteral("_lt_")},
-        {QLatin1Char('>'), QStringLiteral("_gt_")},
-        {QLatin1Char('|'), QStringLiteral("_pipe_")},
-        {QLatin1Char('~'), QStringLiteral("_tilde_")},
-        {QLatin1Char('`'), QStringLiteral("_")},
-    };
-
-    QString encoded;
-    encoded.reserve(credentialName.length() * 3); // Reserve space for worst case
-
-    for (const QChar &ch : credentialName) {
-        // Check if it's ASCII letter or number or underscore
-        if ((ch >= QLatin1Char('A') && ch <= QLatin1Char('Z')) ||
-            (ch >= QLatin1Char('a') && ch <= QLatin1Char('z')) ||
-            (ch >= QLatin1Char('0') && ch <= QLatin1Char('9')) ||
-            ch == QLatin1Char('_')) {
-            // Keep ASCII alphanumeric and underscore as-is (lowercase)
-            encoded.append(ch.toLower());
-        } else if (translitMap.contains(ch)) {
-            // Use transliteration mapping
-            encoded.append(translitMap.value(ch));
-        } else if (ch.unicode() < 128) {
-            // Other ASCII characters not in map - replace with underscore
-            encoded.append(QLatin1Char('_'));
-        } else {
-            // Unicode character not in map - encode as _uXXXX
-            encoded.append(QString::fromLatin1("_u%1").arg(
-                static_cast<ushort>(ch.unicode()), 4, 16, QLatin1Char('0')));
-        }
-    }
-
-    // If starts with digit, prepend 'c'
-    if (!encoded.isEmpty() && encoded[0].isDigit()) {
-        encoded.prepend(QLatin1Char('c'));
-    }
-
-    // Truncate if too long (max 255 chars for D-Bus element)
-    if (encoded.length() > 200) {
-        // Use hash for very long names
-        const QByteArray hash = QCryptographicHash::hash(credentialName.toUtf8(),
-                                                          QCryptographicHash::Sha256);
-        encoded = QString::fromLatin1("cred_") + QString::fromLatin1(hash.toHex().left(16));
-    }
-
-    return encoded;
-}
-
-QString OathDeviceObject::credentialPath(const QString &credentialId) const
-{
-    return QString::fromLatin1("%1/credentials/%2").arg(m_objectPath, credentialId);
+    return m_credentialManager->getManagedObjects();
 }
 
 void OathDeviceObject::emitPropertyChanged(const QString &interfaceName,

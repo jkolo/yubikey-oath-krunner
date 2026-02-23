@@ -135,6 +135,33 @@ public:
     void closeNotification(uint notificationId);
 
     /**
+     * @brief Shows touch notification for D-Bus async API
+     * @param credentialName Credential name
+     * @param timeoutSeconds Timeout in seconds
+     * @param deviceModel Device model for icon
+     *
+     * Used by OathCredentialObject when generating code for touch-required credentials.
+     * Delegates to NotificationOrchestrator for showing touch notification.
+     */
+    void showTouchNotification(const QString &credentialName,
+                               int timeoutSeconds,
+                               const Shared::DeviceModel& deviceModel);
+
+    /**
+     * @brief Closes touch notification
+     *
+     * Called after code is generated successfully or on timeout.
+     * Delegates to NotificationOrchestrator.
+     */
+    void closeTouchNotification();
+
+    /**
+     * @brief Gets configured touch timeout
+     * @return Touch timeout in seconds
+     */
+    int touchTimeout() const;
+
+    /**
      * @brief Executes an action (copy or type) with full workflow support
      * @param deviceId Device ID
      * @param credentialName Credential name
@@ -153,6 +180,34 @@ public:
     bool executeActionInternal(const QString &deviceId,
                               const QString &credentialName,
                               const QString &actionType);
+
+    /**
+     * @brief Copies pre-generated code to clipboard without code generation
+     * @param code TOTP/HOTP code to copy
+     * @param credentialName Credential name for notifications
+     * @return ActionResult (Success, Failed, WaitingForPermission)
+     *
+     * Use this method when you already have a generated code and just need
+     * to copy it to clipboard. Does NOT generate code - use generateCodeAsync()
+     * for that. Useful for async workflows where code generation and
+     * clipboard operations are separate steps.
+     */
+    ActionExecutor::ActionResult executeCopyOnly(const QString &code,
+                                                  const QString &credentialName);
+
+    /**
+     * @brief Types pre-generated code without code generation
+     * @param code TOTP/HOTP code to type
+     * @param credentialName Credential name for notifications
+     * @return ActionResult (Success, Failed, WaitingForPermission)
+     *
+     * Use this method when you already have a generated code and just need
+     * to type it. Does NOT generate code - use generateCodeAsync() for that.
+     * Useful for async workflows where code generation and typing are separate steps.
+     * Handles modifier key checking and Portal permission dialogs.
+     */
+    ActionExecutor::ActionResult executeTypeOnly(const QString &code,
+                                                  const QString &credentialName);
 
 private:
 

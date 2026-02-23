@@ -202,9 +202,19 @@ private Q_SLOTS:
                             const QVariantMap &changedProperties,
                             const QStringList &invalidatedProperties);
 
+public:
+    /**
+     * @brief Adds a credential proxy from InterfacesAdded signal
+     * @param objectPath D-Bus object path of the credential
+     * @param properties Credential properties from D-Bus
+     *
+     * Called by OathManagerProxy when InterfacesAdded signal arrives for a credential.
+     * Also called internally from D-Bus CredentialAdded signal handler.
+     */
+    void addCredentialProxy(const QString &objectPath, const QVariantMap &properties);
+
 private:  // NOLINT(readability-redundant-access-specifiers) - Required to close Q_SLOTS section for moc
     void connectToSignals();
-    void addCredentialProxy(const QString &objectPath, const QVariantMap &properties);
     void removeCredentialProxy(const QString &objectPath);
 
     QString m_objectPath;

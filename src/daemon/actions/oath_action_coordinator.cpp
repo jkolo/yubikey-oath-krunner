@@ -95,6 +95,13 @@ OathActionCoordinator::OathActionCoordinator(OathService *service,
         database,
         config))
 {
+    // Enable persistent portal session if configured (pre-creates session at startup)
+    if (m_textInput && config->persistPortalSession()) {
+        qCDebug(OathDaemonLog) << "OathActionCoordinator: Enabling persistent portal session mode";
+        m_textInput->setPersistSession(true);
+        m_textInput->preInitialize();
+    }
+
     qCDebug(OathDaemonLog) << "OathActionCoordinator: Initialized with touch and reconnect workflow support";
 }
 
@@ -166,6 +173,27 @@ void OathActionCoordinator::closeNotification(uint notificationId)
     m_notificationOrchestrator->closeNotification(notificationId);
 }
 
+void OathActionCoordinator::showTouchNotification(const QString &credentialName,
+                                                    int timeoutSeconds,
+                                                    const Shared::DeviceModel& deviceModel)
+{
+    qCDebug(OathActionCoordinatorLog) << "OathActionCoordinator: showTouchNotification"
+                                << "credential:" << credentialName
+                                << "timeout:" << timeoutSeconds;
+    m_notificationOrchestrator->showTouchNotification(credentialName, timeoutSeconds, deviceModel);
+}
+
+void OathActionCoordinator::closeTouchNotification()
+{
+    qCDebug(OathActionCoordinatorLog) << "OathActionCoordinator: closeTouchNotification";
+    m_notificationOrchestrator->closeTouchNotification();
+}
+
+int OathActionCoordinator::touchTimeout() const
+{
+    return m_config->touchTimeout();
+}
+
 bool OathActionCoordinator::tryStartReconnectWorkflow(
     const QString &deviceId,
     const QString &credentialName,
@@ -181,6 +209,22 @@ bool OathActionCoordinator::tryStartReconnectWorkflow(
     );
 
     return true; // Workflow started successfully
+}
+
+ActionExecutor::ActionResult OathActionCoordinator::executeCopyOnly(const QString &code,
+                                                                      const QString &credentialName)
+{
+    qCDebug(OathActionCoordinatorLog) << "OathActionCoordinator: executeCopyOnly"
+                                << "credential:" << credentialName;
+    return m_actionExecutor->executeCopyAction(code, credentialName);
+}
+
+ActionExecutor::ActionResult OathActionCoordinator::executeTypeOnly(const QString &code,
+                                                                     const QString &credentialName)
+{
+    qCDebug(OathActionCoordinatorLog) << "OathActionCoordinator: executeTypeOnly"
+                                << "credential:" << credentialName;
+    return m_actionExecutor->executeTypeAction(code, credentialName);
 }
 
 bool OathActionCoordinator::executeActionInternal(const QString &deviceId,

@@ -8,6 +8,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QMutex>
 #include "types/yubikey_value_types.h"
 
 // Forward declarations
@@ -256,6 +257,8 @@ private:  // NOLINT(readability-redundant-access-specifiers) - Required to close
     // Code cache (mutable - updated on generateCode() calls)
     // PERFORMANCE: Caching eliminates N separate D-Bus calls when building matches
     // Cache is valid until validUntil timestamp (typically 30s for TOTP)
+    // THREAD SAFETY: Protected by m_cacheMutex - written on D-Bus thread, read from KRunner worker thread
+    mutable QMutex m_cacheMutex;
     mutable QString m_cachedCode;
     mutable qint64 m_cachedValidUntil{0};
 

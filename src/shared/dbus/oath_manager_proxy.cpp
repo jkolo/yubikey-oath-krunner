@@ -199,8 +199,8 @@ void OathManagerProxy::onGetManagedObjectsFinished(QDBusPendingCallWatcher *watc
             interfacesMap.insert(intIt.key(), QVariant::fromValue(intIt.value()));
         }
 
-        qCDebug(OathManagerProxyLog) << "DEBUG: Object path:" << objectPath
-                                         << "with" << interfacesMap.size() << "interfaces";
+        qCDebug(OathManagerProxyLog) << "Processing object:" << objectPath
+                                         << "interfaces:" << interfacesMap.size();
 
         managedObjects.insert(objectPath, interfacesMap);
     }
@@ -362,7 +362,28 @@ void OathManagerProxy::onInterfacesAdded(const QDBusMessage &message)
         addDeviceProxy(path, deviceProps, sessionProps, emptyCredentials);
     }
 
-    // Credential additions are handled by DeviceProxy's CredentialAdded signal
+    // Handle credential additions via InterfacesAdded (needed after daemon restart)
+    if (interfacesMap.contains(QLatin1String(CREDENTIAL_INTERFACE))) {
+        QVariantMap const credProps = interfacesMap.value(QLatin1String(CREDENTIAL_INTERFACE)).toMap();
+
+        // Extract parent device path from credential path
+        // Format: /pl/jkolo/yubikey/oath/devices/<deviceId>/credentials/<credentialId>
+        QString devicePath;
+        if (path.contains(QLatin1String("/credentials/"))) {
+            devicePath = path.section(QLatin1String("/credentials/"), 0, 0);
+        }
+
+        if (!devicePath.isEmpty()) {
+            // Find device proxy by path and add credential
+            for (auto *device : std::as_const(m_devices)) {
+                if (device->objectPath() == devicePath) {
+                    qCDebug(OathManagerProxyLog) << "Forwarding credential to device proxy:" << path;
+                    device->addCredentialProxy(path, credProps);
+                    break;
+                }
+            }
+        }
+    }
 }
 
 void OathManagerProxy::onInterfacesRemoved(const QDBusObjectPath &objectPath,

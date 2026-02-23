@@ -9,6 +9,7 @@
 #include <QString>
 #include <QDBusConnection>
 #include <QVariant>
+#include <functional>
 #include "types/oath_credential.h"
 #include "types/yubikey_value_types.h"
 
@@ -202,12 +203,35 @@ public:
     QVariantMap getManagedObjectData() const;
 
 private:
+    using CodeResultCallback = std::function<void(const QString &code, qint64 validUntil, const QString &error)>;
+
+    /**
+     * @brief Common async pattern for code generation methods
+     * @param handleTouch If true, shows/closes touch notification for touch-required credentials
+     * @param onResult Callback invoked when code is generated (or error occurs)
+     *
+     * Handles: touch notification lifecycle, one-shot signal connection,
+     * deviceId/credentialName filtering, and connection cleanup.
+     * Used by GenerateCode, CopyToClipboard, TypeCode.
+     */
+    void executeWithCodeGeneration(bool handleTouch, const CodeResultCallback &onResult);
+
+    /**
+     * @brief Disconnects any pending one-shot signal connection
+     *
+     * Called before connecting a new operation (to cancel previous)
+     * and in destructor (to prevent dangling callbacks).
+     */
+    void disconnectPending();
+
     Shared::OathCredential m_credential;     ///< Credential data
     QString m_deviceId;                      ///< Parent device ID
     OathService *m_service;               ///< Business logic service (not owned)
     QDBusConnection m_connection;            ///< D-Bus connection
     QString m_objectPath;                    ///< Our object path
     bool m_registered;                       ///< Registration state
+    QMetaObject::Connection m_pendingConnection;       ///< Current one-shot signal connection
+    QMetaObject::Connection m_touchSignalConnection;   ///< Connection to OathDevice::touchRequired()
 };
 
 } // namespace Daemon

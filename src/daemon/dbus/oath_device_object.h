@@ -9,8 +9,8 @@
 #include <QString>
 #include <QDBusObjectPath>
 #include <QDBusConnection>
-#include <QMap>
 #include <QVariant>
+#include <memory>
 #include "types/oath_credential.h"
 #include "types/yubikey_value_types.h"
 #include "shared/types/yubikey_model.h"
@@ -22,6 +22,7 @@ namespace Daemon {
 // Forward declarations
 class OathService;
 class OathCredentialObject;
+class CredentialObjectManager;
 
 /**
  * @brief Device D-Bus object for individual YubiKey
@@ -258,20 +259,6 @@ public:
 
 private:
     /**
-     * @brief Builds credential ID from name (encoded for D-Bus path)
-     * @param credentialName Full credential name
-     * @return Encoded ID suitable for object path
-     */
-    static QString encodeCredentialId(const QString &credentialName);
-
-    /**
-     * @brief Builds credential object path
-     * @param credentialId Encoded credential ID
-     * @return Full D-Bus object path
-     */
-    QString credentialPath(const QString &credentialId) const;
-
-    /**
      * @brief Emits D-Bus PropertiesChanged signal
      * @param interfaceName D-Bus interface name (e.g., "pl.jkolo.yubikey.oath.Device")
      * @param propertyName Name of changed property
@@ -302,7 +289,7 @@ private:
     QString m_id;                                       ///< Public ID (last segment of path: serialNumber or dev_<deviceId>)
     bool m_registered;                                  ///< Registration state
 
-    QMap<QString, OathCredentialObject*> m_credentials;  ///< Credential ID → CredentialObject
+    std::unique_ptr<CredentialObjectManager> m_credentialManager;  ///< Manages credential D-Bus objects
 
     // Cached properties
     QString m_name;
