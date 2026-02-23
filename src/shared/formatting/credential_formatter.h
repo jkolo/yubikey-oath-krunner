@@ -192,58 +192,59 @@ private:
  * - Touch required: "Google (user@example.com) - 👆"
  * - With device: "Google (user@example.com) - 123456 @ YubiKey 5"
  */
-class CredentialFormatter
+namespace CredentialFormatter
 {
-public:
-    /**
-     * @brief Formats credential for display with flexible options
-     *
-     * @param credential Credential to format
-     * @param options Formatting options (see FormatOptions)
-     * @return Formatted string
-     *
-     * @note Thread-safe: Can be called from any thread
-     * @note For touch-required credentials, code will never be shown even if showCode is true
-     */
-    static QString formatDisplayName(const OathCredential &credential,
-                                      const FormatOptions &options);
 
-    /**
-     * @brief Formats CredentialInfo for display with flexible options
-     *
-     * Overload for D-Bus CredentialInfo type. Converts to OathCredential internally.
-     *
-     * @param credential Credential to format (from D-Bus)
-     * @param options Formatting options (see FormatOptions)
-     * @return Formatted string
-     *
-     * @note Thread-safe
-     */
-    static QString formatDisplayName(const CredentialInfo &credential,
-                                      const FormatOptions &options);
+/**
+ * @brief Formats credential for display with flexible options
+ *
+ * @param credential Credential to format
+ * @param options Formatting options (see FormatOptions)
+ * @return Formatted string
+ *
+ * @note Thread-safe: Can be called from any thread
+ * @note For touch-required credentials, code will never be shown even if showCode is true
+ */
+QString formatDisplayName(const OathCredential &credential,
+                          const FormatOptions &options);
 
-    /**
-     * @brief Formats credential with explicit code and touch status
-     *
-     * Similar to formatDisplayName(), but handles explicit code and touch status.
-     * Used when we already generated the code or know touch is required.
-     * This allows passing a code separately from the credential object.
-     *
-     * @param credential Credential to format
-     * @param code Generated TOTP/HOTP code (may be empty)
-     * @param requiresTouch Whether credential requires physical touch
-     * @param options Formatting options (see FormatOptions)
-     * @return Formatted display string
-     *
-     * @note Thread-safe
-     * @note When showCode=true and requiresTouch=true, displays 👆 emoji
-     * @note When showCode=true and requiresTouch=false and code is not empty, displays the code
-     */
-    static QString formatWithCode(const OathCredential &credential,
-                                   const QString &code,
-                                   bool requiresTouch,
-                                   const FormatOptions &options);
-};
+/**
+ * @brief Formats CredentialInfo for display with flexible options
+ *
+ * Overload for D-Bus CredentialInfo type. Converts to OathCredential internally.
+ *
+ * @param credential Credential to format (from D-Bus)
+ * @param options Formatting options (see FormatOptions)
+ * @return Formatted string
+ *
+ * @note Thread-safe
+ */
+QString formatDisplayName(const CredentialInfo &credential,
+                          const FormatOptions &options);
+
+/**
+ * @brief Formats credential with explicit code and touch status
+ *
+ * Similar to formatDisplayName(), but handles explicit code and touch status.
+ * Used when we already generated the code or know touch is required.
+ * This allows passing a code separately from the credential object.
+ *
+ * @param credential Credential to format
+ * @param code Generated TOTP/HOTP code (may be empty)
+ * @param requiresTouch Whether credential requires physical touch
+ * @param options Formatting options (see FormatOptions)
+ * @return Formatted display string
+ *
+ * @note Thread-safe
+ * @note When showCode=true and requiresTouch=true, displays 👆 emoji
+ * @note When showCode=true and requiresTouch=false and code is not empty, displays the code
+ */
+QString formatWithCode(const OathCredential &credential,
+                       const QString &code,
+                       bool requiresTouch,
+                       const FormatOptions &options);
+
+} // namespace CredentialFormatter
 
 } // namespace Shared
 } // namespace YubiKeyOath

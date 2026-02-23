@@ -28,6 +28,24 @@ using Shared::ConfigurationProvider;
 class DBusNotificationManager;
 
 /**
+ * @brief Common state for a timed notification with countdown
+ *
+ * Groups the fields that every countdown-based notification needs:
+ * ID, timer, expiration time, urgency, and icon name.
+ * Type-specific fields (credential name, code text, etc.) remain
+ * as separate members in NotificationOrchestrator.
+ */
+struct TimedNotificationState {
+    uint id = 0;                  ///< D-Bus notification ID (0 = inactive)
+    QTimer *timer = nullptr;      ///< Countdown update timer (owned by parent QObject)
+    QDateTime expirationTime;     ///< When notification expires
+    uchar urgency = 1;           ///< Urgency level (0=Low, 1=Normal, 2=Critical)
+    QString iconName;             ///< Device-specific icon theme name
+
+    [[nodiscard]] bool isActive() const { return id != 0; }
+};
+
+/**
  * @brief Orchestrates all notification display and updates
  *
  * Single Responsibility: Manage all types of notifications (code, touch, typing, errors)
@@ -269,72 +287,53 @@ private:
      * @brief Helper for updating countdown notifications
      *
      * Centralized logic for notification updates with progress bars and
-     * countdown timers. Reduces code duplication between code and touch notifications.
+     * countdown timers. Uses urgency and iconName from the TimedNotificationState.
      *
-     * @param notificationId Reference to notification ID (updated on success)
-     * @param updateTimer Timer to stop on expiration
-     * @param expirationTime When notification should expire
+     * @param state Notification state (id, timer, expirationTime, urgency, iconName)
      * @param totalSeconds Total countdown duration
      * @param title Notification title
      * @param bodyFormatter Function to format body text from remaining seconds
      * @param onExpired Callback when timer expires (optional)
-     * @param urgency Notification urgency level (0=Low, 1=Normal, 2=Critical)
-     * @param iconName Optional device-specific icon theme name
      */
     void updateNotificationWithProgress(
-        uint& notificationId,
-        QTimer* updateTimer,
-        const QDateTime& expirationTime,
+        TimedNotificationState& state,
         int totalSeconds,
         const QString& title,
         const std::function<QString(int)>& bodyFormatter,
-        const std::function<void()>& onExpired = nullptr,
-        uchar urgency = 1,
-        const QString& iconName = QString()
+        const std::function<void()>& onExpired = nullptr
     );
+
+    /**
+     * @brief Closes a timed notification and stops its timer
+     * @param state Notification state to close
+     */
+    void closeTimedNotification(TimedNotificationState &state);
 
     DBusNotificationManager *m_notificationManager;
     const ConfigurationProvider *m_config;
 
-    // Urgency levels for each notification type (for preserving during updates)
-    uchar m_codeNotificationUrgency = 2;      // Critical
-    uchar m_touchNotificationUrgency = 2;     // Critical
-    uchar m_modifierNotificationUrgency = 1;  // Normal
-    uchar m_reconnectNotificationUrgency = 2; // Critical
-
     // Code notification state
-    QTimer *m_codeUpdateTimer;
-    uint m_codeNotificationId = 0;
-    QDateTime m_codeExpirationTime;
+    TimedNotificationState m_code;    ///< urgency=Critical
     int m_codeTotalSeconds = 0;
     QString m_currentCredentialName;
     QString m_currentCode;
     Shared::DeviceModel m_codeDeviceModel;
-    QString m_codeIconName;
 
     // Touch notification state
+    TimedNotificationState m_touch;   ///< urgency=Critical
     QPointer<KNotification> m_touchNotification;
-    uint m_touchNotificationId = 0;
-    QTimer *m_touchUpdateTimer;
-    QDateTime m_touchExpirationTime;
     QString m_touchCredentialName;
     Shared::DeviceModel m_touchDeviceModel;
-    QString m_touchIconName;
 
     // Modifier release notification state
-    uint m_modifierNotificationId = 0;
-    QTimer *m_modifierUpdateTimer;
-    QDateTime m_modifierExpirationTime;
+    TimedNotificationState m_modifier; ///< urgency=Normal
     QStringList m_currentModifiers;
 
     // Reconnect notification state
-    uint m_reconnectNotificationId = 0;
-    QTimer *m_reconnectUpdateTimer;
-    QDateTime m_reconnectExpirationTime;
+    TimedNotificationState m_reconnect; ///< urgency=Critical
     QString m_reconnectDeviceName;
     QString m_reconnectCredentialName;
     Shared::DeviceModel m_reconnectDeviceModel;
-    QString m_reconnectIconName;
 };
 
 } // namespace Daemon

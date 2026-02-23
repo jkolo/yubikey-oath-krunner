@@ -8,8 +8,10 @@
 namespace YubiKeyOath {
 namespace Shared {
 
-QString CredentialFormatter::formatDisplayName(const OathCredential &credential,
-                                                const FormatOptions &options)
+namespace CredentialFormatter {
+
+QString formatDisplayName(const OathCredential &credential,
+                          const FormatOptions &options)
 {
     // Delegate to rich domain model method (Tell, Don't Ask principle)
     // This eliminates the anemic model anti-pattern where business logic
@@ -17,8 +19,8 @@ QString CredentialFormatter::formatDisplayName(const OathCredential &credential,
     return credential.getDisplayName(options);
 }
 
-QString CredentialFormatter::formatDisplayName(const CredentialInfo &credential,
-                                                const FormatOptions &options)
+QString formatDisplayName(const CredentialInfo &credential,
+                          const FormatOptions &options)
 {
     // Convert CredentialInfo to OathCredential for formatting
     OathCredential oathCred;
@@ -33,14 +35,16 @@ QString CredentialFormatter::formatDisplayName(const CredentialInfo &credential,
     return formatDisplayName(oathCred, options);
 }
 
-QString CredentialFormatter::formatWithCode(const OathCredential &credential,
-                                             const QString &code,
-                                             bool requiresTouch,
-                                             const FormatOptions &options)
+QString formatWithCode(const OathCredential &credential,
+                       const QString &code,
+                       bool requiresTouch,
+                       const FormatOptions &options)
 {
     // Delegate to rich domain model method (Tell, Don't Ask principle)
     return credential.getDisplayNameWithCode(code, requiresTouch, options);
 }
+
+} // namespace CredentialFormatter
 
 } // namespace Shared
 } // namespace YubiKeyOath

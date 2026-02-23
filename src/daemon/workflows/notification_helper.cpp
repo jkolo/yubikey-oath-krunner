@@ -13,7 +13,9 @@ namespace YubiKeyOath {
 namespace Daemon {
 using namespace YubiKeyOath::Shared;
 
-int NotificationHelper::calculateNotificationDuration(const ConfigurationProvider *config)
+namespace NotificationHelper {
+
+int calculateNotificationDuration(const ConfigurationProvider *config)
 {
     int const remainingValidity = CodeValidator::calculateCodeValidity();
     int const extraTime = config->notificationExtraTime();
@@ -27,7 +29,7 @@ int NotificationHelper::calculateNotificationDuration(const ConfigurationProvide
     return totalDuration;
 }
 
-NotificationHelper::TimerProgress NotificationHelper::calculateTimerProgress(
+TimerProgress calculateTimerProgress(
     const QDateTime &expirationTime,
     int totalSeconds)
 {
@@ -49,6 +51,8 @@ NotificationHelper::TimerProgress NotificationHelper::calculateTimerProgress(
 
     return progress;
 }
+
+} // namespace NotificationHelper
 
 } // namespace Daemon
 } // namespace YubiKeyOath

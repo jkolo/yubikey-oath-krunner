@@ -11,10 +11,12 @@
 namespace YubiKeyOath {
 namespace Shared {
 
-QString DeviceNameFormatter::generateDefaultName(const QString &deviceId,
-                                                  const DeviceModel& deviceModel,
-                                                  quint32 serialNumber,
-                                                  Daemon::OathDatabase *database)
+namespace DeviceNameFormatter {
+
+QString generateDefaultName(const QString &deviceId,
+                            const DeviceModel& deviceModel,
+                            quint32 serialNumber,
+                            Daemon::OathDatabase *database)
 {
     // If model brand is unknown, fall back to device ID format
     if (deviceModel.brand == DeviceBrand::Unknown) {
@@ -49,8 +51,8 @@ QString DeviceNameFormatter::generateDefaultName(const QString &deviceId,
     return QStringLiteral("%1 %2").arg(baseName).arg(existingCount + 1);
 }
 
-QString DeviceNameFormatter::getDeviceDisplayName(const QString &deviceId,
-                                                   Daemon::OathDatabase *database)
+QString getDeviceDisplayName(const QString &deviceId,
+                             Daemon::OathDatabase *database)
 {
     // Try to get custom name from database
     auto deviceRecord = database->getDevice(deviceId);
@@ -61,6 +63,8 @@ QString DeviceNameFormatter::getDeviceDisplayName(const QString &deviceId,
     // Fall back to generated default name
     return generateDefaultName(deviceId);
 }
+
+} // namespace DeviceNameFormatter
 
 } // namespace Shared
 } // namespace YubiKeyOath
