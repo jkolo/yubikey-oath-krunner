@@ -86,25 +86,22 @@ KRunner::QueryMatch MatchBuilder::buildCredentialMatch(OathCredentialProxy *cred
     const QString requiresTouch = credentialProxy->requiresTouch() ? QStringLiteral("true") : QStringLiteral("false");
     const QString isPasswordError = QStringLiteral("false");
 
-    // Generate code if requested and credential doesn't require touch
-    if (showCode && !credentialProxy->requiresTouch()) {
-        qCDebug(MatchBuilderLog) << "Checking code cache for credential:" << credentialProxy->fullName()
-                 << "on device:" << credentialProxy->deviceId();
+    // Pre-fetch code for non-touch TOTP credentials (populates daemon-side cache)
+    // This runs regardless of showCode - so when user selects a match, the code is already cached
+    if (!credentialProxy->requiresTouch()
+        && credentialProxy->type() == QStringLiteral("TOTP")
+        && !credentialProxy->isCacheValid()) {
+        qCDebug(MatchBuilderLog) << "Pre-fetching code for credential:" << credentialProxy->fullName();
+        credentialProxy->generateCode();  // Fire-and-forget async D-Bus call
+    }
 
-        // Check if cached code is valid
+    // Display code in match text if showCode is enabled
+    if (showCode && !credentialProxy->requiresTouch()) {
         if (credentialProxy->isCacheValid()) {
-            // Use cached code (eliminates D-Bus call)
             const GenerateCodeResult cached = credentialProxy->getCachedCode();
             code = cached.code;
-            qCDebug(MatchBuilderLog) << "Using cached code:" << code
-                     << "Valid until:" << cached.validUntil;
+            qCDebug(MatchBuilderLog) << "Using cached code (valid until:" << cached.validUntil << ")";
         } else {
-            // Cache miss or expired - trigger async generation for next query
-            qCDebug(MatchBuilderLog) << "Cache invalid, requesting async code generation";
-            credentialProxy->generateCode();  // Fire-and-forget async call
-            // Result will arrive via signal, and cache will be updated for next query
-
-            // Show placeholder in this query (KRunner doesn't support dynamic updates)
             code = QStringLiteral("⏳");  // Generating placeholder
             qCDebug(MatchBuilderLog) << "Showing placeholder while code generates";
         }

@@ -37,10 +37,88 @@ CredentialService::CredentialService(OathDeviceManager *deviceManager,
     Q_ASSERT(m_database);
     Q_ASSERT(m_config);
 
-    qCDebug(OathDaemonLog) << "CredentialService: Initialized";
+    // Seed code cache when credentials are fetched (includes CALCULATE_ALL codes)
+    connect(this, &CredentialService::credentialsUpdated,
+            this, &CredentialService::seedCacheFromCredentials);
+
+    // Clear code cache when device disconnects (card handles become invalid)
+    connect(m_deviceManager, &OathDeviceManager::deviceDisconnected,
+            this, &CredentialService::clearCacheForDevice);
+
+    qCDebug(OathDaemonLog) << "CredentialService: Initialized with code cache";
 }
 
 CredentialService::~CredentialService() = default;
+
+// === Code Cache Helpers ===
+
+QString CredentialService::cacheKey(const QString &deviceId, const QString &credentialName)
+{
+    return deviceId + QStringLiteral("/") + credentialName;
+}
+
+void CredentialService::seedCacheFromCredentials(const QString &deviceId)
+{
+    auto *device = m_deviceManager->getDevice(deviceId);
+    if (!device) {
+        return;
+    }
+
+    const auto credentials = device->credentials();
+    int seeded = 0;
+
+    for (const auto &cred : credentials) {
+        // Only cache TOTP codes that don't require touch and have a valid code
+        if (!cred.isTotp || cred.requiresTouch || cred.code.isEmpty() || cred.validUntil <= 0) {
+            continue;
+        }
+
+        const qint64 currentTime = QDateTime::currentSecsSinceEpoch();
+        if (cred.validUntil <= currentTime) {
+            continue; // Already expired
+        }
+
+        const QString key = cacheKey(deviceId, cred.originalName);
+        m_codeCache[key] = {.code = cred.code, .validUntil = cred.validUntil, .period = cred.period};
+        seeded++;
+    }
+
+    if (seeded > 0) {
+        qCDebug(OathDaemonLog) << "CredentialService: Seeded code cache with" << seeded
+                                  << "codes from CALCULATE_ALL for device:" << deviceId;
+    }
+}
+
+void CredentialService::clearCacheForDevice(const QString &deviceId)
+{
+    const QString prefix = deviceId + QStringLiteral("/");
+    int removed = 0;
+
+    auto it = m_codeCache.begin();
+    while (it != m_codeCache.end()) {
+        if (it.key().startsWith(prefix)) {
+            it = m_codeCache.erase(it);
+            removed++;
+        } else {
+            ++it;
+        }
+    }
+
+    // Also clear pending generations for this device
+    auto pit = m_pendingGenerations.begin();
+    while (pit != m_pendingGenerations.end()) {
+        if (pit->startsWith(prefix)) {
+            pit = m_pendingGenerations.erase(pit);
+        } else {
+            ++pit;
+        }
+    }
+
+    if (removed > 0) {
+        qCDebug(OathDaemonLog) << "CredentialService: Cleared" << removed
+                                  << "cached codes for device:" << deviceId;
+    }
+}
 
 void CredentialService::appendCachedCredentialsForOfflineDevice(
     const QString &deviceId,
@@ -317,6 +395,37 @@ void CredentialService::generateCodeAsync(const QString &deviceId, const QString
         return;
     }
 
+    const QString key = cacheKey(deviceId, credentialName);
+
+    // Check code cache first - return cached code if still valid with enough remaining time
+    if (const auto it = m_codeCache.constFind(key); it != m_codeCache.constEnd()) {
+        const qint64 currentTime = QDateTime::currentSecsSinceEpoch();
+        const qint64 remaining = it->validUntil - currentTime;
+        const qint64 minRemaining = it->period / 2;
+
+        if (remaining > minRemaining) {
+            qCDebug(OathDaemonLog) << "CredentialService: Cache hit for" << credentialName
+                                      << "- remaining:" << remaining << "s (min:" << minRemaining << "s)";
+            // Emit via queued invocation to maintain async contract
+            QMetaObject::invokeMethod(this, [this, deviceId, credentialName, code = it->code, validUntil = it->validUntil]() {
+                Q_EMIT codeGenerated(deviceId, credentialName, code, validUntil, QString());
+            }, Qt::QueuedConnection);
+            return;
+        }
+
+        // Cache expired or near-expiry - remove and regenerate
+        qCDebug(OathDaemonLog) << "CredentialService: Cache near-expiry for" << credentialName
+                                  << "- remaining:" << remaining << "s, regenerating";
+        m_codeCache.erase(it);
+    }
+
+    // Check if generation already in progress for this credential
+    if (m_pendingGenerations.contains(key)) {
+        qCDebug(OathDaemonLog) << "CredentialService: Generation already pending for" << credentialName
+                                  << "- skipping duplicate";
+        return;
+    }
+
     // Get device instance
     auto *device = m_deviceManager->getDevice(deviceId);
     if (!device) {
@@ -325,8 +434,11 @@ void CredentialService::generateCodeAsync(const QString &deviceId, const QString
         return;
     }
 
+    // Mark generation as pending
+    m_pendingGenerations.insert(key);
+
     // Run PC/SC operation in background thread to avoid blocking
-    [[maybe_unused]] auto future = QtConcurrent::run([this, device, deviceId, credentialName]() {
+    [[maybe_unused]] auto future = QtConcurrent::run([this, device, deviceId, credentialName, key]() {
         qCDebug(OathDaemonLog) << "CredentialService: [Worker] Generating code for:" << credentialName;
 
         // PC/SC operation (100-500ms, or longer if touch required)
@@ -359,8 +471,16 @@ void CredentialService::generateCodeAsync(const QString &deviceId, const QString
             qCWarning(OathDaemonLog) << "CredentialService: [Worker] Failed to generate code:" << error;
         }
 
-        // Emit result on main thread
-        QMetaObject::invokeMethod(this, [this, deviceId, credentialName, code, validUntil, error]() {
+        // Emit result on main thread and update cache
+        QMetaObject::invokeMethod(this, [this, deviceId, credentialName, code, validUntil, error, key, period]() {
+            // Remove from pending set
+            m_pendingGenerations.remove(key);
+
+            // Cache successful TOTP results
+            if (error.isEmpty() && !code.isEmpty() && validUntil > 0) {
+                m_codeCache[key] = {.code = code, .validUntil = validUntil, .period = period};
+            }
+
             Q_EMIT codeGenerated(deviceId, credentialName, code, validUntil, error);
         }, Qt::QueuedConnection);
     });
@@ -482,65 +602,8 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
                         return;
                     }
 
-                    // === ASYNCHRONOUS PC/SC OPERATION (background thread) ===
-                    QFuture<Result<void>> const future = QtConcurrent::run([device, data]() -> Result<void> {
-                        qCDebug(OathDaemonLog) << "CredentialService: Background thread - starting addCredential";
-
-                        // Make copy for modification
-                        OathCredentialData dialogData = data;
-
-                        // Encode period in credential name for TOTP (ykman-compatible format: [period/]issuer:account)
-                        if (dialogData.type == OathType::TOTP && dialogData.period != 30) {
-                            dialogData.name = QString::number(dialogData.period) + QStringLiteral("/") + dialogData.name;
-                            qCDebug(OathDaemonLog) << "CredentialService: Encoded period in name:" << dialogData.name;
-                        }
-
-                        // PC/SC operation in background thread
-                        return device->addCredential(dialogData);
-                    });
-
-                    // Watch future and handle result in UI thread
-                    auto *watcher = new QFutureWatcher<Result<void>>(this);
-                    connect(watcher, &QFutureWatcher<Result<void>>::finished,
-                            this, [this, watcher, dialog, device, data]() {
-                        qCDebug(OathDaemonLog) << "CredentialService: Background thread finished";
-
-                        auto result = watcher->result();
-
-                        if (result.isSuccess()) {
-                            qCDebug(OathDaemonLog) << "CredentialService: Credential added successfully";
-
-                            // Trigger credential refresh
-                            device->updateCredentialCacheAsync();
-
-                            // Show success notification if enabled
-                            if (m_config->showNotifications()) {
-                                m_notificationManager->showNotification(
-                                    i18n("YubiKey OATH"),
-                                    0,
-                                    QStringLiteral("yubikey"),
-                                    i18n("Credential Added"),
-                                    i18n("Credential '%1' has been added successfully").arg(data.name),
-                                    QStringList(),
-                                    QVariantMap(),
-                                    5000
-                                );
-                            }
-
-                            // Show success in dialog
-                            dialog->showSaveResult(true, i18n("Credential added successfully"));
-
-                            // Emit signal
-                            Q_EMIT credentialsUpdated(device->deviceId());
-                        } else {
-                            qCWarning(OathDaemonLog) << "CredentialService: Failed to add credential:" << result.error();
-                            dialog->showSaveResult(false, result.error());
-                        }
-
-                        watcher->deleteLater();
-                    });
-
-                    watcher->setFuture(future);
+                    // Save credential asynchronously (extracted helper method)
+                    saveCredentialToDeviceAsync(device, data, dialog);
                 }
             });
 
@@ -555,73 +618,8 @@ void CredentialService::showAddCredentialDialogAsync(const QString &deviceId,
             return;
         }
 
-        // === ASYNCHRONOUS PC/SC OPERATION (background thread) ===
-
-        // Run addCredential in background thread to avoid blocking UI
-        // This is especially important for:
-        // - PC/SC communication (100-500ms)
-        // - Touch-required credentials (user interaction time)
-        QFuture<Result<void>> const future = QtConcurrent::run([device, data]() -> Result<void> {
-            qCDebug(OathDaemonLog) << "CredentialService: Background thread - starting addCredential";
-
-            // Make copy for modification
-            OathCredentialData dialogData = data;
-
-            // Encode period in credential name for TOTP (ykman-compatible format: [period/]issuer:account)
-            // Only prepend period if it's non-standard (not 30 seconds)
-            if (dialogData.type == OathType::TOTP && dialogData.period != 30) {
-                dialogData.name = QString::number(dialogData.period) + QStringLiteral("/") + dialogData.name;
-                qCDebug(OathDaemonLog) << "CredentialService: Encoded period in name:" << dialogData.name;
-            }
-
-            // PC/SC operation in background thread - this may take 100-500ms
-            return device->addCredential(dialogData);
-        });
-
-        // Watch future and handle result in UI thread
-        auto *watcher = new QFutureWatcher<Result<void>>(this);
-        connect(watcher, &QFutureWatcher<Result<void>>::finished,
-                this, [this, watcher, dialog, device, data]() {
-            qCDebug(OathDaemonLog) << "CredentialService: Background thread finished";
-
-            auto result = watcher->result();
-
-            if (result.isSuccess()) {
-                qCDebug(OathDaemonLog) << "CredentialService: Credential added successfully";
-
-                // Trigger credential refresh (no password needed for refresh after adding)
-                device->updateCredentialCacheAsync();
-
-                // Show success notification if enabled
-                if (m_config->showNotifications()) {
-                    m_notificationManager->showNotification(
-                        i18n("YubiKey OATH"),
-                        0,  // replacesId - 0 for new notification
-                        QStringLiteral("yubikey"),
-                        i18n("Credential Added"),
-                        i18n("Credential '%1' has been added successfully").arg(data.name),
-                        QStringList(),  // actions
-                        QVariantMap(),  // hints
-                        5000  // 5 second timeout
-                    );
-                }
-
-                // Show success in dialog (will auto-close and delete dialog)
-                dialog->showSaveResult(true, i18n("Credential added successfully"));
-
-                // Emit signal to notify that credentials changed
-                Q_EMIT credentialsUpdated(device->deviceId());
-            } else {
-                qCWarning(OathDaemonLog) << "CredentialService: Failed to add credential:" << result.error();
-
-                // Show error in dialog
-                dialog->showSaveResult(false, result.error());
-            }
-
-            watcher->deleteLater();
-        });
-
-        watcher->setFuture(future);
+        // Save credential asynchronously (extracted helper method)
+        saveCredentialToDeviceAsync(device, data, dialog);
     });
 
     // Ensure dialog is visible and on top (important for daemon processes without main window)
@@ -697,6 +695,77 @@ OathDevice* CredentialService::validateCredentialBeforeSave(const OathCredential
 
     // Validation passed
     return device;
+}
+
+void CredentialService::saveCredentialToDeviceAsync(OathDevice *device,
+                                                     const OathCredentialData &data,
+                                                     AddCredentialDialog *dialog)
+{
+    Q_ASSERT(device);
+
+    // Run addCredential in background thread to avoid blocking UI
+    QFuture<Result<void>> const future = QtConcurrent::run([device, data]() -> Result<void> {
+        qCDebug(OathDaemonLog) << "CredentialService: Background thread - starting addCredential";
+
+        // Make copy for modification
+        OathCredentialData dialogData = data;
+
+        // Encode period in credential name for TOTP (ykman-compatible format)
+        if (dialogData.type == OathType::TOTP && dialogData.period != 30) {
+            dialogData.name = QString::number(dialogData.period) + QStringLiteral("/") + dialogData.name;
+            qCDebug(OathDaemonLog) << "CredentialService: Encoded period in name:" << dialogData.name;
+        }
+
+        // PC/SC operation in background thread
+        return device->addCredential(dialogData);
+    });
+
+    // Watch future and handle result in UI thread
+    auto *watcher = new QFutureWatcher<Result<void>>(this);
+    connect(watcher, &QFutureWatcher<Result<void>>::finished,
+            this, [this, watcher, dialog, device, data]() {
+        qCDebug(OathDaemonLog) << "CredentialService: Background thread finished";
+
+        auto result = watcher->result();
+
+        if (result.isSuccess()) {
+            qCDebug(OathDaemonLog) << "CredentialService: Credential added successfully";
+
+            // Trigger credential refresh
+            device->updateCredentialCacheAsync();
+
+            // Show success notification if enabled
+            if (m_config->showNotifications()) {
+                m_notificationManager->showNotification(
+                    i18n("YubiKey OATH"),
+                    0,
+                    QStringLiteral("yubikey"),
+                    i18n("Credential Added"),
+                    i18n("Credential '%1' has been added successfully").arg(data.name),
+                    QStringList(),
+                    QVariantMap(),
+                    5000
+                );
+            }
+
+            // Show success in dialog
+            if (dialog) {
+                dialog->showSaveResult(true, i18n("Credential added successfully"));
+            }
+
+            // Emit signal
+            Q_EMIT credentialsUpdated(device->deviceId());
+        } else {
+            qCWarning(OathDaemonLog) << "CredentialService: Failed to add credential:" << result.error();
+            if (dialog) {
+                dialog->showSaveResult(false, result.error());
+            }
+        }
+
+        watcher->deleteLater();
+    });
+
+    watcher->setFuture(future);
 }
 
 } // namespace Daemon

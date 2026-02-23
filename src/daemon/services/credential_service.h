@@ -8,6 +8,8 @@
 #include <QObject>
 #include <QString>
 #include <QList>
+#include <QHash>
+#include <QSet>
 #include "types/oath_credential.h"
 #include "types/oath_credential_data.h"
 #include "types/yubikey_value_types.h"
@@ -254,6 +256,43 @@ private:
                                                      const QString &selectedDeviceId,
                                                      QString &errorMessage);
 
+    /**
+     * @brief Saves credential to device asynchronously with QFutureWatcher
+     * @param device Device to save credential to
+     * @param data Credential data to save
+     * @param dialog Dialog to show result in (may be nullptr for non-dialog saves)
+     *
+     * Runs addCredential in background thread, handles result on UI thread.
+     * Shows notification on success if enabled.
+     * Extracted from showAddCredentialDialogAsync to reduce duplication.
+     */
+    void saveCredentialToDeviceAsync(OathDevice *device,
+                                     const Shared::OathCredentialData &data,
+                                     class AddCredentialDialog *dialog);
+
+    // === Code cache helpers ===
+
+    /**
+     * @brief Builds cache key from device ID and credential name
+     * @return Key in format "deviceId/credentialName"
+     */
+    [[nodiscard]] static QString cacheKey(const QString &deviceId, const QString &credentialName);
+
+    /**
+     * @brief Seeds code cache from device credentials (populated by CALCULATE_ALL)
+     * @param deviceId Device ID to seed cache for
+     *
+     * Reads credentials from device (which have .code populated from calculateAll())
+     * and caches valid TOTP codes for non-touch credentials.
+     */
+    void seedCacheFromCredentials(const QString &deviceId);
+
+    /**
+     * @brief Clears all cached codes for a device
+     * @param deviceId Device ID to clear cache for
+     */
+    void clearCacheForDevice(const QString &deviceId);
+
     OathDeviceManager *m_deviceManager;  // Not owned
     OathDatabase *m_database;            // Not owned
     Shared::ConfigurationProvider *m_config;          // Not owned
@@ -261,6 +300,20 @@ private:
 
     // Active add credential dialogs (kept alive until user closes or save completes)
     QList<class AddCredentialDialog*> m_activeDialogs;
+
+    // === TOTP code cache (avoids redundant PC/SC operations) ===
+    // Main-thread only access (no mutex needed):
+    // - Read/written in generateCodeAsync() (main thread)
+    // - Written in QueuedConnection callback from worker thread (main thread)
+
+    struct CachedCode {
+        QString code;
+        qint64 validUntil{0};
+        int period{30};
+    };
+
+    QHash<QString, CachedCode> m_codeCache;   ///< key: "deviceId/credentialName"
+    QSet<QString> m_pendingGenerations;        ///< Prevents duplicate PC/SC operations
 };
 
 } // namespace Daemon
