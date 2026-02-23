@@ -127,8 +127,8 @@ public:
         newCred.account = data.account;
         newCred.requiresTouch = data.requireTouch;
         newCred.isTotp = (data.type == Shared::OathType::TOTP);
-        newCred.type = data.type == Shared::OathType::TOTP ? 2 : 1;
-        newCred.algorithm = static_cast<int>(data.algorithm);
+        newCred.type = data.type;
+        newCred.algorithm = data.algorithm;
         newCred.digits = data.digits;
         newCred.period = data.period;
         m_mockCredentials.append(newCred);
@@ -340,8 +340,8 @@ public:
         cred.account = account;
         cred.requiresTouch = requiresTouch;
         cred.isTotp = true;
-        cred.type = 2; // TOTP
-        cred.algorithm = 1; // SHA1
+        cred.type = OathType::TOTP;
+        cred.algorithm = OathAlgorithm::SHA1;
         cred.digits = 6;
         cred.period = 30;
         return cred;

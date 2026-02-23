@@ -86,8 +86,8 @@ QByteArray VirtualOathDevice::handlePut(const QByteArray& apdu)
     // Create credential
     OathCredential cred;
     cred.originalName = name;
-    cred.type = static_cast<int>(type);
-    cred.algorithm = static_cast<int>(algorithm);
+    cred.type = type;
+    cred.algorithm = algorithm;
     cred.digits = digits;
     cred.requiresTouch = touch;
     cred.period = 30; // Default TOTP period
@@ -218,15 +218,14 @@ QString VirtualOathDevice::calculateTotpCode(const OathCredential& cred, quint64
     QByteArray secret = QCryptographicHash::hash(cred.originalName.toUtf8(), QCryptographicHash::Sha1);
     QByteArray hmac;
 
-    // Algorithm is stored as int: 1=SHA1, 2=SHA256, 3=SHA512
     switch (cred.algorithm) {
-        case 1: // SHA1
+        case OathAlgorithm::SHA1:
             hmac = QMessageAuthenticationCode::hash(counterBytes, secret, QCryptographicHash::Sha1);
             break;
-        case 2: // SHA256
+        case OathAlgorithm::SHA256:
             hmac = QMessageAuthenticationCode::hash(counterBytes, secret, QCryptographicHash::Sha256);
             break;
-        case 3: // SHA512
+        case OathAlgorithm::SHA512:
             hmac = QMessageAuthenticationCode::hash(counterBytes, secret, QCryptographicHash::Sha512);
             break;
         default:

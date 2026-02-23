@@ -43,8 +43,8 @@ public:
     ) {
         OathCredential cred;
         cred.originalName = name;
-        cred.type = static_cast<int>(OathType::TOTP);
-        cred.algorithm = static_cast<int>(algorithm);
+        cred.type = OathType::TOTP;
+        cred.algorithm = algorithm;
         cred.digits = digits;
         cred.period = period;
         cred.requiresTouch = false;
@@ -79,8 +79,8 @@ public:
     ) {
         OathCredential cred;
         cred.originalName = name;
-        cred.type = static_cast<int>(OathType::HOTP);
-        cred.algorithm = static_cast<int>(OathAlgorithm::SHA1);
+        cred.type = OathType::HOTP;
+        cred.algorithm = OathAlgorithm::SHA1;
         cred.digits = digits;
         cred.period = 0; // Not used for HOTP
         cred.requiresTouch = false;

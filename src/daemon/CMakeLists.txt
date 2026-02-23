@@ -56,6 +56,7 @@ add_executable(yubikey-oath-daemon
     dbus/oath_manager_object.cpp
     dbus/oath_device_object.cpp
     dbus/oath_credential_object.cpp
+    dbus/credential_object_manager.cpp
 
     # OATH components (PC/SC communication)
     oath/oath_device.cpp
@@ -66,6 +67,7 @@ add_executable(yubikey-oath-daemon
     oath/yk_oath_protocol.cpp
     oath/nitrokey_secrets_oath_protocol.cpp
     oath/yk_oath_session.cpp
+    oath/extended_device_info_fetcher.cpp
     oath/nitrokey_oath_session.cpp
     oath/management_protocol.cpp
     oath/nitrokey_model_detector.cpp
@@ -97,6 +99,7 @@ add_executable(yubikey-oath-daemon
 
     # Infrastructure
     infrastructure/pcsc_worker_pool.cpp
+    infrastructure/device_reconnect_coordinator.cpp
 
     # Clipboard
     clipboard/clipboard_manager.cpp
@@ -128,6 +131,7 @@ add_executable(yubikey-oath-daemon
     utils/otpauth_uri_parser.cpp
     utils/async_waiter.cpp
     utils/secure_memory.cpp
+    utils/credential_id_encoder.cpp
 
     # Formatting
     formatting/code_validator.cpp

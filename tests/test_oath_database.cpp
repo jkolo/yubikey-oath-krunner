@@ -378,14 +378,14 @@ private Q_SLOTS:
         cred1.originalName = QStringLiteral("GitHub:user");
         cred1.issuer = QStringLiteral("GitHub");
         cred1.account = QStringLiteral("user");
-        cred1.type = static_cast<int>(OathType::TOTP);
+        cred1.type = OathType::TOTP;
 
         OathCredential cred2;
         cred2.deviceId = QStringLiteral("EEEE999999999999");
         cred2.originalName = QStringLiteral("Google:user@example.com");
         cred2.issuer = QStringLiteral("Google");
         cred2.account = QStringLiteral("user@example.com");
-        cred2.type = static_cast<int>(OathType::TOTP);
+        cred2.type = OathType::TOTP;
 
         QList<OathCredential> credentials = {cred1, cred2};
 
@@ -410,7 +410,7 @@ private Q_SLOTS:
         cred1.originalName = QStringLiteral("Service:user");
         cred1.issuer = QStringLiteral("Service");
         cred1.account = QStringLiteral("user");
-        cred1.type = static_cast<int>(OathType::TOTP);
+        cred1.type = OathType::TOTP;
 
         m_db->saveCredentials(QStringLiteral("AAAA999999999999"), {cred1});
 
@@ -436,7 +436,7 @@ private Q_SLOTS:
         OathCredential cred;
         cred.deviceId = QStringLiteral("BBBBCCCCCCCCCCCC");
         cred.originalName = QStringLiteral("Test:cred");
-        cred.type = static_cast<int>(OathType::TOTP);
+        cred.type = OathType::TOTP;
 
         m_db->saveCredentials(QStringLiteral("BBBBCCCCCCCCCCCC"), {cred});
         QCOMPARE(m_db->getCredentials(QStringLiteral("BBBBCCCCCCCCCCCC")).size(), 1);
@@ -462,12 +462,12 @@ private Q_SLOTS:
         OathCredential cred1;
         cred1.deviceId = QStringLiteral("1111111111111111");
         cred1.originalName = QStringLiteral("Cred1");
-        cred1.type = static_cast<int>(OathType::TOTP);
+        cred1.type = OathType::TOTP;
 
         OathCredential cred2;
         cred2.deviceId = QStringLiteral("2222222222222222");
         cred2.originalName = QStringLiteral("Cred2");
-        cred2.type = static_cast<int>(OathType::TOTP);
+        cred2.type = OathType::TOTP;
 
         m_db->saveCredentials(QStringLiteral("1111111111111111"), {cred1});
         m_db->saveCredentials(QStringLiteral("2222222222222222"), {cred2});

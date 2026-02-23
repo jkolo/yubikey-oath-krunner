@@ -112,8 +112,8 @@ void TestE2EDeviceLifecycle::init()
     // Add test credentials
     OathCredential cred1;
     cred1.originalName = QStringLiteral("GitHub:user");
-    cred1.type = static_cast<int>(OathType::TOTP);
-    cred1.algorithm = static_cast<int>(OathAlgorithm::SHA1);
+    cred1.type = OathType::TOTP;
+    cred1.algorithm = OathAlgorithm::SHA1;
     cred1.digits = 6;
     cred1.period = 30;
     cred1.requiresTouch = false;
@@ -121,8 +121,8 @@ void TestE2EDeviceLifecycle::init()
 
     OathCredential cred2;
     cred2.originalName = QStringLiteral("Google:test@example.com");
-    cred2.type = static_cast<int>(OathType::TOTP);
-    cred2.algorithm = static_cast<int>(OathAlgorithm::SHA256);
+    cred2.type = OathType::TOTP;
+    cred2.algorithm = OathAlgorithm::SHA256;
     cred2.digits = 8;
     cred2.period = 30;
     cred2.requiresTouch = false;
@@ -275,8 +275,8 @@ void TestE2EDeviceLifecycle::testMultiDevice()
 
     OathCredential cred3;
     cred3.originalName = QStringLiteral("GitLab:admin");
-    cred3.type = static_cast<int>(OathType::TOTP);
-    cred3.algorithm = static_cast<int>(OathAlgorithm::SHA1);
+    cred3.type = OathType::TOTP;
+    cred3.algorithm = OathAlgorithm::SHA1;
     cred3.digits = 6;
     cred3.period = 30;
     cred3.requiresTouch = false;

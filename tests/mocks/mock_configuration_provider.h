@@ -46,6 +46,7 @@ public:
         , m_enableCredentialsCache(true)
         , m_credentialSaveRateLimit(1000)
         , m_pcscRateLimitMs(0)
+        , m_persistPortalSession(true)
     {
     }
 
@@ -100,6 +101,10 @@ public:
 
     int pcscRateLimitMs() const override {
         return m_pcscRateLimitMs;
+    }
+
+    bool persistPortalSession() const override {
+        return m_persistPortalSession;
     }
 
 Q_SIGNALS:
@@ -167,6 +172,11 @@ public:
         Q_EMIT configurationChanged();
     }
 
+    void setPersistPortalSession(bool value) {
+        m_persistPortalSession = value;
+        Q_EMIT configurationChanged();
+    }
+
     // Helper: Reset to default values
     void reset() {
         m_showNotifications = true;
@@ -181,6 +191,7 @@ public:
         m_enableCredentialsCache = true;
         m_credentialSaveRateLimit = 1000;
         m_pcscRateLimitMs = 0;
+        m_persistPortalSession = true;
         Q_EMIT configurationChanged();
     }
 
@@ -197,6 +208,7 @@ private:
     bool m_enableCredentialsCache;
     int m_credentialSaveRateLimit;
     int m_pcscRateLimitMs;
+    bool m_persistPortalSession;
 };
 
 } // namespace Shared

@@ -92,6 +92,39 @@ add_yubikey_test(test_secure_memory
             ../src/daemon/utils/secure_memory.cpp
 )
 
+# Test: CredentialIdEncoder (D-Bus object path encoding)
+add_yubikey_test(test_credential_id_encoder
+    SOURCES test_credential_id_encoder.cpp
+            ../src/daemon/utils/credential_id_encoder.cpp
+)
+
+# Test: PasswordDerivation (PBKDF2-HMAC-SHA1 key derivation)
+add_yubikey_test(test_password_derivation
+    SOURCES test_password_derivation.cpp
+)
+
+# Test: SecureLogging (sensitive data masking in logs)
+add_yubikey_test(test_secure_logging
+    SOURCES test_secure_logging.cpp
+)
+
+# Test: DeviceReconnectCoordinator (reconnection lifecycle with signals)
+add_yubikey_test(test_device_reconnect_coordinator
+    SOURCES test_device_reconnect_coordinator.cpp
+            ../src/daemon/infrastructure/device_reconnect_coordinator.cpp
+            ../src/daemon/logging_categories.cpp
+    LIBRARIES KF6::I18n
+)
+
+# Test: NotificationUtils + NotificationHelper (notification hints and timer progress)
+add_yubikey_test(test_notification_utils
+    SOURCES test_notification_utils.cpp
+            ../src/daemon/workflows/notification_utils.cpp
+            ../src/daemon/workflows/notification_helper.cpp
+            ../src/daemon/formatting/code_validator.cpp
+            ../src/daemon/logging_categories.cpp
+)
+
 # Test: ManagementProtocol (YubiKey Management interface)
 add_yubikey_test(test_management_protocol
     SOURCES test_management_protocol.cpp
@@ -391,6 +424,7 @@ if(KF6_Wallet_FOUND AND PKG_CONFIG_FOUND)
                     ../src/daemon/oath/oath_device.cpp
                     ../src/daemon/oath/oath_device_manager.cpp
                     ../src/daemon/oath/yk_oath_session.cpp
+                    ../src/daemon/oath/extended_device_info_fetcher.cpp
                     ../src/daemon/pcsc/card_transaction.cpp
                     ../src/daemon/oath/oath_protocol.cpp
                     ../src/daemon/oath/yk_oath_protocol.cpp
@@ -402,6 +436,7 @@ if(KF6_Wallet_FOUND AND PKG_CONFIG_FOUND)
                     ../src/daemon/oath/management_protocol.cpp
                     ../src/daemon/pcsc/card_reader_monitor.cpp
                     ../src/daemon/infrastructure/pcsc_worker_pool.cpp
+                    ../src/daemon/infrastructure/device_reconnect_coordinator.cpp
                     ../src/daemon/utils/secure_memory.cpp
                     ../src/daemon/logging_categories.cpp
                     ../src/shared/types/device_state.cpp
@@ -429,6 +464,7 @@ if(KF6_Wallet_FOUND AND PKG_CONFIG_FOUND)
                     ../src/daemon/oath/oath_device.cpp
                     ../src/daemon/oath/oath_device_manager.cpp
                     ../src/daemon/oath/yk_oath_session.cpp
+                    ../src/daemon/oath/extended_device_info_fetcher.cpp
                     ../src/daemon/pcsc/card_transaction.cpp
                     ../src/daemon/oath/oath_protocol.cpp
                     ../src/daemon/oath/yk_oath_protocol.cpp
@@ -440,6 +476,7 @@ if(KF6_Wallet_FOUND AND PKG_CONFIG_FOUND)
                     ../src/daemon/oath/management_protocol.cpp
                     ../src/daemon/pcsc/card_reader_monitor.cpp
                     ../src/daemon/infrastructure/pcsc_worker_pool.cpp
+                    ../src/daemon/infrastructure/device_reconnect_coordinator.cpp
                     ../src/daemon/utils/secure_memory.cpp
                     ../src/daemon/logging_categories.cpp
                     ../src/shared/types/device_state.cpp
@@ -467,6 +504,7 @@ if(KF6_Wallet_FOUND AND PKG_CONFIG_FOUND)
                     ../src/daemon/oath/oath_device.cpp
                     ../src/daemon/oath/oath_device_manager.cpp
                     ../src/daemon/oath/yk_oath_session.cpp
+                    ../src/daemon/oath/extended_device_info_fetcher.cpp
                     ../src/daemon/pcsc/card_transaction.cpp
                     ../src/daemon/oath/oath_protocol.cpp
                     ../src/daemon/oath/yk_oath_protocol.cpp
@@ -478,6 +516,7 @@ if(KF6_Wallet_FOUND AND PKG_CONFIG_FOUND)
                     ../src/daemon/oath/management_protocol.cpp
                     ../src/daemon/pcsc/card_reader_monitor.cpp
                     ../src/daemon/infrastructure/pcsc_worker_pool.cpp
+                    ../src/daemon/infrastructure/device_reconnect_coordinator.cpp
                     ../src/daemon/utils/secure_memory.cpp
                     ../src/daemon/logging_categories.cpp
                     ../src/daemon/ui/add_credential_dialog.cpp
@@ -597,6 +636,7 @@ add_executable(test_oath_manager_object
     ../src/daemon/oath/oath_device.cpp
     ../src/daemon/oath/nitrokey_oath_session.cpp
     ../src/daemon/oath/yk_oath_session.cpp
+    ../src/daemon/oath/extended_device_info_fetcher.cpp
     ../src/daemon/oath/oath_protocol.cpp
     ../src/daemon/oath/management_protocol.cpp
     ../src/daemon/oath/nitrokey_model_detector.cpp
@@ -618,6 +658,7 @@ add_executable(test_oath_manager_object
     ../src/daemon/storage/transaction_guard.cpp
     ../src/daemon/pcsc/card_reader_monitor.cpp
     ../src/daemon/infrastructure/pcsc_worker_pool.cpp
+    ../src/daemon/infrastructure/device_reconnect_coordinator.cpp
     ../src/daemon/oath/yk_oath_protocol.cpp
     ../src/daemon/oath/nitrokey_secrets_oath_protocol.cpp
     ../src/daemon/workflows/notification_utils.cpp
@@ -780,6 +821,9 @@ message(STATUS "  - test_yubikey_icon_resolver (YubiKeyIconResolver utility)")
 message(STATUS "  - test_management_protocol (ManagementProtocol - YubiKey Management interface)")
 message(STATUS "  - test_code_validator (CodeValidator)")
 message(STATUS "  - test_credential_formatter (CredentialFormatter)")
+message(STATUS "  - test_credential_id_encoder (CredentialIdEncoder - D-Bus path encoding)")
+message(STATUS "  - test_password_derivation (PasswordDerivation - PBKDF2-HMAC-SHA1)")
+message(STATUS "  - test_secure_logging (SecureLogging - sensitive data masking)")
 message(STATUS "  - test_yubikey_proxy (Proxy architecture E2E - isolated D-Bus, skips tests requiring physical devices)")
 message(STATUS "  - test_proxy_unit (Proxy architecture unit tests - mock D-Bus service)")
 message(STATUS "  - test_touch_handler (TouchHandler workflow)")
