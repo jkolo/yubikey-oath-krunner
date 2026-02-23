@@ -93,15 +93,15 @@ One D-Bus object at `/devices/<id>` exposes **two interfaces**:
 - **pl.jkolo.yubikey.oath.DeviceSession** - connection state + daemon configuration (State, SavePassword, HasValidPassword)
 
 **Client Proxy Objects:**
-- **OathManagerProxy** (~120 lines): singleton, ObjectManager, devices(), getDeviceSession(), getAllCredentials(), signals: deviceConnected/Disconnected, credentialsChanged
-- **OathDeviceProxy** (~130 lines): credentials(), changePassword(), forget(), addCredential(), setName(), requiresPassword()
-- **OathDeviceSessionProxy** (~150 lines): state(), stateMessage(), hasValidPassword(), lastSeen(), isConnected(), savePassword()
-- **OathCredentialProxy** (~100 lines): generateCode(), copyToClipboard(), typeCode(), deleteCredential()
+- **OathManagerProxy** (`src/shared/dbus/oath_manager_proxy.{h,cpp}` ~770 lines): singleton, ObjectManager, devices(), getDeviceSession(), getAllCredentials(), signals: deviceConnected/Disconnected, credentialsChanged
+- **OathDeviceProxy** (`src/shared/dbus/oath_device_proxy.{h,cpp}` ~640 lines): credentials(), changePassword(), forget(), addCredential(), setName(), requiresPassword()
+- **OathDeviceSessionProxy** (`src/shared/dbus/oath_device_session_proxy.{h,cpp}` ~300 lines): state(), stateMessage(), hasValidPassword(), lastSeen(), isConnected(), savePassword()
+- **OathCredentialProxy** (`src/shared/dbus/oath_credential_proxy.{h,cpp}` ~600 lines): generateCode(), copyToClipboard(), typeCode(), deleteCredential()
 
 **Daemon Objects:**
-- **OathDeviceObject** (~280 lines): exposes both Device and DeviceSession interfaces via 2 adaptors on same D-Bus object
+- **OathDeviceObject** (`src/daemon/dbus/oath_device_object.{h,cpp}` ~850 lines): exposes both Device and DeviceSession interfaces via 2 adaptors on same D-Bus object
 
-**Service:** YubiKeyDBusService (marshaling ~135 lines) → YubiKeyService (business logic ~430 lines) → PasswordService (~225 lines), DeviceLifecycleService (~510 lines), CredentialService (~660 lines)
+**Service Layer:** PasswordService (~225 lines), DeviceLifecycleService (~580 lines), CredentialService (~930 lines)
 
 **Example Usage:**
 ```cpp
@@ -137,7 +137,7 @@ if (session->state() == DeviceState::Ready) {
 
 **Hierarchy:**
 ```
-OathDevice (base ~550 lines impl)
+OathDevice (base ~770 lines impl)
 ├── YubiKeyOathDevice (YkOathSession)
 └── NitrokeyOathDevice (NitrokeyOathSession)
 
@@ -177,12 +177,12 @@ YkOathSession (base protocol)
 ### Core Components
 
 - **YubiKeyRunner** (`src/krunner/yubikeyrunner.{h,cpp}` ~200 lines): plugin entry, uses ManagerProxy
-- **OathDeviceManager** (`src/daemon/oath/oath_device_manager.{h,cpp}` ~900 lines): multi-device, PC/SC, hot-plug, brand factories, configuration injection
+- **OathDeviceManager** (`src/daemon/oath/oath_device_manager.{h,cpp}` ~1270 lines): multi-device, PC/SC, hot-plug, brand factories, configuration injection
 - **IOathSelector** (`src/daemon/pcsc/i_oath_selector.h` ~72 lines): Interface for OATH applet selection, implements Dependency Inversion Principle
 - **YkOathSession** (`src/daemon/oath/yk_oath_session.{h,cpp}` ~1100 lines): OATH protocol base implementing IOathSelector, PC/SC I/O with configurable rate limiting (default: 0 = no delay), PBKDF2, NOT thread-safe
-- **OathProtocol** (`src/daemon/oath/oath_protocol.{h,cpp}` ~200 lines): utilities, constants, TLV parsing
+- **OathProtocol** (`src/daemon/oath/oath_protocol.{h,cpp}` ~1370 lines): utilities, constants, TLV parsing, APDU builders, credential parsing
 - **OathErrorCodes** (`src/daemon/oath/oath_error_codes.h`): Translation-independent error constants (PASSWORD_REQUIRED, TOUCH_REQUIRED, etc.)
-- **ManagementProtocol** (`src/daemon/oath/management_protocol.{h,cpp}` ~150 lines): GET DEVICE INFO, YubiKey 4.1+
+- **ManagementProtocol** (`src/daemon/oath/management_protocol.{h,cpp}` ~460 lines): GET DEVICE INFO, YubiKey 4.1+
 
 ### PC/SC Lock Management
 
@@ -197,7 +197,7 @@ YkOathSession (base protocol)
   - Allows CardTransaction (pcsc/ layer) to work with any OATH session implementation
   - Implemented by YkOathSession base class (all brands: YubiKey, Nitrokey)
 
-- **CardTransaction** (`src/daemon/pcsc/card_transaction.{h,cpp}` ~125 lines): RAII class managing PC/SC transaction lifecycle
+- **CardTransaction** (`src/daemon/pcsc/card_transaction.{h,cpp}` ~260 lines): RAII class managing PC/SC transaction lifecycle
   - Constructor: `SCardBeginTransaction()` + automatic `SELECT OATH` applet via IOathSelector (unless `skipOathSelect=true`)
   - Destructor: `SCardEndTransaction(SCARD_LEAVE_CARD)` - automatic cleanup
   - Move semantics: Prevents double-EndTransaction via move constructor/assignment with logging
@@ -251,7 +251,9 @@ return result;
 - Default: `false` (automatic SELECT OATH)
 
 **Workflows:**
-- NotificationOrchestrator: notifications, countdown, progress
+- NotificationOrchestrator: notifications, countdown, progress (~17 state fields)
+- NotificationHelper: namespace with notification utility functions (showTouchNotification, showCodeNotification, etc.)
+- DeviceNameFormatter: namespace for device display name formatting
 - TouchWorkflowCoordinator: touch workflow, polling
 - ActionExecutor: copy/type execution
 - YubiKeyActionCoordinator: daemon-side action handling
@@ -362,15 +364,15 @@ return result;
 ### Domain Models (v2.0.0+)
 
 **OathCredential** (`src/shared/types/oath_credential.{h,cpp}`) - **Rich Domain Model**:
-- Data: originalName, issuer, account, code, validUntil, requiresTouch, isTotp, deviceId, digits, period, algorithm, type
+- Data: originalName, issuer, account, code, validUntil, requiresTouch, isTotp, deviceId, digits, period, algorithm (`OathAlgorithm` enum class), type (`OathType` enum class)
 - Behavior (Tell, Don't Ask): getDisplayName(options), getDisplayNameWithCode(code, touch, options), matches(name, deviceId), isExpired(), needsRegeneration(threshold)
 - **Eliminated ~50 lines** from utility classes
 
-**CredentialFormatter** (`src/shared/formatting/credential_formatter.{h,cpp}`): Facade delegating to OathCredential (50 → 10 lines)
+**CredentialFormatter** (`src/shared/formatting/credential_formatter.{h,cpp}`): Namespace (not class) - facade delegating to OathCredential
 
 **CredentialFinder** (`src/shared/utils/credential_finder.{h,cpp}` ~25 lines): findCredential() using OathCredential::matches()
 
-**YubiKeyIconResolver** (`src/shared/utils/yubikey_icon_resolver.{h,cpp}` ~175 lines): Returns hicolor theme icon names (e.g., "yubikey-5c-nfc"), fallback hierarchy, icons installed in `/usr/share/icons/hicolor/`, FIPS same as non-FIPS, generic fallback "yubikey-oath"
+**YubiKeyIconResolver** (`src/shared/utils/yubikey_icon_resolver.{h,cpp}` ~330 lines): Returns hicolor theme icon names (e.g., "yubikey-5c-nfc"), fallback hierarchy, icons installed in `/usr/share/icons/hicolor/`, FIPS same as non-FIPS, generic fallback "yubikey-oath"
 
 ### UI Components
 
@@ -500,7 +502,7 @@ AFTER:  CardTransaction → IOathSelector ← YkOathSession implements (CORRECT:
 
 ## Testing
 
-**Test count:** 36 test files, ~34 registered CTest targets (some conditional on dependencies)
+**Test count:** 41 test files, ~39 registered CTest targets (some conditional on dependencies)
 
 **Run locally:** `cd build-clang-debug && ctest --output-on-failure`
 
@@ -653,7 +655,7 @@ OathManagerProxy manager(testBus.createConnection());
 - **Sizes:** 16×16, 22×22, 32×32, 48×48, 64×64, 128×128, 256×256 (PNG), scalable (SVG)
 - **Generated automatically:** ImageMagick script (`scripts/generate-icon-sizes.sh`) converts source 1000px PNGs → 7 standard sizes
 - **Build integration:** CMake custom target `generate-icons` runs before compilation
-- **Total files:** 85 icons (12 models × 7 sizes + 1 SVG generic)
+- **Total files:** 85 generated icons (12 models × 7 sizes + 1 SVG generic); 13 source files
 
 **Naming convention:** `{brand}-{series}[{usb}][-{variant}][-nfc]` (no extension)
 - Examples: `yubikey-5c-nfc`, `yubikey-5-nano`, `nitrokey-3c`, `yubikey-oath` (generic fallback)
