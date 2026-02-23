@@ -17,9 +17,9 @@ Q_LOGGING_CATEGORY(YubiKeyOathDeviceLog, "pl.jkolo.yubikey.oath.daemon.oath.devi
 
 // PC/SC components
 Q_LOGGING_CATEGORY(YubiKeyPcscLog, "pl.jkolo.yubikey.oath.daemon.pcsc.transaction", QtWarningMsg)
+Q_LOGGING_CATEGORY(CardReaderMonitorLog, "pl.jkolo.yubikey.oath.daemon.pcsc", QtWarningMsg)
 
 // Storage components
-Q_LOGGING_CATEGORY(CardReaderMonitorLog, "pl.jkolo.yubikey.oath.daemon.pcsc", QtWarningMsg)
 Q_LOGGING_CATEGORY(SecretStorageLog, "pl.jkolo.yubikey.oath.daemon.storage", QtWarningMsg)
 Q_LOGGING_CATEGORY(OathDatabaseLog, "pl.jkolo.yubikey.oath.daemon.database", QtWarningMsg)
 

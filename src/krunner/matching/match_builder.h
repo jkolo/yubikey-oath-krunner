@@ -51,7 +51,7 @@ using Shared::DeviceInfo;
  * OathCredential cred;
  * cred.name = "Google:user@example.com";
  * cred.deviceId = "ABC123";
- * cred.type = OathCredential::TOTP;
+ * cred.type = OathType::TOTP;
  *
  * KRunner::QueryMatch match = builder.buildCredentialMatch(cred, "google", credProvider);
  * // Creates match with:

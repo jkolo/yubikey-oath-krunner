@@ -133,7 +133,7 @@ private:
     QMutex m_mutex;
     std::atomic<bool> m_running{false};
     std::atomic<bool> m_hasReader{false};
-    bool m_pcscServiceAvailable = true;  // Tracks PC/SC service availability for single pcscServiceLost() emission
+    std::atomic<bool> m_pcscServiceAvailable{true};  // Tracks PC/SC service availability for single pcscServiceLost() emission
 
     // Reader state tracking
     DWORD m_lastReaderState = SCARD_STATE_UNAWARE;      // For specific reader monitoring

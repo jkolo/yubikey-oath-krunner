@@ -13,6 +13,7 @@
 #include <QStyledItemDelegate>
 #include <QRect>
 #include <QStyleOptionButton>
+#include <memory>
 
 /**
  * @brief Custom delegate for rendering YubiKey device list items
@@ -30,7 +31,7 @@ class DeviceDelegate : public QStyledItemDelegate
     Q_OBJECT
 
 public:
-    explicit DeviceDelegate(IDeviceIconResolver *iconResolver, QObject *parent = nullptr);
+    explicit DeviceDelegate(std::unique_ptr<IDeviceIconResolver> iconResolver, QObject *parent = nullptr);
 
     // QStyledItemDelegate interface
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
@@ -71,7 +72,7 @@ Q_SIGNALS:
     void nameEditRequested(const QModelIndex &index);
 
 private:
-    IDeviceIconResolver *m_iconResolver;  // For resolving model-specific icons
+    std::unique_ptr<IDeviceIconResolver> m_iconResolver;  // Owns the icon resolver
     mutable QModelIndex m_hoveredIndex;  // Track hovered item
     mutable QString m_hoveredButton;  // Track which button is hovered ("authorize", "password", "forget")
 };

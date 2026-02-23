@@ -181,8 +181,11 @@ Result<QString> OathDevice::generateCode(const QString& name)
         return Result<QString>::error(OathErrorCodes::CREDENTIAL_NOT_FOUND);
     }
 
-    // Begin PC/SC transaction with automatic SELECT OATH
-    const CardTransaction transaction(m_cardHandle, m_session.get());
+    // Begin PC/SC transaction
+    // Skip SELECT OATH when password is set - authenticate() does its own SELECT to get
+    // a fresh challenge, so CardTransaction's SELECT would be redundant (saves ~100-500ms)
+    const bool skipSelect = !m_password.isEmpty();
+    const CardTransaction transaction(m_cardHandle, m_session.get(), skipSelect);
     if (!transaction.isValid()) {
         qCWarning(YubiKeyOathDeviceLog) << "Transaction failed:" << transaction.errorMessage();
         return Result<QString>::error(transaction.errorMessage());

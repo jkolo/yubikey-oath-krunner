@@ -98,9 +98,9 @@ private:
     DeviceDelegate *m_delegate;
 };
 
-DeviceDelegate::DeviceDelegate(IDeviceIconResolver *iconResolver, QObject *parent)
+DeviceDelegate::DeviceDelegate(std::unique_ptr<IDeviceIconResolver> iconResolver, QObject *parent)
     : QStyledItemDelegate(parent)
-    , m_iconResolver(iconResolver)
+    , m_iconResolver(std::move(iconResolver))
 {
 }
 

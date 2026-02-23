@@ -47,8 +47,8 @@ target_link_libraries(krunner_yubikey
 # Install the plugin module
 install(TARGETS krunner_yubikey DESTINATION ${KDE_INSTALL_QTPLUGINDIR}/kf6/krunner/)
 
-# Install desktop file
-install(FILES plasma-runner-yubikey.desktop DESTINATION ${KDE_INSTALL_DATADIR}/krunner/dbusplugins/)
+# NOTE: Desktop file NOT installed - native plugins use embedded JSON metadata
+# The dbusplugins/ desktop file with X-Plasma-API=DBus would conflict with native .so
 
 # Install configuration schema (shared)
 install(FILES ../shared/config/yubikey_oath.kcfg DESTINATION ${KDE_INSTALL_KCFGDIR})

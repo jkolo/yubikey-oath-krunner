@@ -26,9 +26,9 @@ Q_DECLARE_LOGGING_CATEGORY(YubiKeyOathDeviceLog)
 
 // PC/SC components
 Q_DECLARE_LOGGING_CATEGORY(YubiKeyPcscLog)
+Q_DECLARE_LOGGING_CATEGORY(CardReaderMonitorLog)
 
 // Storage components
-Q_DECLARE_LOGGING_CATEGORY(CardReaderMonitorLog)
 Q_DECLARE_LOGGING_CATEGORY(SecretStorageLog)
 Q_DECLARE_LOGGING_CATEGORY(OathDatabaseLog)
 

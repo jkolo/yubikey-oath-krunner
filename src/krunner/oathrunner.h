@@ -64,6 +64,7 @@ private Q_SLOTS:
     void onDeviceDisconnected(const QString &deviceId);
     void onCredentialsUpdated();
     void onDaemonUnavailable();
+    void onDaemonAvailable();
     void onDevicePropertyChanged(Shared::OathDeviceProxy *device);
 
 private:

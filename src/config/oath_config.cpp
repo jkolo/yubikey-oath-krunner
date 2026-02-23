@@ -36,9 +36,8 @@ OathConfig::OathConfig(QObject *parent, const QVariantList &)
     if (m_ui->deviceListView) {
         qCDebug(OathConfigLog) << "OathConfig: Setting up device list view";
 
-        // Create icon resolver adapter and delegate
-        auto *iconResolver = new OathConfigIconResolver();
-        auto *delegate = new DeviceDelegate(iconResolver, this);
+        // Create icon resolver adapter and delegate (delegate owns the resolver)
+        auto *delegate = new DeviceDelegate(std::make_unique<OathConfigIconResolver>(), this);
         m_ui->deviceListView->setModel(m_deviceModel.get());
         m_ui->deviceListView->setItemDelegate(delegate);
 

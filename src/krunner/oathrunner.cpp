@@ -65,6 +65,8 @@ OathRunner::OathRunner(QObject *parent, const KPluginMetaData &metaData)
             this, &OathRunner::onCredentialsUpdated);
     connect(m_manager, &OathManagerProxy::daemonUnavailable,
             this, &OathRunner::onDaemonUnavailable);
+    connect(m_manager, &OathManagerProxy::daemonAvailable,
+            this, &OathRunner::onDaemonAvailable);
     connect(m_manager, &OathManagerProxy::devicePropertyChanged,
             this, &OathRunner::onDevicePropertyChanged);
 
@@ -556,6 +558,13 @@ void OathRunner::onDaemonUnavailable()
     // Clear cache when daemon unavailable
     m_cachedReadyDevices = 0;
     m_cachedInitializingDevices = 0;
+}
+
+void OathRunner::onDaemonAvailable()
+{
+    qCWarning(OathRunnerLog) << "Daemon became available - refreshing state";
+    // Refresh device state cache when daemon is back
+    updateDeviceStateCache();
 }
 
 void OathRunner::onDevicePropertyChanged(OathDeviceProxy *device)
