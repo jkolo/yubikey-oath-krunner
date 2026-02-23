@@ -114,6 +114,12 @@ int KRunnerConfiguration::pcscRateLimitMs() const
     return readConfigEntry(ConfigKeys::PCSC_RATE_LIMIT_MS, 0);
 }
 
+bool KRunnerConfiguration::persistPortalSession() const
+{
+    // NOTE: Portal session persistence is primarily used by daemon, not KRunner
+    return readConfigEntry(ConfigKeys::PERSIST_PORTAL_SESSION, true);
+}
+
 void KRunnerConfiguration::onConfigFileChanged(const QString &path)
 {
     qDebug() << "KRunnerConfiguration: Config file changed:" << path;

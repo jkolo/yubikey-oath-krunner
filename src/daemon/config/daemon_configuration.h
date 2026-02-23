@@ -52,6 +52,9 @@ public:
     // PC/SC communication settings
     int pcscRateLimitMs() const override;
 
+    // Portal session settings
+    bool persistPortalSession() const override;
+
 Q_SIGNALS:
     /**
      * @brief Emitted when configuration has been reloaded

@@ -11,9 +11,7 @@
 #include <QVariant>
 #include <memory>
 
-// Forward declarations for libportal types
-typedef struct _XdpPortal XdpPortal;
-typedef struct _XdpSession XdpSession;
+#include <libportal/portal.h>
 
 namespace YubiKeyOath {
 namespace Daemon {
@@ -49,6 +47,7 @@ public:
     bool isCompatible() const override;
     QString providerName() const override;
     void preInitialize() override;
+    void setPersistSession(bool persist) override;
 
     /**
      * @brief Check if last typeText() failure was due to waiting for permission
@@ -67,6 +66,7 @@ private:
     bool createSession();
     void closeSession();  // Close session but keep portal handle (for session-per-operation)
     void cleanup();       // Full cleanup: close session AND portal
+    bool isSessionValid() const;
 
     bool sendKeyEvents(const QString &text);
     bool sendKeycode(uint32_t keycode, bool pressed);
@@ -77,6 +77,9 @@ private:
     XdpSession *m_session = nullptr;
     bool m_sessionReady = false;
     SecretStorage *m_secretStorage = nullptr;  // For loading/saving restore token
+
+    // Session persistence mode
+    bool m_persistSession = false;
 
     // Permission state tracking
     bool m_waitingForPermission = false;

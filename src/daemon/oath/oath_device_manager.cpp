@@ -6,6 +6,7 @@
 #include "oath_protocol.h"
 #include "../logging_categories.h"
 #include "../infrastructure/pcsc_worker_pool.h"
+#include "../infrastructure/device_reconnect_coordinator.h"
 #include "../../shared/types/device_brand.h"
 #include "../../shared/config/configuration_provider.h"
 
@@ -44,6 +45,7 @@ using namespace YubiKeyOath::Shared;
 OathDeviceManager::OathDeviceManager(QObject* parent)
     : QObject(parent)
     , m_readerMonitor(new CardReaderMonitor(this))
+    , m_reconnectCoordinator(std::make_unique<DeviceReconnectCoordinator>(this))
 {
     qCDebug(OathDeviceManagerLog) << "Constructor called";
 
@@ -64,6 +66,12 @@ OathDeviceManager::OathDeviceManager(QObject* parent)
     // Connect async credential cache fetching
     connect(this, &OathDeviceManager::credentialCacheFetchedForDevice,
             this, &OathDeviceManager::onCredentialCacheFetchedForDevice);
+
+    // Forward reconnect coordinator signals
+    connect(m_reconnectCoordinator.get(), &DeviceReconnectCoordinator::reconnectStarted,
+            this, &OathDeviceManager::reconnectStarted);
+    connect(m_reconnectCoordinator.get(), &DeviceReconnectCoordinator::reconnectCompleted,
+            this, &OathDeviceManager::reconnectCompleted);
 }
 
 OathDeviceManager::~OathDeviceManager() {
@@ -605,98 +613,19 @@ void OathDeviceManager::reconnectDeviceAsync(const QString &deviceId, const QStr
     qCDebug(OathDeviceManagerLog) << "reconnectDeviceAsync() called for device" << deviceId
              << "reader:" << readerName << "command length:" << command.length();
 
-    // Stop any existing reconnect operation
-    if (m_reconnectTimer) {
-        qCDebug(OathDeviceManagerLog) << "Stopping existing reconnect timer";
-        m_reconnectTimer->stop();
-        delete m_reconnectTimer;
-        m_reconnectTimer = nullptr;
-    }
+    // Set up reconnect function that will be called by coordinator
+    m_reconnectCoordinator->setReconnectFunction(
+        [this, deviceId](const QString &reader) -> Result<void> {
+            auto *const device = getDevice(deviceId);
+            if (!device) {
+                qCWarning(OathDeviceManagerLog) << "Device" << deviceId << "no longer exists";
+                return Result<void>::error(QStringLiteral("Device no longer exists"));
+            }
+            return device->reconnectCardHandle(reader);
+        });
 
-    // CRITICAL FIX: Copy parameters to local variables BEFORE device operations
-    // because references may point to fields of the device object
-    const QString deviceIdCopy = deviceId;  // NOLINT(performance-unnecessary-copy-initialization) - Intentional copy for safety
-    const QString readerNameCopy = readerName;  // NOLINT(performance-unnecessary-copy-initialization) - Intentional copy for safety
-    const QByteArray commandCopy = command;  // NOLINT(performance-unnecessary-copy-initialization) - Intentional copy for safety
-
-    // Store reconnect parameters (using copies)
-    m_reconnectDeviceId = deviceIdCopy;
-    m_reconnectReaderName = readerNameCopy;
-    m_reconnectCommand = commandCopy;
-
-    // NEW APPROACH: Reconnect card handle WITHOUT destroying device object
-    // This avoids race condition with background threads using the device
-    qCDebug(OathDeviceManagerLog) << "Starting async reconnect for device" << deviceIdCopy;
-
-    // Emit signal that reconnect started (for notification display)
-    Q_EMIT reconnectStarted(deviceIdCopy);
-
-    // Use Qt's async mechanism to avoid blocking main thread
-    // reconnectCardHandle() has exponential backoff built-in
-    m_reconnectTimer = new QTimer(this);
-    m_reconnectTimer->setSingleShot(true);
-    connect(m_reconnectTimer, &QTimer::timeout, this, &OathDeviceManager::onReconnectTimer);
-
-    qCDebug(OathDeviceManagerLog) << "Starting reconnect with 10ms initial delay";
-    m_reconnectTimer->start(10);  // Small delay to let ykman release the card
-}
-
-void OathDeviceManager::onReconnectTimer()
-{
-    qCDebug(OathDeviceManagerLog) << "onReconnectTimer() for device" << m_reconnectDeviceId
-             << "reader:" << m_reconnectReaderName;
-
-    // Get device instance (without destroying it)
-    auto *const device = getDevice(m_reconnectDeviceId);
-    if (!device) {
-        qCWarning(OathDeviceManagerLog) << "Device" << m_reconnectDeviceId << "no longer exists";
-
-        // Stop timer and cleanup
-        if (m_reconnectTimer) {
-            delete m_reconnectTimer;
-            m_reconnectTimer = nullptr;
-        }
-
-        // Emit failure signal
-        Q_EMIT reconnectCompleted(m_reconnectDeviceId, false);
-
-        // Clear reconnect state
-        m_reconnectDeviceId.clear();
-        m_reconnectReaderName.clear();
-        m_reconnectCommand.clear();
-
-        return;
-    }
-
-    // Try to reconnect card handle (has exponential backoff built-in)
-    qCDebug(OathDeviceManagerLog) << "Calling reconnectCardHandle() on device" << m_reconnectDeviceId;
-    const auto result = device->reconnectCardHandle(m_reconnectReaderName);
-
-    // Stop timer and cleanup
-    if (m_reconnectTimer) {
-        delete m_reconnectTimer;
-        m_reconnectTimer = nullptr;
-    }
-
-    if (result.isSuccess()) {
-        // Success!
-        qCInfo(OathDeviceManagerLog) << "Reconnect successful for device" << m_reconnectDeviceId;
-
-        // Emit success signal
-        Q_EMIT reconnectCompleted(m_reconnectDeviceId, true);
-    } else {
-        // Failed after all retry attempts
-        qCWarning(OathDeviceManagerLog) << "Reconnect failed for device" << m_reconnectDeviceId
-                 << "error:" << result.error();
-
-        // Emit failure signal
-        Q_EMIT reconnectCompleted(m_reconnectDeviceId, false);
-    }
-
-    // Clear reconnect state
-    m_reconnectDeviceId.clear();
-    m_reconnectReaderName.clear();
-    m_reconnectCommand.clear();
+    // Start reconnection (coordinator handles timing and signals)
+    m_reconnectCoordinator->startReconnect(deviceId, readerName, command);
 }
 
 // Factory Methods (private)

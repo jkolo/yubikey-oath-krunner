@@ -40,6 +40,9 @@ constexpr const char *CREDENTIAL_SAVE_RATE_LIMIT_MS = "CredentialSaveRateLimit";
 // PC/SC communication settings
 constexpr const char *PCSC_RATE_LIMIT_MS = "PcscRateLimitMs";
 
+// Portal session settings
+constexpr const char *PERSIST_PORTAL_SESSION = "PersistPortalSession";
+
 } // namespace ConfigKeys
 } // namespace Shared
 } // namespace YubiKeyOath

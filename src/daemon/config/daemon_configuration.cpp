@@ -107,6 +107,11 @@ int DaemonConfiguration::pcscRateLimitMs() const
     return readConfigEntry(ConfigKeys::PCSC_RATE_LIMIT_MS, DEFAULT_PCSC_RATE_LIMIT_MS);
 }
 
+bool DaemonConfiguration::persistPortalSession() const
+{
+    return readConfigEntry(ConfigKeys::PERSIST_PORTAL_SESSION, true);
+}
+
 void DaemonConfiguration::onConfigFileChanged(const QString &path)
 {
     qDebug() << "DaemonConfiguration: Config file changed:" << path;

@@ -47,7 +47,8 @@ bool PortalTextInput::typeText(const QString &text)
     QElapsedTimer totalTimer;
     totalTimer.start();
 
-    qCDebug(TextInputLog) << "PortalTextInput: [SESSION-PER-OPERATION] typeText() called with" << text.length() << "characters";
+    qCDebug(TextInputLog) << "PortalTextInput: typeText() called with" << text.length()
+                           << "characters, persistSession:" << m_persistSession;
 
     if (text.isEmpty()) {
         qCWarning(TextInputLog) << "PortalTextInput: Empty text provided";
@@ -72,25 +73,35 @@ bool PortalTextInput::typeText(const QString &text)
                                << portalTimer.elapsed() << "ms";
     }
 
-    // ALWAYS create new session for this operation (session-per-operation lifecycle)
-    QElapsedTimer sessionTimer;
-    sessionTimer.start();
+    // Session management depends on persist mode
+    bool sessionCreatedHere = false;
 
-    // Close any existing session first (defensive cleanup)
-    if (m_sessionReady) {
-        qCDebug(TextInputLog) << "PortalTextInput: Closing stale session before creating new one";
-        closeSession();
+    if (m_persistSession && m_sessionReady && isSessionValid()) {
+        // Reuse existing persistent session
+        qCDebug(TextInputLog) << "PortalTextInput: [SESSION-REUSE] Reusing persistent session";
+    } else {
+        // Need to create a new session
+        QElapsedTimer sessionTimer;
+        sessionTimer.start();
+
+        // Close invalid/stale session first
+        if (m_sessionReady || m_session) {
+            qCDebug(TextInputLog) << "PortalTextInput: Closing"
+                                   << (m_persistSession ? "invalid persistent" : "stale") << "session";
+            closeSession();
+        }
+
+        if (!createSession()) {
+            qCWarning(TextInputLog) << "PortalTextInput: Failed to create portal session";
+            const qint64 failedTime = totalTimer.elapsed();
+            qCWarning(TextInputLog) << "PortalTextInput: [TIMING] Operation failed after" << failedTime << "ms";
+            return false;
+        }
+
+        qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Session creation took"
+                               << sessionTimer.elapsed() << "ms";
+        sessionCreatedHere = true;
     }
-
-    if (!createSession()) {
-        qCWarning(TextInputLog) << "PortalTextInput: Failed to create portal session";
-        const qint64 failedTime = totalTimer.elapsed();
-        qCWarning(TextInputLog) << "PortalTextInput: [TIMING] Operation failed after" << failedTime << "ms";
-        return false;
-    }
-
-    qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Session creation took"
-                           << sessionTimer.elapsed() << "ms";
 
     // Send key events
     QElapsedTimer typingTimer;
@@ -101,18 +112,23 @@ bool PortalTextInput::typeText(const QString &text)
     qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Key events sending took"
                            << typingTimer.elapsed() << "ms";
 
-    // ALWAYS close session after operation (session-per-operation lifecycle)
-    QElapsedTimer closeTimer;
-    closeTimer.start();
+    // Close session after operation only in non-persist mode
+    if (!m_persistSession) {
+        QElapsedTimer closeTimer;
+        closeTimer.start();
 
-    closeSession();
+        closeSession();
 
-    qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Session close took"
-                           << closeTimer.elapsed() << "ms";
+        qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Session close took"
+                               << closeTimer.elapsed() << "ms";
+    } else {
+        qCDebug(TextInputLog) << "PortalTextInput: [SESSION-PERSIST] Keeping session alive for reuse";
+    }
 
     const qint64 totalTime = totalTimer.elapsed();
     qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Total operation time:"
-                           << totalTime << "ms (success:" << success << ")";
+                           << totalTime << "ms (success:" << success
+                           << ", sessionReused:" << !sessionCreatedHere << ")";
 
     return success;
 }
@@ -237,12 +253,14 @@ bool PortalTextInput::createSession()
     auto *callbackData = new std::tuple<bool*, QString*, QEventLoop*>(&sessionCreated, &errorMessage, &loop);
 
     // Load restore token from KWallet (via SecretStorage)
+    QElapsedTimer tokenTimer;
+    tokenTimer.start();
     QString restoreToken;
     if (m_secretStorage) {
         restoreToken = m_secretStorage->loadRestoreToken();
-        if (!restoreToken.isEmpty()) {
-            qCDebug(TextInputLog) << "PortalTextInput: Loaded restore token from KWallet";
-        }
+        qCDebug(TextInputLog) << "PortalTextInput: [TIMING] Restore token load took"
+                               << tokenTimer.elapsed() << "ms, empty:" << restoreToken.isEmpty()
+                               << "length:" << restoreToken.length();
     }
 
     // Prepare restore token (convert QString to const char*)
@@ -254,6 +272,9 @@ bool PortalTextInput::createSession()
     } else {
         qCDebug(TextInputLog) << "PortalTextInput: No restore token - first time setup, permission dialog will appear";
     }
+
+    QElapsedTimer createTimer;
+    createTimer.start();
 
     xdp_portal_create_remote_desktop_session_full(
         m_portal,
@@ -271,6 +292,9 @@ bool PortalTextInput::createSession()
     // Wait for callback with timeout
     QTimer::singleShot(30000, &loop, &QEventLoop::quit);  // 30s timeout
     loop.exec();
+
+    qCDebug(TextInputLog) << "PortalTextInput: [TIMING] create_remote_desktop_session took"
+                           << createTimer.elapsed() << "ms, success:" << sessionCreated;
 
     if (!sessionCreated) {
         qCWarning(TextInputLog) << "PortalTextInput: Session creation failed or timed out:" << errorMessage;
@@ -327,6 +351,9 @@ bool PortalTextInput::createSession()
     // Call async session start
     auto *startCallbackData = new std::tuple<bool*, QString*, QEventLoop*>(&sessionStarted, &startErrorMessage, &startLoop);
 
+    QElapsedTimer startTimer;
+    startTimer.start();
+
     xdp_session_start(
         m_session,
         nullptr,  // parent window
@@ -338,6 +365,9 @@ bool PortalTextInput::createSession()
     // Wait for callback with timeout
     QTimer::singleShot(30000, &startLoop, &QEventLoop::quit);  // 30s timeout
     startLoop.exec();
+
+    qCDebug(TextInputLog) << "PortalTextInput: [TIMING] xdp_session_start took"
+                           << startTimer.elapsed() << "ms, success:" << sessionStarted;
 
     if (!sessionStarted) {
         qCWarning(TextInputLog) << "PortalTextInput: Session start failed or timed out:" << startErrorMessage;
@@ -351,11 +381,17 @@ bool PortalTextInput::createSession()
         return false;
     }
 
+    // Log persist mode for diagnostics
+    qCDebug(TextInputLog) << "PortalTextInput: [DIAGNOSTIC] Session persist mode:"
+                           << static_cast<int>(xdp_session_get_persist_mode(m_session));
+
     // Get restore token for future sessions (to skip permission dialog)
     char *token = xdp_session_get_restore_token(m_session);  // NOLINT(misc-const-correctness) - needs g_free()
     if (token) {
         const QString newToken = QString::fromUtf8(token);
         g_free(token);  // Free GLib-allocated string
+
+        qCDebug(TextInputLog) << "PortalTextInput: [DIAGNOSTIC] Got new restore token, length:" << newToken.length();
 
         // Save to KWallet for persistence across daemon restarts
         if (m_secretStorage) {
@@ -368,7 +404,8 @@ bool PortalTextInput::createSession()
             qCWarning(TextInputLog) << "PortalTextInput: No SecretStorage available, token won't persist across restarts";
         }
     } else {
-        qCDebug(TextInputLog) << "PortalTextInput: No restore token available (may be using existing token)";
+        qCWarning(TextInputLog) << "PortalTextInput: [DIAGNOSTIC] No restore token returned by portal"
+                                 << "- compositor may not support token persistence";
     }
 
     m_sessionReady = true;
@@ -573,6 +610,29 @@ void PortalTextInput::cleanup()
         m_portal = nullptr;
         qCDebug(TextInputLog) << "PortalTextInput: Portal handle released";
     }
+}
+
+bool PortalTextInput::isSessionValid() const
+{
+    if (!m_session || !m_sessionReady) {
+        return false;
+    }
+
+    const XdpSessionState state = xdp_session_get_session_state(m_session);
+    const bool valid = (state == XDP_SESSION_ACTIVE);
+
+    if (!valid) {
+        qCDebug(TextInputLog) << "PortalTextInput: Session state is"
+                               << static_cast<int>(state) << "(not ACTIVE)";
+    }
+
+    return valid;
+}
+
+void PortalTextInput::setPersistSession(bool persist)
+{
+    qCDebug(TextInputLog) << "PortalTextInput: setPersistSession:" << persist;
+    m_persistSession = persist;
 }
 
 } // namespace Daemon

@@ -40,6 +40,7 @@ namespace Shared {
 namespace Daemon {
     class YkOathSession;  // Forward declaration
     class OathDevice;     // Forward declaration (already in oath_device.h but needed here)
+    class DeviceReconnectCoordinator;  // Forward declaration
 
 /**
  * @brief Manages multiple YubiKey devices for OATH (TOTP/HOTP) operations
@@ -294,13 +295,6 @@ private Q_SLOTS:
      */
     void onCredentialCacheFetchedForDevice(const QString &deviceId, const QList<OathCredential> &credentials);
 
-    /**
-     * @brief Handles reconnect timer timeout (exponential backoff retry)
-     *
-     * Called by m_reconnectTimer on each timeout.
-     * Attempts to reconnect to device, increases delay, or emits failure after max attempts.
-     */
-    void onReconnectTimer();
 
     /**
      * @brief Handles PC/SC service loss (pcscd restart)
@@ -413,13 +407,8 @@ private:
     SCARDCONTEXT m_context = 0;  ///< PC/SC context (shared by all devices)
     bool m_initialized = false;  ///< Tracks initialization state
 
-    // Reconnect state (for exponential backoff)
-    QTimer *m_reconnectTimer = nullptr;  ///< Timer for exponential backoff reconnect
-    QString m_reconnectDeviceId;         ///< Device ID being reconnected
-    QString m_reconnectReaderName;       ///< Reader name for reconnection
-    QByteArray m_reconnectCommand;       ///< Command to retry after reconnect
-    int m_reconnectAttempt = 0;          ///< Current reconnect attempt number (0-based)
-    static constexpr int MAX_RECONNECT_ATTEMPTS = 6;  ///< Maximum reconnect attempts
+    // Reconnect coordinator (extracted from inline state management)
+    std::unique_ptr<DeviceReconnectCoordinator> m_reconnectCoordinator;
 };
 } // namespace Daemon
 } // namespace YubiKeyOath

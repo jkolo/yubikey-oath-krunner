@@ -65,6 +65,16 @@ public:
      * Default implementation: no-op (providers that don't need pre-init)
      */
     virtual void preInitialize() {}
+
+    /**
+     * @brief Enable or disable persistent session mode
+     *
+     * When enabled, the provider keeps its session alive across typeText() calls
+     * instead of creating/destroying per operation.
+     *
+     * Default implementation: no-op (providers that don't support persistence)
+     */
+    virtual void setPersistSession(bool /*persist*/) {}
 };
 
 } // namespace Daemon

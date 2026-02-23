@@ -107,6 +107,15 @@ public:
      * Users experiencing communication errors with specific readers can increase this value.
      */
     virtual int pcscRateLimitMs() const = 0;
+
+    /**
+     * @brief Gets portal session persistence setting
+     * @return true if Portal RemoteDesktop session should be kept alive across operations
+     *
+     * When enabled, the session is pre-created at daemon startup and reused.
+     * When disabled, a new session is created/destroyed per typing operation.
+     */
+    virtual bool persistPortalSession() const = 0;
 };
 
 } // namespace Shared

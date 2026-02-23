@@ -49,6 +49,7 @@ public:
     bool enableCredentialsCache() const override;
     int credentialSaveRateLimit() const override;
     int pcscRateLimitMs() const override;
+    bool persistPortalSession() const override;
 
 Q_SIGNALS:
     /**
